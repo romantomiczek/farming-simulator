@@ -152,6 +152,17 @@ Proč zbývá výkon na detail:
 - Plodiny pole mimo záběr kamery a mimo oblast stínů se nekreslí vůbec.
 - HUD nepoužívá rozmazání pozadí ani CSS filtry přes plátno a sahá do DOM jen při změně hodnoty.
 
+## Vývojářský režim
+
+Panel pro ladění a testování otevřeš klávesou **F9** nebo tlačítkem **Dev** nahoře. Funguje při spuštění přes `npm run dev` (nebo `spustit.bat`). V sestavené verzi ho zapneš přidáním `?dev` za adresu.
+
+- **Čas:** hodina posuvníkem, ± den, skok na další roční období, rychlost času s násobičem až 60× a zastavení času (stroje dál jezdí).
+- **Počasí:** vynutí jasno, oblačno nebo déšť, nebo vrátí počasí podle předpovědi.
+- **Grafika:** předvolba a vlastní úpravy (rozlišení, stínová mapa, dohled, hustota stromů, expozice, stíny, stíny a tvar plodin). Úpravy se pamatují, dokud v panelu nedáš Zpět na předvolbu nebo nevybereš předvolbu v menu.
+- **Svět:** vypínače oblohy, mraků, zvířat, větru, stop kol, částic a skrytí HUD na snímky obrazovky.
+- **Hra:** peníze, všechny stroje a budovy, natankování a opravy, zralá pole, nákup všech polí, plné krmivo a voda, cíle a přesun stroje na vybrané místo.
+- **Info:** grafická karta, rozlišení, vykreslovací volání a trojúhelníky, paměť, poloha a stav stroje.
+
 ## Struktura
 
 ```
@@ -168,7 +179,7 @@ src/
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
                        zvířata a skleníky (farm.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
   fx/                  částice (prach, plevy, kouř), déšť a sníh, stopy kol (tracks.js)
-  ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky
+  ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky, vývojářský panel (devpanel.js)
 prototyp/              původní jednosouborový prototyp
 godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), viz godot-demo/README.md
 ```

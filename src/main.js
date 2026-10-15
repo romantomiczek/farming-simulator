@@ -8,7 +8,7 @@ import { FIELDS, flushFields, growFields, countFields, drawSigns, setCropShadows
 import { vehicles, trailer, drive, visual, updateTrailer, attachImpl } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
-import { G, TIME_SCALES } from './game/state.js';
+import { G, TIME_SCALES, DEV } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
 import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper } from './game/actions.js';
 import { helperTick } from './game/helpers.js';
@@ -36,6 +36,7 @@ import { sizeMinimap, drawMinimap } from './ui/minimap.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
 import { toast } from './ui/toast.js';
+import { initDev, toggleDev, updDev, devEnabled } from './ui/devpanel.js';
 import { toggleSound, updAudio, sound } from './audio.js';
 
 /* ---------- world ---------- */
@@ -65,6 +66,7 @@ cam.t.set(G.active.x, 1, G.active.z);
 /* ---------- input & menu ---------- */
 const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
 bindInput(code => {
+  if (code === 'F9' && devEnabled) { toggleDev(); return; }
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
   if (code === 'Escape') { showMenu(); return; }
@@ -86,6 +88,7 @@ initOffice({
   onClose: () => { if (!menuOpen()) G.playing = true; releaseAll(); },
   onChange: saveLocal,
 });
+initDev({ applyQuality, wildlife });
 document.getElementById('officeBtn').onclick = () => openOffice();
 document.getElementById('speedBtn').onclick = cycleTime;
 document.getElementById('menuBtn').onclick = showMenu;
@@ -108,7 +111,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveL
 let slowT = 0, mapT = 0, forestHours = 0;
 function tick(dt) {
   if (G.playing) {
-    const gm = dt * TIME_SCALES[G.tsIdx];
+    const gm = DEV.freezeTime ? 0 : dt * TIME_SCALES[G.tsIdx] * DEV.timeMult;
     G.gameMin += gm;
     updateWeather(dt);
     growFields((gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1));
@@ -125,13 +128,13 @@ function tick(dt) {
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
   updateTrailer(dt, trailer.tank.crop >= 0 ? CROPS[trailer.tank.crop].heapCol : null);
-  updTracks(dt, vehicles, trailer, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
+  if (DEV.tracks) updTracks(dt, vehicles, trailer, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
   updateLogistics(dt, saveLocal);
   flushFields();
   flushBales();
   forestryTick(dt);
   farmstead.update(dt);
-  if (G.playing) wildlife.update(dt, { vehicles, active: G.active, hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
+  if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: G.active, hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
@@ -140,9 +143,10 @@ function tick(dt) {
   updEnv(cam.t, G.gameMin, vehicles, G.active, WX);
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season());
   updRain(dt, cam.t, WX.rain, isWinter());
-  updWind(dt, WX.rain, WX.cloud);
+  if (DEV.wind) updWind(dt, WX.rain, WX.cloud);
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
+  updDev(dt);
   updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }

@@ -47,7 +47,7 @@ export function initMenu(h) {
   seg.onclick = e => {
     const k = e.target.closest('button')?.dataset.p;
     if (!k) return;
-    settings.preset = k; saveSettings(); renderGfx(); handlers.onQuality();
+    settings.preset = k; settings.custom = null; saveSettings(); renderGfx(); handlers.onQuality();
   };
   $('fpsCheck').onchange = e => { settings.showFps = e.target.checked; saveSettings(); };
   $('gpuName').textContent = gpuName;

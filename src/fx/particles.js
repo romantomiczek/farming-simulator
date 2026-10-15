@@ -12,6 +12,8 @@ const mesh = new THREE.InstancedMesh(
 );
 mesh.frustumCulled = false;
 scene.add(mesh);
+/** The particle mesh (the developer panel can hide it). */
+export const particleMesh = mesh;
 
 const P = {
   x: new Float32Array(PMAX), y: new Float32Array(PMAX), z: new Float32Array(PMAX),

@@ -7,7 +7,7 @@ export const touchMode = matchMedia('(hover: none) and (pointer: coarse)').match
 /** onAction(code) is called once per key press (not on auto-repeat) and for touch taps. */
 export function bindInput(onAction) {
   addEventListener('keydown', e => {
-    if (e.target instanceof HTMLInputElement) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
     if (PREVENT.has(e.code)) e.preventDefault();
     keys[e.code] = true;
     if (!e.repeat) onAction(e.code);

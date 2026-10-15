@@ -125,13 +125,16 @@ function fleeFrom(a, x, z, dist, R) {
 const _m = new THREE.Matrix4(), _l = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1);
 const _e = new THREE.Euler();
 
+const allMeshes = [];
 function species(geo, n, legs) {
   const body = new THREE.InstancedMesh(geo, mat, n);
+  allMeshes.push(body);
   body.castShadow = true; body.receiveShadow = true; body.frustumCulled = false;
   scene.add(body);
   let legMesh = null;
   if (legs) {
     legMesh = new THREE.InstancedMesh(legs.geo, mat, n * 4);
+    allMeshes.push(legMesh);
     legMesh.castShadow = true; legMesh.frustumCulled = false;
     scene.add(legMesh);
   }
@@ -175,7 +178,7 @@ export function buildWildlife() {
   const deerS = species(MODELS.deer(), 5, quad(0.78, 0.08, '#7a5236', 0.12, 0.36, 0.8, 7, 0.7));
   const crowS = species(MODELS.crow(), 12);
   const wings = new THREE.InstancedMesh(wing(), mat, 24);
-  wings.castShadow = true; wings.frustumCulled = false; scene.add(wings);
+  wings.castShadow = true; wings.frustumCulled = false; scene.add(wings); allMeshes.push(wings);
 
   const agent = (p, extra) => Object.assign({ x: p.x, z: p.z, h: R() * 6.28, tx: p.x, tz: p.z, v: 0, phase: R() * 6, wait: R() * 4, fleeing: 0 }, extra);
   const dog = agent({ x: -20, z: -24 }, { follow: null, barkT: 3 });
@@ -202,6 +205,8 @@ export function buildWildlife() {
   return {
     /** For tests and debugging. */
     agents: { dog, cats, hares, foxes, deer, crows, flock },
+    /** Shows or hides every animal (developer panel). */
+    setVisible(on) { for (const m of allMeshes) m.visible = on; },
     /** ctx = { vehicles, active, hour, cows, hens } */
     update(dt, ctx) {
       const { vehicles, hour } = ctx, night = hour < 5 || hour > 21, dusk = (hour > 4.5 && hour < 8.5) || (hour > 18 && hour < 22);

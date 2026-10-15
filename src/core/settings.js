@@ -41,13 +41,14 @@ function detectGPU() {
 export const gpuName = detectGPU();
 export const isIntegrated = /intel|uhd|hd graphics|iris|swiftshader|llvmpipe/i.test(gpuName) && !/\barc\b|nvidia|radeon|geforce/i.test(gpuName);
 
-export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, sound: true };
+export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, sound: true, custom: null };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage unavailable */ }
 if (!PRESETS[settings.preset]) settings.preset = 'medium';
 
 /** Antialiasing can only be chosen when the WebGL context is created, so remember the start value. */
 export const startAntialias = PRESETS[settings.preset].antialias;
-export const quality = () => PRESETS[settings.preset];
+/** The chosen preset, with the developer panel's overrides (settings.custom) on top. */
+export const quality = () => (settings.custom ? { ...PRESETS[settings.preset], ...settings.custom } : PRESETS[settings.preset]);
 export function saveSettings() {
   try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* storage unavailable */ }
 }

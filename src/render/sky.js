@@ -85,6 +85,9 @@ let drift = 0;
  * Called every frame from updEnv with the colours it already computed.
  * env = { horizon, zenith, sunDir (visual), sunCol, day 0..1, dawn 0..1, overcast 0..1, rain 0..1 }
  */
+/** Developer panel: show or hide parts of the sky. */
+export const skyParts = { dome, stars, clouds: puffs };
+
 export function updSky(dt, env) {
   const cp = camera.position;
   dome.position.copy(cp);

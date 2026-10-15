@@ -31,10 +31,11 @@ export function weatherAt(min) {
 export const weatherName = (kind, winter) => (kind === 'rain' ? (winter ? 'Sněží' : 'Prší') : kind === 'cloudy' ? 'Oblačno' : 'Jasno');
 
 /** Current weather; rain and cloud are smoothed 0..1 levels for rendering. */
-export const WX = { kind: 'clear', rain: 0, cloud: 0, wetUntil: 0 };
+/** force = 'clear' | 'cloudy' | 'rain' overrides the forecast (developer panel), null = normal weather. */
+export const WX = { kind: 'clear', rain: 0, cloud: 0, wetUntil: 0, force: null };
 
 export function updateWeather(dt) {
-  WX.kind = weatherAt(G.gameMin);
+  WX.kind = WX.force || weatherAt(G.gameMin);
   if (WX.kind === 'rain') WX.wetUntil = G.gameMin + 60; // crops stay wet an hour after the rain
   const k = Math.min(1, dt * 0.4);
   WX.rain += ((WX.kind === 'rain' ? 1 : 0) - WX.rain) * k;

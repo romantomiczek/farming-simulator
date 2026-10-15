@@ -53,6 +53,8 @@ export function applyRenderQuality() {
     sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
     if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
   }
+  sun.castShadow = q.shadows !== false; // only the developer panel turns shadows off
+  renderer.toneMappingExposure = q.exposure ?? 1;
   fogBase.near = scene.fog.near = Math.max(140, q.view * 0.4);
   fogBase.far = scene.fog.far = q.view;
   camera.far = q.view + 150;

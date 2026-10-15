@@ -1,6 +1,12 @@
 /** Mutable game state shared by all modules. Vehicles and fields live in their own modules. */
 export const TIME_SCALES = [1, 5, 20];
 
+/**
+ * Developer switches (the panel behind F9). Defaults mean "normal game".
+ * timeMult multiplies the chosen time speed; freezeTime stops the clock (machines still drive).
+ */
+export const DEV = { timeMult: 1, freezeTime: false, wildlife: true, tracks: true, wind: true };
+
 export const G = {
   money: 150000,
   gameMin: 8 * 60, // game minutes since day 1, 00:00; 1 real second = 1 game minute at 1×
