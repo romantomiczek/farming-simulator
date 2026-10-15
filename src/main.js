@@ -10,7 +10,8 @@ import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper } from './game/actions.js';
+import { helperTick } from './game/helpers.js';
 import { upkeep, chargeDays } from './game/economy.js';
 import { generateOffers, checkContract } from './game/contracts.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
@@ -48,11 +49,11 @@ cam.yaw = G.active.h;
 cam.t.set(G.active.x, 1, G.active.z);
 
 /* ---------- input & menu ---------- */
-const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice() };
+const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
 bindInput(code => {
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
-  if (code === 'Escape' || code === 'KeyH') { showMenu(); return; }
+  if (code === 'Escape') { showMenu(); return; }
   if (/^Digit[1-6]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();
 });
@@ -100,7 +101,8 @@ function tick(dt) {
   }
   const input = G.playing ? driveInput() : null;
   for (const v of vehicles) {
-    drive(v, dt, v === G.active ? input : null);
+    if (v.helper && G.playing) helperTick(v, dt);
+    else if (!v.helper) drive(v, dt, v === G.active ? input : null);
     work(v, dt);
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }

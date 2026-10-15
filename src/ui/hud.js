@@ -13,13 +13,14 @@ import { marketPrice, bestMarket, buyersOf } from '../game/markets.js';
 import { WX, season, dayInSeason, isWinter, isWet, forecast, weatherName, DAYS_PER_SEASON } from '../game/weather.js';
 import { DIESEL, repairQuote, refuelLiters } from '../game/economy.js';
 import { CTYPES, progress } from '../game/contracts.js';
+import { WAGE, helpers, jobName, helperProgress, helperWaitText, canHire } from '../game/helpers.js';
 
 const $ = id => document.getElementById(id);
 const ui = {
   money: $('money'), moneyBox: $('moneyBox'), day: $('day'), time: $('time'), speed: $('speedBtn'), task: $('task'),
   prices: $('priceList'), vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'),
   vTankLabel: $('vTankLabel'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
-  shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'), wx: $('wxLine'),
+  shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'), wx: $('wxLine'), helpers: $('helperLine'),
   vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), job: $('jobLine'),
 };
 
@@ -137,7 +138,7 @@ export function updUI() {
   setText(ui.vName, 'vname', v.name);
   const working = v.lowered && v.speed > 0.3;
   const busy = (v.harvester && v.unloading) || (withTrailer && trailer.tipping);
-  const chip = busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
+  const chip = v.helper ? ['Pomocník', v.helper.wait ? 'warn' : 'on'] : busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
   setText(ui.vChip, 'chip', withTrailer && !busy ? 'Přívěs' : chip[0]);
   ui.vChip.className = 'chip ' + chip[1];
   setText(ui.vSpeed, 'spd', String(Math.round(Math.abs(v.speed) * 3.6)));
@@ -172,11 +173,13 @@ export function updUI() {
   shedPanel(v);
 
   const pr = [];
+  if (v.helper) pr.push(['H', 'Propustit pomocníka']);
   const fa = fPrompt(fAction());
   if (fa) pr.push(['F', fa]);
+  if (!v.helper && f && !v.lowered && canHire(v).f) pr.push(['H', 'Najmout pomocníka · ' + fmt(WAGE) + ' Kč/h']);
   const waiting = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
   if (waiting) pr.push(['', 'Najeď přívěsem pod rouru ' + waiting.gen]);
-  if (f && (f.owned || G.contracts.active?.field === f.id) && !v.lowered && !withTrailer) pr.push(['Mezerník', 'Spustit ' + (v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : HEADERS[v.header].short)]);
+  if (f && (f.owned || G.contracts.active?.field === f.id) && !v.lowered && !withTrailer && !v.helper) pr.push(['Mezerník', 'Spustit ' + (v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : HEADERS[v.header].short)]);
   if (f && f.owned && v.lowered && Math.abs(v.speed) < 0.3 && v.fuel > 0) pr.push(['W', 'Jeď, nářadí pracuje jen v pohybu']);
   if (v.fuel <= 0) pr.unshift(['K', 'Došla nafta: objednej dovoz v Kanceláři']);
   if (v.harvester && full(v.tank) && !fa) pr.push(['', 'Zásobník je plný']);
@@ -191,6 +194,10 @@ export function updSlowUI() {
   const fc = forecast(), winter = isWinter();
   setText(ui.wx, 'wx', season().name + ' · den ' + dayInSeason() + ' ze ' + DAYS_PER_SEASON + ' · ' + weatherName(WX.kind, winter) +
     (fc ? ', ' + weatherName(fc.kind, winter).toLowerCase() + ' od ' + hhmm(fc.at) : ''));
+  const hs = helpers();
+  ui.helpers.hidden = !hs.length;
+  setHTML(ui.helpers, 'helpers', hs.map(h => '<span><b>Pomocník</b> · ' + h.name.split(' ')[0] + ': ' + jobName(h) + ' pole ' + h.helper.field.id + ' · ' +
+    pct(helperProgress(h)) + (h.helper.wait ? ' · ' + helperWaitText[h.helper.wait] : '') + ' · ' + fmt(h.helper.wage) + ' Kč</span>').join(''));
   const c = G.contracts.active;
   ui.job.hidden = !c;
   if (c) {

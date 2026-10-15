@@ -52,6 +52,8 @@ export function applyOwnership() {
 export function blockReason(key) {
   if (byKey[key].fixed) return 'Bez traktoru by farma nefungovala.';
   if (G.active?.type === key) return 'Právě v něm sedíš.';
+  if (vehicles.find(x => x.type === key)?.helper) return 'Pracuje na něm pomocník.';
+  if (tractor.helper && tractor.impl === key) return 'Pracuje s ním pomocník.';
   if (tractor.impl === key) return 'Je připojené k traktoru. V kůlně připoj jiné nářadí.';
   if (key === 'cornHeader' && combine.header === 'corn') return 'Je nasazený na kombajnu. V kůlně nasaď žací lištu.';
   const v = vehicles.find(x => x.type === key);

@@ -3,6 +3,7 @@ import { G, dayOf } from './state.js';
 import { repairCost, dailyLeaseCost } from './machines.js';
 import { fuelZone } from '../world/layout.js';
 import { toast, warn } from '../ui/toast.js';
+import { vehicles } from '../vehicles/vehicles.js';
 
 export const DIESEL = 36; // Kč/l
 export const INTEREST_DAILY = 0.004; // 0,4 % of the loan per game day
@@ -59,26 +60,32 @@ export function repayLoan() {
 export const dailyInterest = () => Math.round(G.loan * INTEREST_DAILY);
 
 /**
- * Fuel and wear of the vehicle the player drives (other vehicles stand still).
- * Litres per real second, so speeding up time does not burn more diesel.
+ * Fuel and wear of the vehicle the player drives and of vehicles driven by helpers
+ * (the rest stand still). Litres per real second, so speeding up time does not burn more diesel.
  */
 export function upkeep(dt) {
-  const v = G.active;
-  if (!v) return;
+  for (const v of vehicles) if (v === G.active || v.helper) burn(v, dt, v === G.active);
+}
+
+function burn(v, dt, player) {
   const moving = Math.abs(v.speed) > 0.2, working = moving && v.lowered;
   const cond = G.cond[v.type] ?? 1;
   if (moving || v.thr) {
     const rate = (working ? v.fuelWork : v.fuelDrive) * (1 + (1 - cond) * 0.4);
     v.fuel = Math.max(0, v.fuel - rate * dt);
   }
+  if (!player) { wearDown(v, dt, moving, working, cond); return; }
   if (v.fuel <= 0) warn('fuel', 'Došla nafta. Dovoz objednáš v Kanceláři (K), nebo dotlač stroj k čerpací stanici.');
   else if (v.fuel < v.fuelCap * 0.12) warn('fuelLow', 'Dochází nafta. Natankuješ u čerpací stanice vedle kůlny (F).', '');
+  wearDown(v, dt, moving, working, cond);
+  if (G.cond[v.type] < 0.3 && moving) warn('cond', 'Stroj je opotřebovaný (' + Math.round(G.cond[v.type] * 100) + ' %). Oprav ho v kůlně klávesou R.');
+}
+
+function wearDown(v, dt, moving, working, cond) {
   const wear = working ? 0.00006 : moving ? 0.00002 : 0; // ~22 % per hour of real field work
-  if (wear) {
-    G.cond[v.type] = Math.max(0, cond - wear * dt);
-    if (working && v.type === 'tractor') G.cond[v.impl] = Math.max(0, (G.cond[v.impl] ?? 1) - wear * dt);
-    if (G.cond[v.type] < 0.3) warn('cond', 'Stroj je opotřebovaný (' + Math.round(G.cond[v.type] * 100) + ' %). Oprav ho v kůlně klávesou R.');
-  }
+  if (!wear) return;
+  G.cond[v.type] = Math.max(0, cond - wear * dt);
+  if (working && v.type === 'tractor') G.cond[v.impl] = Math.max(0, (G.cond[v.impl] ?? 1) - wear * dt);
 }
 
 /** Charges leases and loan interest for every day that passed. Returns true on a new day. */

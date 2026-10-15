@@ -64,6 +64,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--wheat);outline-
 .shed li.off{opacity:.5;}
 .shedNote{margin:4px 0 0;font-size:13px;font-weight:600;border-top:1px solid var(--line);padding-top:6px;display:flex;gap:8px;align-items:center;}
 .task .job{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:13px;}
+.task .helpers{display:grid;gap:2px;}
 .bar.fuel i{background:#7aa0b8;}
 .bar.fuel i.low{background:var(--brick);}
 .kv dd.down{color:var(--brick);}

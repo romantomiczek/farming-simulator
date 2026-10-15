@@ -224,7 +224,7 @@ export function visual(v, dt, tankCropColor) {
     if (tankCropColor) v.grainMat.color.copy(tankCropColor);
   }
   v.puffT -= dt;
-  if (v === G.active && v.puffT <= 0 && (v.thr > 0 || v.lowered)) {
+  if ((v === G.active || v.helper) && v.puffT <= 0 && (v.thr > 0 || v.lowered)) {
     v.puffT = 0.12;
     v.group.updateMatrixWorld(true);
     _v.copy(v.exhaust); v.group.localToWorld(_v);

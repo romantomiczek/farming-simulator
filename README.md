@@ -28,6 +28,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | 1–6 | v kůlně: přímý výběr nářadí traktoru (1–6) nebo adaptéru kombajnu (1–2) |
 | R | v kůlně: oprava stroje a připojeného nářadí |
 | K | kancelář: obchod se stroji, zakázky, finance (čas se zastaví) |
+| H | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit |
 | C | změnit osivo |
 | T | rychlost času 1× / 5× / 20× |
 | Q / E, tažení myší | otočení kamery |
@@ -67,6 +68,18 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 **Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu.
 
 **Počasí** se mění po čtyřech hodinách: jasno, oblačno, déšť, v zimě sněžení. Za deště a hodinu po něm se nesklízí. Déšť trochu urychlí růst. Předpověď je pod hodinami.
+
+## Pomocníci
+
+Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přesedneš do dalšího volného stroje.
+
+- **Jak pracuje:** jezdí v pruzích sem a tam a na konci pruhu zvedne nářadí a otočí se. Nakonec projede souvratě na obou koncích pole.
+- **S čím pracuje:** kultivátor, pluh, secí stroj (seje zvolené osivo), rozmetadlo, lis, kombajn i sklízeč cukrovky. S přívěsem nepracuje.
+- **Mzda:** 600 Kč za hodinu práce. Hodina práce je minuta skutečného času, takže zrychlený čas (T) mzdu nenafoukne. Nafta a opotřebení se počítají jako při tvé jízdě.
+- **Čekání:** sklízeč s plným zásobníkem čeká, až mu přistavíš přívěs a vyložíš ho (F). Za deště čeká, až plodiny oschnou.
+- **Konec:** skončí, když je pole hotové, dojde nafta nebo peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí.
+- **Zakázky:** na sousedově poli může pracovat, jen když tam máš zakázku s odpovídajícím nářadím.
+- **Ukládání:** pomocníci se do uložené hry neukládají. Po načtení je stačí najmout znovu.
 
 ## Ekonomika
 
@@ -128,4 +141,4 @@ prototyp/              původní jednosouborový prototyp
 3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem, cukrovka se sklízečem (hotovo).
 4. **Ekonomika:** obchod se stroji (nákup, pronájem, prodej), nafta a opotřebení, zakázky u souseda, úvěr (hotovo).
 5. **Svět:** větší mapa s vesnicí a osmi poli, čtyři výkupy s různými cenami, roční období a počasí (hotovo).
-6. **Pomocníci:** najatí řidiči.
+6. **Pomocníci:** najatí řidiči, kteří sami obdělají pole (hotovo).

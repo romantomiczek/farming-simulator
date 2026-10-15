@@ -10,6 +10,7 @@ export const FLAT = { x0: -108, x1: 262, z0: -98, z1: 148 };
  * Fields. sign = [x, z, rotationY] of the sale sign; start = state in a new game
  * (also used for fields missing from an old save).
  * start.s: 'stub' | 'cult' | 'sown' | 'ripe'; crop = crop index; growth = game hours grown.
+ * lanes: direction helpers drive in ('z' by default, 'x' where a building stands at the field end).
  */
 export const FIELD_DEFS = [
   { id: 1, x0: -70, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-17.5, -3, Math.PI / 2], start: { s: 'ripe', crop: 0 } },
@@ -18,8 +19,8 @@ export const FIELD_DEFS = [
   { id: 4, x0: 0, z0: 56, w: 58, h: 42, owned: false, price: 460000, sign: [-2.5, 58, -Math.PI / 2], start: { s: 'sown', crop: 1, growth: 2.4 } },
   { id: 5, x0: 80, z0: -5, w: 50, h: 45, owned: false, price: 480000, sign: [82, 42.4, 0], start: { s: 'ripe', crop: 1, dir: 1 } },
   { id: 6, x0: 80, z0: 56, w: 50, h: 44, owned: false, price: 450000, sign: [82, 53.8, Math.PI], start: { s: 'stub' } },
-  { id: 7, x0: 175, z0: -40, w: 60, h: 60, owned: false, price: 820000, sign: [177, 22, 0], start: { s: 'sown', crop: 3, growth: 4 } },
-  { id: 8, x0: 195, z0: 80, w: 50, h: 50, owned: false, price: 560000, sign: [197, 77.8, Math.PI], start: { s: 'cult' } },
+  { id: 7, x0: 175, z0: -40, w: 60, h: 60, owned: false, price: 820000, sign: [177, 22, 0], start: { s: 'sown', crop: 3, growth: 4 }, lanes: 'x' },
+  { id: 8, x0: 195, z0: 80, w: 50, h: 50, owned: false, price: 560000, sign: [197, 77.8, Math.PI], start: { s: 'cult' }, lanes: 'x' },
 ];
 
 export const ROADS = [

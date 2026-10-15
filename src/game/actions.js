@@ -8,6 +8,7 @@ import { saveLocal } from './save.js';
 import { has } from './machines.js';
 import { inFuel, refuel, repair } from './economy.js';
 import { marketAt, buyersOf } from './markets.js';
+import { hire, dismiss } from './helpers.js';
 import { tractor, combine, trailer, trailerCenter, vehicles, HARVESTERS, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
@@ -48,8 +49,18 @@ export function fAction() {
   return null;
 }
 
+/** H: hire a helper for the vehicle you sit in (then hop to a free one), or send him home. */
+export function toggleHelper() {
+  const v = G.active;
+  if (v.helper) { dismiss(v); return; }
+  if (!hire(v)) return;
+  const free = vehicles.find(o => o.available && !o.helper);
+  if (free) { G.active = free; cam.manual = -99; }
+}
+
 export function toggleTool() {
   const v = G.active;
+  if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
   if (v.type === 'tractor' && v.impl === 'trailer') {
     toast('Přívěs nemá co spouštět. Zrno vysypeš klávesou F u sil, balíky prodáš F u stodoly.');
     return;
