@@ -85,6 +85,26 @@ try {
   });
   check('kultivátor zpracuje strniště', cult > 0, cult + ' m²');
 
+  // a helper sent from the office: drives to field 2 along the roads, cultivates it and comes home
+  const helper = await page.evaluate(async () => {
+    const H = await import('/src/game/helpers.js');
+    const { vehicles, fields, attach } = window.__zl, t = vehicles.find(v => v.type === 'tractor'), f = fields.find(x => x.id === 2);
+    attach('cultivator');
+    Object.assign(t, { x: t.home[0], z: t.home[1], h: 0, speed: 0 });
+    if (!H.sendHelper(t, f)) return { modes: [] };
+    const modes = [];
+    for (let i = 0; i < 8000 && t.helper; i++) {
+      window.__zl.step(1, 0.05);
+      if (t.helper && modes[modes.length - 1] !== t.helper.mode) modes.push(t.helper.mode);
+    }
+    const hp = t.helper;
+    const rest = []; for (let i = 0; i < f.n; i++) if (f.state[i] === 0 && rest.length < 8) rest.push((i % f.w) + ',' + ((i / f.w) | 0));
+    const near = vehicles.filter(o => o !== t && o.available && o.x > f.x0 - 5 && o.x < f.x0 + f.w + 5 && o.z > f.z0 - 5 && o.z < f.z0 + f.h + 5).map(o => o.type + '@' + Math.round(o.x - f.x0) + ',' + Math.round(o.z - f.z0));
+    return { modes, done: !hp, left: H.workLeft(f, t), area: f.area, rest: rest.join(' ') + ' | stroje na poli: ' + near.join(' '), state: hp && `${hp.mode}/${hp.wait} seg ${hp.seg}/${hp.path.length} @${Math.round(t.x)},${Math.round(t.z)} doma ${t.home}` };
+  });
+  // corners the tool cannot reach without leaving the field may stay undone
+  check('pomocník z Kanceláře', helper.done && helper.left <= helper.area * 0.02 && ['travel', 'field', 'home'].every(m => helper.modes.includes(m)), helper.modes.join(' → ') + ' · zbývá ' + helper.left + ' m²' + (helper.state ? ' · ' + helper.state : ''));
+
   // the forestry harvester on a field (used to freeze the picture)
   const forest = await page.evaluate(() => {
     const { G, vehicles, fields } = window.__zl, f = fields.find(x => x.id === 1), v = vehicles.find(x => x.type === 'forest');

@@ -212,6 +212,9 @@ body.touch .prompt{bottom:calc(196px + env(safe-area-inset-bottom,0px));max-widt
 .devinfo{margin:0;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:var(--ink);}
 .dev-nohud #hud{display:none;}
 
+.hselect select{font:inherit;margin-top:4px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);max-width:100%;}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+
 /* map editor (F9 → Editor mapy) */
 .mapedit{position:fixed;inset:12px;z-index:45;display:grid;grid-template-rows:auto 1fr;gap:8px;background:var(--paper);border-radius:14px;box-shadow:0 8px 28px rgba(40,50,35,.22);padding:12px 14px;color:var(--ink);}
 .mapedit[hidden]{display:none;}

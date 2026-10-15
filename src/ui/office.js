@@ -6,7 +6,8 @@ import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../ga
 import { CROPS } from '../game/crops.js';
 import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap } from '../game/farm.js';
 import { trees, matureCount } from '../world/forest.js';
-import { forester } from '../vehicles/vehicles.js';
+import { forester, vehicles, IMPL } from '../vehicles/vehicles.js';
+import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName } from '../game/helpers.js';
 import { toast } from './toast.js';
 import { GOALS, activeGoals, isDone, progressOf, progressText } from '../game/goals.js';
 import { FIELDS } from '../world/fields.js';
@@ -66,6 +67,12 @@ function act(a, key) {
     case 'repay': repayLoan(); break;
     case 'fuel': ok = emergencyFuel(); break;
     case 'field': ok = buyField(FIELDS.find(f => f.id === +key)); break;
+    case 'send': {
+      const v = vehicles.find(x => x.type === key), val = $('hsel-' + key)?.value;
+      ok = !!v && !!val && sendHelper(v, val === 'wood' ? null : FIELDS.find(f => f.id === +val));
+      break;
+    }
+    case 'fire': { const v = vehicles.find(x => x.type === key); if (v?.helper) dismiss(v); break; }
   }
   if (ok) h.onChange();
   render();
@@ -136,6 +143,7 @@ function farmHTML() {
   const F = G.farm, row = (title, sub, state, extra = '') =>
     `<div class="row"><div class="rmain"><b>${title}</b><span>${sub}</span>${extra}</div><div class="rstate">${state}</div></div>`;
   let out = '<p class="lede small">Mléko, vejce a rajčata se odvážejí a platí o půlnoci. Krmivo vyložíš klávesou F ve sklízeči nebo přívěsem v kruhu u budovy, vodu přivezeš cisternou z rybníka.</p>';
+  out += helpersHTML();
   out += fieldsHTML();
   out += '<h3 class="grp">Budovy a les</h3>';
   for (const key of ['cows', 'hens']) {
@@ -160,6 +168,27 @@ function farmHTML() {
 const ha = m2 => String((m2 / 10000).toFixed(2)).replace('.', ',') + ' ha';
 
 /** Every field: size, what is on it and, for the neighbours' fields, the price. */
+/** Machines a helper can drive: send one to a field or the forest, or let a working one go. */
+function helpersHTML() {
+  let out = '<h3 class="grp">Pomocníci</h3><p class="lede small">Pošli stroj s pomocníkem na pole nebo do lesa. Dojede po silnicích, plný zásobník odveze na nejlepší výkup a po práci se vrátí na dvůr. Mzda ' + fmt(WAGE) + ' Kč za herní hodinu, platí se i cesta.</p>';
+  for (const v of vehicles.filter(x => x.available && x.type !== 'jeep')) {
+    const name = v.name + (v.type === 'tractor' ? ' · ' + IMPL[v.impl].name.toLowerCase() : '');
+    if (v.helper) {
+      out += `<div class="row"><div class="rmain"><b>${name}</b><span>${helperStatus(v)} · mzda ${fmt(v.helper.wage)} Kč</span></div>
+        <div class="rstate">${btn('fire', v.type, 'Propustit', false, 'ghost')}</div></div>`;
+      continue;
+    }
+    const opts = v.type === 'forest'
+      ? (canHire(v).wood ? [['wood', 'Les: těžba vzrostlých stromů']] : [])
+      : FIELDS.filter(f => !canHire(v, f).why).map(f => [f.id, (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' (zakázka)') + ' · ' + jobName(v)]);
+    const why = opts.length ? '' : (canHire(v, v.type === 'forest' ? null : FIELDS.find(f => f.owned)).why || 'Teď s ním není kde pracovat.');
+    out += `<div class="row"><div class="rmain"><b>${name}</b>${why ? `<span>${why}</span>`
+      : `<label class="hselect"><span class="sr">Kam</span><select id="hsel-${v.type}">${opts.map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>`}</div>
+      <div class="rstate">${btn('send', v.type, 'Poslat', !opts.length)}</div></div>`;
+  }
+  return out;
+}
+
 function fieldsHTML() {
   let out = '<h3 class="grp">Pozemky</h3>';
   for (const f of FIELDS) {

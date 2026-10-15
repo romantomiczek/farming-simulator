@@ -111,16 +111,20 @@ Budovy a vylepšení se nedají pronajmout, jen koupit.
 
 ## Pomocníci
 
-Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přesedneš do dalšího volného stroje.
+Pomocníka najmeš dvěma způsoby:
+
+- **Na místě:** zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přesedneš do dalšího volného stroje.
+- **Z Kanceláře (K → Farma → Pomocníci):** u stroje vyber pole nebo louku (u harvestoru les) a dej **Poslat**. Pomocník dojede po silnicích (vpravo, jako auta, přes mosty a brod), práci udělá a vrátí se na dvůr. Tady vidíš i stav všech pomocníků a můžeš je propustit.
 
 - **Jak pracuje:** jezdí v pruzích sem a tam a na konci pruhu zvedne nářadí a otočí se. Nakonec projede souvratě na obou koncích pole.
-- **S čím pracuje:** kultivátor, pluh, secí stroj (seje zvolené osivo), rozmetadlo, lis, kombajn i sklízeč cukrovky. S přívěsem nepracuje.
-- **Mzda:** 600 Kč za hodinu práce. Hodina práce je minuta skutečného času, takže zrychlený čas (T) mzdu nenafoukne. Nafta a opotřebení se počítají jako při tvé jízdě.
-- **Čekání:** sklízeč s plným zásobníkem čeká, až mu přistavíš přívěs a vyložíš ho (F). Za deště čeká, až plodiny oschnou.
-- **Konec:** skončí, když je pole hotové, dojde nafta nebo peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí.
+- **S čím pracuje:** kultivátor, pluh, secí stroj (seje zvolené osivo), rozmetadlo, žací lišta, lis, kombajn, sklízeč cukrovky a harvestor. S přívěsem nepracuje.
+- **Sklizeň:** pomocník poslaný z Kanceláře odveze plný zásobník na výkup, který zrovna platí nejvíc, a vrátí se tam, kde přestal. Najatý na místě čeká, až mu přistavíš přívěs a vyložíš ho (F). Za deště čeká, až plodiny oschnou.
+- **Les:** s harvestorem kácí vzrostlé stromy, ke kterým se dostane, plný harvestor odveze na výkup dřeva s lepší cenou a pokračuje, dokud v lese jsou vzrostlé stromy.
+- **Mzda:** 1 500 Kč za hodinu práce i cesty. Hodina je minuta skutečného času, takže zrychlený čas (T) mzdu nenafoukne. Když dochází nafta, pomocníkovi ji přivezou (cena nafty + 10 % za dovoz).
+- **Konec:** skončí, když je práce hotová nebo dojdou peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí, nebo v Kanceláři.
 - **Zakázky:** na sousedově poli může pracovat, jen když tam máš zakázku s odpovídajícím nářadím.
-- **Překážky:** pomocník nikdy neprojede budovou, plotem, stromem ani zaparkovaným strojem. Když mu něco stojí v cestě déle než 8 sekund, skončí s hlášením.
-- **Ukládání:** pomocníci se ukládají i s rozpracovanou trasou. Po načtení hry pokračují tam, kde skončili.
+- **Překážky:** na poli pomocník nikdy neprojede budovou, plotem, stromem ani zaparkovaným strojem; když mu něco stojí v cestě déle než 8 sekund, skončí s hlášením. Na cestě po silnicích čeká na stroje a auta a krátké úseky mimo silnici (z kůlny, ke kraji pole) projede.
+- **Ukládání:** pomocníci se ukládají i s rozpracovanou trasou a fází (cesta, práce, odvoz). Po načtení hry pokračují.
 
 ## Ekonomika
 
@@ -259,6 +263,4 @@ Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pol
 ## Známá omezení a nápady
 
 - Zima je zatím jen bledší, bez sněhu na zemi.
-- Harvestor a lesní stromy pomocník neobsluhuje, kácí se jen ručně.
-- Pomocník začíná práci na poli, kam ho dovezeš. Sám po silnicích na vzdálené pole nejede.
 - Nápady na další obsah: prasata nebo ovce, výroba krmné směsi, seno jako krmivo pro krávy, prodej mléka do mlékárny.

@@ -75,7 +75,7 @@ export function buildVegetation(scene) {
   const fieldRects = FIELD_DEFS.map(f => ({ x0: f.x0, x1: f.x0 + f.w, z0: f.z0, z1: f.z0 + f.h }));
   /** Places where no tree may stand (m = extra margin). */
   const blocked = (x, z, m) => {
-    for (const r of fieldRects) if (inRect(x, z, r, 4 + m)) return true;
+    for (const r of fieldRects) if (inRect(x, z, r, Math.max(7, 4 + m))) return true; // room for machines turning at the field edge
     for (const r of NO_TREES) if (inRect(x, z, r, m)) return true;
     if (inRect(x, z, PAD, 2 + m) || inRect(x, z, PIT, 4 + m)) return true;
     for (const P of FOREST_PLOTS) if (inRect(x, z, P, 3 + m)) return true;

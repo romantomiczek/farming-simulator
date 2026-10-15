@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
 import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, HAY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW } from '../game/crops.js';
-import { FIELD_DEFS, ROADS, circles, inPoly, polyDist } from './layout.js';
+import { FIELD_DEFS, ROADS, circles, inPoly, polyDist, roadAt } from './layout.js';
 import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
 import { addWind } from '../render/wind.js';
@@ -46,7 +46,8 @@ const grassStage = g => Math.min(3, Math.floor((g / GRASS.hours) * 4));
 /** Sale sign for a new field: by the edge nearest to a road, facing it. */
 function autoSign(f) {
   const cx = f.x0 + f.w / 2, cz = f.z0 + f.h / 2;
-  const edges = [[f.x0 + f.w + 2.5, cz, Math.PI / 2], [f.x0 - 2.5, cz, -Math.PI / 2], [cx, f.z0 + f.h + 2.5, 0], [cx, f.z0 - 2.5, Math.PI]];
+  // 4.5 m out, clear of machines turning on the headland
+  const edges = [[f.x0 + f.w + 4.5, cz, Math.PI / 2], [f.x0 - 4.5, cz, -Math.PI / 2], [cx, f.z0 + f.h + 4.5, 0], [cx, f.z0 - 4.5, Math.PI]];
   let best = edges[0], bd = Infinity;
   for (const e of edges) { const d = Math.min(...ROADS.map(r => polyDist(e[0], e[1], r.pts))); if (d < bd) { bd = d; best = e; } }
   return best;
@@ -403,7 +404,7 @@ export const signs = FIELDS.map(f => {
   const front = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), face);
   front.position.set(0, 2.0, 0.061); front.userData.noBake = true; g.add(front);
   bake(g);
-  circles.push({ x, z, r: 0.6 });
+  if (!roadAt(x, z, 1)) circles.push({ x, z, r: 0.6 }); // a sign that ended up on a road (map editor) does not block it
   return { f, x, z, cv, tex, g };
 });
 

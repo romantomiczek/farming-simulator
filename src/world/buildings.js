@@ -267,7 +267,7 @@ function buildBuyers(st, scene) {
     CY(0.9, 1.3, 22, 12, '#b9a89a', 10, 11, -2, g);
     CY(1.0, 1.0, 1.2, 12, '#c8553f', 10, 21.5, -2, g);
     addBox(232, 248, 67, 77); circles.push({ x: 250, z: 70, r: 1.5 });
-    for (const [dx, dz] of [[-12, 6], [-12, -4]]) {
+    for (const [dx, dz] of [[-12, -1], [-12, -9]]) { // clear of field 8 to the north
       const d = mk(new THREE.SphereGeometry(4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#6f9a6a', dx, 0, dz, g);
       d.scale.y = 0.7; circles.push({ x: 240 + dx, z: 72 + dz, r: 4 });
     }

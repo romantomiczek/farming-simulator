@@ -14,7 +14,7 @@ import { marketPrice, bestMarket, buyersOf } from '../game/markets.js';
 import { WX, season, dayInSeason, isWinter, isWet, forecast, weatherName, DAYS_PER_SEASON } from '../game/weather.js';
 import { DIESEL, repairQuote, refuelLiters } from '../game/economy.js';
 import { CTYPES, progress } from '../game/contracts.js';
-import { WAGE, helpers, jobName, helperProgress, helperWaitText, canHire } from '../game/helpers.js';
+import { WAGE, helpers, helperStatus, canHire } from '../game/helpers.js';
 import { BUILDINGS, daysLeft, greenhouses } from '../game/farm.js';
 import { logPrice, bestWood, woodBuyerAt } from '../game/forestry.js';
 import { trees, volume, matureCount, nearestTree, MATURE } from '../world/forest.js';
@@ -206,6 +206,7 @@ export function updUI() {
   const fa = fPrompt(fAction());
   if (fa) pr.push(['F', fa]);
   if (!v.helper && f && !v.lowered && canHire(v).f) pr.push(['H', 'Najmout pomocníka · ' + fmt(WAGE) + ' Kč/h']);
+  if (!v.helper && v.type === 'forest' && canHire(v).wood) pr.push(['H', 'Najmout pomocníka na těžbu · ' + fmt(WAGE) + ' Kč/h']);
   const waiting = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
   if (waiting) pr.push(['', 'Najeď přívěsem pod rouru ' + waiting.gen]);
   const tool = v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : HEADERS[v.header]?.short; // the forestry harvester has none
@@ -226,8 +227,7 @@ export function updSlowUI() {
     (fc ? ', ' + weatherName(fc.kind, winter).toLowerCase() + ' od ' + hhmm(fc.at) : ''));
   const hs = helpers();
   ui.helpers.hidden = !hs.length;
-  setHTML(ui.helpers, 'helpers', hs.map(h => '<span><b>Pomocník</b> · ' + h.name.split(' ')[0] + ': ' + jobName(h) + ' pole ' + h.helper.field.id + ' · ' +
-    pct(helperProgress(h)) + (h.helper.wait ? ' · ' + helperWaitText[h.helper.wait] : '') + ' · ' + fmt(h.helper.wage) + ' Kč</span>').join(''));
+  setHTML(ui.helpers, 'helpers', hs.map(h => '<span><b>Pomocník</b> · ' + h.name.split(' ')[0] + ': ' + helperStatus(h) + ' · ' + fmt(h.helper.wage) + ' Kč</span>').join(''));
   const g = activeGoals()[0];
   ui.goal.hidden = !g;
   if (g) setHTML(ui.goal, 'goal', '<b>Cíl:</b> ' + g.title + ' · ' + progressText(g) + ' · ' + fmt(g.reward) + ' Kč');
