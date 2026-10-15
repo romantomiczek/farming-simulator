@@ -39,7 +39,7 @@ export const fogBase = { near: 200, far: 560 };
 export function resize() {
   const w = innerWidth, h = innerHeight;
   if (!w || !h) return;
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5) * quality().scale);
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, quality().pixelCap) * quality().scale);
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();

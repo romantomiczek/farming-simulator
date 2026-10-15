@@ -123,20 +123,25 @@ Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přes
 
 Vykládka sklízeče běží dál, i když přesedneš do jiného stroje (Tab). Když přívěs během vykládky odjede, sklízeč počká s vysunutou rourou, dokud se přívěs nevrátí. Vykládku zastavíš znovu klávesou F.
 
-## Výkon
+## Výkon a kvalita grafiky
 
-Cílový počítač: notebook s Intel Core i7-5500U, 8 GB RAM, GeForce 840M a Intel HD 5500.
+Grafika není stažená na nejslabší počítač. Čtyři předvolby (Menu → Grafika) pokrývají rozsah od starého notebooku po výkonnou kartu. Na samostatné grafické kartě se hra spustí ve Vysoké kvalitě, na integrované Intel v Nízké.
 
-- **Cíl:** 60 FPS v 1080p na 840M s kvalitou Střední, alespoň 30 FPS na Intel HD 5500 s kvalitou Nízká.
-- **Rozpočet scény:** do 300 vykreslovacích volání a 300 tisíc trojúhelníků na snímek.
+| Předvolba | Pro koho | Co přidává |
+| --- | --- | --- |
+| Nízká | integrovaná grafika (Intel HD 5500) | 70 % rozlišení, plodiny bez stínů, řidší les, kratší dohled |
+| Střední | starší samostatné karty (GeForce 840M) | 85 % rozlišení, vyhlazování hran, stíny všech objektů |
+| Vysoká | běžné herní karty | plné rozlišení i na displejích s jemnými pixely, stínová mapa 2048, celý les, nejdelší dohled |
+| Ultra | výkonné karty | stínová mapa 4096, plastické plodiny (čtyři snopy na metr čtvereční místo kvádru), dvojnásobně hustý les na kopcích, hustší déšť |
+
 - **Měřič FPS:** v pravém horním rohu ukazuje FPS, nejhorší snímek, počet vykreslovacích volání a trojúhelníků. Vypíná se v menu.
 - **Notebook se dvěma grafikami:** Windows často nechá prohlížeč na integrované Intel. Ve Windows otevři Nastavení → Systém → Obrazovka → Grafika, přidej prohlížeč, zvol „Vysoký výkon“ a prohlížeč restartuj. Hra v menu ukazuje, kterou kartu používá.
 
-Jak to držíme nízko:
+Proč zbývá výkon na detail:
 
-- Statické budovy a díly strojů se při startu slučují podle materiálu (`bake()` v `src/render/materials.js`), takže místo stovek objektů se kreslí desítky.
-- Plodiny, stromy, živé ploty, balíky, částice i déšť jsou instancované (jedno volání na druh).
-- Plodiny pole mimo záběr kamery a mimo oblast stínů se nekreslí vůbec a jejich kvádry nemají neviditelnou spodní stěnu.
+- Statické budovy a díly strojů se při startu slučují podle materiálu (`bake()` v `src/render/materials.js`). Vypadají stejně, jen je grafická karta dostane v pár velkých dávkách místo stovek malých, a ušetřený čas jde do stínů, rozlišení a hustší scény.
+- Plodiny, stromy, živé ploty, balíky, částice i déšť jsou instancované, takže tisíce kusů stojí stejně volání jako jeden. Díky tomu může Ultra kreslit plastické plodiny na všech polích a dvakrát víc stromů bez většího počtu volání.
+- Plodiny pole mimo záběr kamery a mimo oblast stínů se nekreslí vůbec.
 - HUD nepoužívá rozmazání pozadí ani CSS filtry přes plátno a sahá do DOM jen při změně hodnoty.
 
 ## Struktura

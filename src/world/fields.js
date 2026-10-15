@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { renderer, scene } from '../render/core.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
 import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW } from '../game/crops.js';
@@ -15,8 +16,22 @@ const cropGeo = (() => {
   g.setIndex(idx); g.clearGroups();
   return g;
 })();
+// "Ultra": each cell is four tapered sheaves of slightly different height instead of one block
+const cropDetailGeo = (() => {
+  const parts = [[-0.25, -0.25, 0.92], [0.25, -0.25, 1.0], [-0.25, 0.25, 0.97], [0.25, 0.25, 0.86]].map(([x, z, h]) => {
+    const g = new THREE.CylinderGeometry(0.24 * Math.SQRT2 * 0.8, 0.24 * Math.SQRT2, h, 4, 1);
+    g.rotateY(Math.PI / 4); g.translate(x, h / 2, z);
+    const idx = Array.from(g.index.array), bottom = g.groups[2];
+    idx.splice(bottom.start, bottom.count);
+    g.setIndex(idx); g.clearGroups();
+    return g.toNonIndexed();
+  });
+  const g = mergeGeometries(parts);
+  g.computeVertexNormals();
+  return g;
+})();
 const cropMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-const _m = new THREE.Matrix4(), _c = new THREE.Color();
+const _m = new THREE.Matrix4(), _s = new THREE.Matrix4(), _c = new THREE.Color();
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /**
@@ -124,7 +139,8 @@ export function updCrop(f, i) {
   const row = (f.dir[i] === 0 ? i % f.w : (i / f.w) | 0) & 1;
   const hgt = cr.h[st] * (0.95 + j * 0.08 + row * 0.03), fw = cr.fw[st];
   const sx = f.dir[i] === 0 ? fw : 1, sz = f.dir[i] === 0 ? 1 : fw;
-  _m.makeScale(sx, hgt, sz);
+  // quarter turns vary the sheaf pattern between cells (a plain block looks the same either way)
+  _m.makeRotationY(((j * 4) | 0) * Math.PI / 2).premultiply(_s.makeScale(sx, hgt, sz));
   _m.setPosition(f.x0 + (i % f.w) + 0.5, 0.03, f.z0 + ((i / f.w) | 0) + 0.5);
   f.crops.setMatrixAt(i, _m);
   _c.copy(cr.cols[st]).multiplyScalar(0.95 + j * 0.06 + row * 0.05);
@@ -179,6 +195,7 @@ export function countFields() {
 }
 
 export function setCropShadows(on) { for (const f of FIELDS) f.crops.castShadow = on; }
+export function setCropDetail(on) { for (const f of FIELDS) f.crops.geometry = on ? cropDetailGeo : cropGeo; }
 
 /* ---------- field signs ---------- */
 export const signs = FIELDS.map(f => {

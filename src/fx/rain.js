@@ -4,7 +4,7 @@ import { quality } from '../core/settings.js';
 
 // Rain or snow around the camera target: one instanced mesh of thin streaks (or small flakes)
 // recycled inside a box that follows the camera. Drop count follows the graphics preset.
-const MAX = 600;
+const MAX = 900;
 const AREA = 70, TOP = 32;
 const mat = new THREE.MeshBasicMaterial({ color: 0xc8d6e0, transparent: true, opacity: 0.55, depthWrite: false });
 const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.05, 1.1, 0.05), mat, MAX);
@@ -13,7 +13,7 @@ scene.add(mesh);
 const px = new Float32Array(MAX), py = new Float32Array(MAX), pz = new Float32Array(MAX);
 for (let i = 0; i < MAX; i++) { px[i] = (Math.random() - 0.5) * AREA; py[i] = Math.random() * TOP; pz[i] = (Math.random() - 0.5) * AREA; }
 const m = new THREE.Matrix4();
-const COUNTS = { low: 200, medium: 400, high: 600 };
+const COUNTS = { low: 200, medium: 400, high: 600, ultra: 900 };
 
 /** level 0..1 = how hard it rains; snow = slow white flakes instead of streaks. */
 export function updRain(dt, target, level, snow) {

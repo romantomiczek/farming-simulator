@@ -7,8 +7,8 @@ import { FIELD_DEFS, ROADS, PAD, POND, NO_TREES, BOUNDS, circles, addBox } from 
 /**
  * Trees on the hills and in the valley, plus hedgerows along the outer field edges.
  * Everything is instanced (3 draw calls). Valley trees and hedges come first in each
- * instance buffer and are always drawn (they have collisions); hill trees are thinned
- * by the quality preset via InstancedMesh.count.
+ * instance buffer and are always drawn (they have collisions), then hill trees, then an extra
+ * batch of hill trees for "Ultra"; the quality preset trims the tail via InstancedMesh.count.
  */
 export function buildVegetation(scene) {
   const R = rng(7), dummy = new THREE.Object3D();
@@ -36,6 +36,16 @@ export function buildVegetation(scene) {
     if (inFlat && x > BOUNDS.x0 - 4 && x < BOUNDS.x1 + 4 && z > BOUNDS.z0 - 4 && z < BOUNDS.z1 + 4) circles.push({ x, z, r: 0.9 * s });
   }
 
+  // a second, independent batch of hill trees used only above density 1 ("Ultra");
+  // its own generator so the valley trees and their collisions never change
+  const R2 = rng(11), extra = [];
+  for (let a = 0; a < 3200; a++) {
+    const x = (R2() - 0.5) * 900 + 77, z = (R2() - 0.5) * 700 + 30;
+    const h = terrainH(x, z);
+    if (h < 0.01 || R2() > 0.55 || blocked(x, z, 4)) continue;
+    extra.push({ x, y: h, z, s: 0.75 + R2() * 0.65, conifer: R2() < 0.42, r: R2() });
+  }
+
   const hedge = [];
   const line = (x0, z0, x1, z1) => {
     const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 1.5);
@@ -48,9 +58,10 @@ export function buildVegetation(scene) {
   // hedges only on the outer sides; the northern ends of fields 3 and 4 border the forest track
   line(-73.5, -6, -73.5, 41); line(-73.5, 55, -73.5, 101); line(53, -6, 53, 41); line(61, 55, 61, 99);
 
-  const trees = valley.concat(hills);
+  const trees = valley.concat(hills, extra);
   const decid = trees.filter(t => !t.conifer), conif = trees.filter(t => t.conifer);
   const decidValley = decid.filter(t => t.y < 0.01).length, conifValley = conif.filter(t => t.y < 0.01).length;
+  const decidHills = hills.filter(t => !t.conifer).length, conifHills = hills.length - decidHills;
 
   const greens = ['#6f9a4a', '#7fa653', '#5e8a43', '#93ad5a', '#86a24c'].map(col);
   const coneCols = ['#4f7a4a', '#5b8650', '#46704a'].map(col);
@@ -90,10 +101,11 @@ export function buildVegetation(scene) {
 
   return {
     leafMat,
-    /** 0..1 share of hill trees to draw. Trunks are reordered to match, see trunkOrder. */
+    /** 0..1 = share of the hill trees to draw, 1..2 adds the extra batch. Trunks are reordered to match, see trunkOrder. */
     setDensity(d) {
-      const nd = decidValley + Math.round((decid.length - decidValley) * d);
-      const nc = conifValley + Math.round((conif.length - conifValley) * d);
+      const pick = (valleyN, hillN, all) => valleyN + Math.round(hillN * Math.min(1, d)) + Math.round((all - valleyN - hillN) * Math.max(0, d - 1));
+      const nd = pick(decidValley, decidHills, decid.length);
+      const nc = pick(conifValley, conifHills, conif.length);
       crowns.count = hedge.length + nd;
       cones.count = nc;
       // trunk buffer: [decid..., conif...]; rebuild the visible prefix order once per change

@@ -4,7 +4,7 @@ import { quality } from './core/settings.js';
 import { buildTerrain } from './world/terrain.js';
 import { buildFarm } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
-import { FIELDS, flushFields, growFields, countFields, drawSigns, setCropShadows } from './world/fields.js';
+import { FIELDS, flushFields, growFields, countFields, drawSigns, setCropShadows, setCropDetail } from './world/fields.js';
 import { vehicles, trailer, drive, visual, updateTrailer, attachImpl } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
@@ -46,6 +46,7 @@ function applyQuality() {
   applyRenderQuality();
   vegetation.setDensity(q.trees);
   setCropShadows(q.cropShadows);
+  setCropDetail(!!q.cropDetail);
 }
 
 /* ---------- game start ---------- */
