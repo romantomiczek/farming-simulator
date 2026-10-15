@@ -8,6 +8,7 @@ import { bales, setBales, flushBales } from '../world/bales.js';
 import { forester, IMPL as TOOLS } from '../vehicles/vehicles.js';
 import { serializeForest, loadForest } from '../world/forest.js';
 import { emptyFarm } from './farm.js';
+import { serializeHelper, restoreHelper } from './helpers.js';
 
 const KEY = 'zlate-lany-v1';
 // 1 = first release, 2 = grain trailer, 3 = bonus bits, straw, bales, combine header.
@@ -36,7 +37,7 @@ function afterLoad() {
 export function newGame() {
   G.money = 150000; G.gameMin = 8 * 60; G.tsIdx = 0;
   FIELDS.forEach(applyStart); // ripe wheat on field 1, the rest as laid out in FIELD_DEFS
-  vehicles.forEach(sendHome);
+  vehicles.forEach(v => { v.helper = null; sendHome(v); });
   Object.assign(vehicles[0], { seedCrop: 0, baleAcc: 0 });
   trailer.tank = { crop: -1, amount: 0, cap: 14000 };
   trailer.bales = 0;
@@ -63,7 +64,7 @@ export function serialize() {
       owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir),
       growth: b64.enc(new Uint8Array(f.growth.buffer)), bonus: b64.enc(f.bonus), straw: b64.enc(f.straw),
     })),
-    veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel })),
+    veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel, helper: serializeHelper(v) })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
     farm: G.farm, forest: serializeForest(), logs: forester.logs, water: TOOLS.watertank.water,
     trailer: { tank: trailer.tank, bales: trailer.bales },
@@ -134,6 +135,9 @@ export function applySave(d) {
   applyOwnership();
   afterLoad();
   if (!G.contracts.active && !G.contracts.offers.length) generateOffers();
+  // helpers carry on where they were (after ownership and contracts are known)
+  vehicles.forEach((v, k) => { v.helper = null; if (v.available) restoreHelper(v, d.veh[k]?.helper); });
+  if (G.active.helper) G.active = vehicles.find(v => v.available && !v.helper) || G.active;
   return true;
 }
 

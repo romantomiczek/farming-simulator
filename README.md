@@ -98,7 +98,7 @@ Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přes
 - **Konec:** skončí, když je pole hotové, dojde nafta nebo peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí.
 - **Zakázky:** na sousedově poli může pracovat, jen když tam máš zakázku s odpovídajícím nářadím.
 - **Překážky:** pomocník nikdy neprojede budovou, plotem, stromem ani zaparkovaným strojem. Když mu něco stojí v cestě déle než 8 sekund, skončí s hlášením.
-- **Ukládání:** pomocníci se do uložené hry neukládají. Po načtení je stačí najmout znovu.
+- **Ukládání:** pomocníci se ukládají i s rozpracovanou trasou. Po načtení hry pokračují tam, kde skončili.
 
 ## Ekonomika
 
@@ -170,6 +170,5 @@ prototyp/              původní jednosouborový prototyp
 ## Známá omezení a nápady
 
 - Zima je zatím jen bledší, bez sněhu na zemi.
-- Pomocníci se neukládají, po načtení hry je stačí najmout znovu.
 - Harvestor a lesní stromy pomocník neobsluhuje, kácí se jen ručně.
 - Nápady na další obsah: prasata nebo ovce, výroba krmné směsi, prodej mléka do mlékárny, více lesních parcel.

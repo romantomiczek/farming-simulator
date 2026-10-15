@@ -1,7 +1,7 @@
 import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_RIPE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
-import { fieldAt } from '../world/fields.js';
+import { fieldAt, FIELDS } from '../world/fields.js';
 import { vehicles, IMPL, toolLine, blockedAt } from '../vehicles/vehicles.js';
 import { pushBales } from '../world/bales.js';
 import { contractAllows } from './contracts.js';
@@ -127,6 +127,46 @@ export function hire(v) {
   v.helper = { field: f, path, seg: 0, s: 0, wage: 0, time: 0, done: 0, total: path.reduce((a, s) => a + s.len, 0), wait: null, check: 0 };
   v.lowered = false;
   toast('Pomocník převzal ' + v.name + ': ' + jobName(v) + ' pole ' + f.id + '. Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
+  return true;
+}
+
+/* ---------- saving ---------- */
+const num = x => Number.isFinite(x);
+const pt = p => p && num(p.x) && num(p.z);
+const r3 = x => Math.round(x * 1000) / 1000;
+const p3 = p => ({ x: r3(p.x), z: r3(p.z) });
+
+/** Helper state for the save file: the planned route and how far along it the helper is. */
+export function serializeHelper(v) {
+  const hp = v.helper;
+  if (!hp) return null;
+  return {
+    field: hp.field.id, seg: hp.seg, s: r3(hp.s), wage: Math.round(hp.wage), time: r3(hp.time), done: r3(hp.done), total: r3(hp.total),
+    path: hp.path.map(sg => (sg.kind === 'line'
+      ? { kind: 'line', a: p3(sg.a), b: p3(sg.b), work: sg.work, len: r3(sg.len), h: r3(sg.h) }
+      : { kind: 'arc', C: p3(sg.C), r: r3(sg.r), d: sg.d, sg: sg.sg, U: sg.U, S: sg.S, len: r3(sg.len) })),
+  };
+}
+
+/** Puts a saved helper back on its vehicle; quietly skips anything that does not check out. */
+export function restoreHelper(v, d) {
+  v.helper = null;
+  if (!d || !Array.isArray(d.path) || !d.path.length) return false;
+  const f = FIELDS.find(x => x.id === d.field);
+  if (!f || (!f.owned && !contractAllows(f, v))) return false;
+  const path = [];
+  for (const sg of d.path) {
+    if (sg?.kind === 'line' && pt(sg.a) && pt(sg.b) && num(sg.len) && num(sg.h)) path.push({ kind: 'line', a: sg.a, b: sg.b, work: !!sg.work, len: sg.len, h: sg.h });
+    else if (sg?.kind === 'arc' && pt(sg.C) && num(sg.r) && sg.r > 0 && num(sg.d) && num(sg.sg) && pt(sg.U) && pt(sg.S) && num(sg.len)) {
+      path.push({ kind: 'arc', C: sg.C, r: sg.r, d: Math.sign(sg.d) || 1, sg: Math.sign(sg.sg) || 1, U: sg.U, S: sg.S, len: sg.len });
+    } else return false;
+  }
+  const seg = Math.max(0, Math.min(path.length - 1, d.seg | 0));
+  v.helper = {
+    field: f, path, seg, s: Math.max(0, Math.min(path[seg].len, +d.s || 0)),
+    wage: Math.max(0, +d.wage || 0), time: Math.max(0, +d.time || 0), done: Math.max(0, +d.done || 0),
+    total: num(d.total) && d.total > 0 ? d.total : path.reduce((a, s) => a + s.len, 0), wait: null, check: 0,
+  };
   return true;
 }
 
