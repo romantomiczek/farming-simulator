@@ -60,6 +60,19 @@ const MODELS = {
     box([0.06, 0.12, 0.05], [-0.07, 0.71, 0.35], '#3a2a20'), box([0.06, 0.12, 0.05], [0.07, 0.71, 0.35], '#3a2a20'),
     box([0.14, 0.14, 0.42], [0, 0.38, -0.5], '#d0652a', 0.5), box([0.1, 0.1, 0.12], [0, 0.24, -0.7], '#f2efe8', 0.5),
   ]),
+  boar: () => merge([
+    box([0.5, 0.55, 1.05], [0, 0.62, 0], '#4a3f36'), box([0.42, 0.18, 0.9], [0, 0.95, -0.02], '#3a312a'),
+    box([0.36, 0.38, 0.4], [0, 0.66, 0.66], '#4a3f36'), box([0.2, 0.18, 0.2], [0, 0.56, 0.92], '#2e2620'),
+    box([0.04, 0.1, 0.04], [-0.1, 0.52, 0.98], '#efe8d8'), box([0.04, 0.1, 0.04], [0.1, 0.52, 0.98], '#efe8d8'),
+    box([0.08, 0.14, 0.05], [-0.13, 0.9, 0.56], '#2e2620'), box([0.08, 0.14, 0.05], [0.13, 0.9, 0.56], '#2e2620'),
+    box([0.05, 0.05, 0.25], [0, 0.78, -0.62], '#3a312a', 0.8),
+  ]),
+  pheasant: () => merge([
+    box([0.18, 0.18, 0.34], [0, 0.28, 0], '#9b5a2a'), box([0.1, 0.16, 0.1], [0, 0.42, 0.18], '#2f5d48'),
+    box([0.06, 0.05, 0.08], [0, 0.44, 0.22], '#c4473a'), box([0.04, 0.03, 0.07], [0, 0.42, 0.27], '#d9c48e'),
+    box([0.05, 0.04, 0.5], [0, 0.32, -0.38], '#8a5a3a', -0.35),
+    box([0.025, 0.2, 0.025], [-0.04, 0.1, 0], '#8a7a58'), box([0.025, 0.2, 0.025], [0.04, 0.1, 0], '#8a7a58'),
+  ]),
   deer: () => merge([
     box([0.36, 0.42, 0.95], [0, 0.95, 0], '#9a6b45'), box([0.3, 0.3, 0.12], [0, 0.98, -0.5], '#f2ece0'),
     box([0.16, 0.5, 0.18], [0, 1.3, 0.42], '#9a6b45', -0.45), box([0.18, 0.2, 0.3], [0, 1.55, 0.56], '#9a6b45'),
@@ -118,7 +131,16 @@ function moveTo(a, dt, speed, turn = 5) {
   if (d < 0.35) { a.v = 0; return true; }
   a.h += angDiff(a.h, Math.atan2(dx, dz)) * Math.min(1, dt * turn);
   const s = Math.min(speed, d * 3), nx = a.x + Math.sin(a.h) * s * dt, nz = a.z + Math.cos(a.h) * s * dt;
-  if (blocked(nx, nz)) { a.v = 0; a.stuck = (a.stuck || 0) + dt; return a.stuck > 0.6 ? (a.stuck = 0, true) : false; }
+  if (blocked(nx, nz)) {
+    a.v = 0;
+    // running away and something is in the way (a tree, a house): veer off and keep running
+    if (a.fleeing > 0) {
+      const ang = a.h + (Math.random() < 0.5 ? 1 : -1) * (1 + Math.random());
+      a.tx = a.x + Math.sin(ang) * 12; a.tz = a.z + Math.cos(ang) * 12; a.h = ang;
+      return false;
+    }
+    a.stuck = (a.stuck || 0) + dt; return a.stuck > 0.6 ? (a.stuck = 0, true) : false;
+  }
   a.x = nx; a.z = nz; a.v = s; a.stuck = 0;
   return false;
 }
@@ -187,28 +209,38 @@ export function buildWildlife() {
 
   const dogS = species(MODELS.dog(), 1, quad(0.4, 0.08, '#6e4630', 0.1, 0.25, 0.42, 6, 0.8));
   const catS = [species(MODELS.cat(), 1, quad(0.2, 0.05, '#6a6258', 0.06, 0.14, 0.22, 2.5)), species(MODELS.ginger(), 1, quad(0.2, 0.05, '#b8763e', 0.06, 0.14, 0.22, 2.5))];
-  const hareS = species(MODELS.hare(), 16);
-  const foxS = species(MODELS.fox(), 3, quad(0.32, 0.06, '#2e2620', 0.07, 0.22, 0.34, 5, 0.75));
-  const deerS = species(MODELS.deer(), 5, quad(0.78, 0.08, '#7a5236', 0.12, 0.36, 0.8, 7, 0.7));
-  const crowS = species(MODELS.crow(), 12);
-  const wings = new THREE.InstancedMesh(wing(), mat, 24);
+  // how many of each: hares and crows are cheap (one instanced mesh each), so the land can be lively
+  const N_HARES = 50, FOX_PER_AREA = 3, N_DEER = 14, N_CROWS = 30, HERONS_PER_POND = 3, N_BOARS = 8, N_PHEASANTS = 26;
+  const hareS = species(MODELS.hare(), N_HARES);
+  const foxS = species(MODELS.fox(), FOX_AREAS.length * FOX_PER_AREA, quad(0.32, 0.06, '#2e2620', 0.07, 0.22, 0.34, 5, 0.75));
+  const boarS = species(MODELS.boar(), N_BOARS, quad(0.36, 0.08, '#2e2620', 0.14, 0.34, 0.4, 5, 0.7));
+  const pheasantS = species(MODELS.pheasant(), N_PHEASANTS);
+  const deerS = species(MODELS.deer(), N_DEER, quad(0.78, 0.08, '#7a5236', 0.12, 0.36, 0.8, 7, 0.7));
+  const crowS = species(MODELS.crow(), N_CROWS);
+  const wings = new THREE.InstancedMesh(wing(), mat, N_CROWS * 2);
   // grey herons at the fish ponds; their wings are the crow wing, scaled up
-  const heronS = species(MODELS.heron(), 3);
-  const heronWings = new THREE.InstancedMesh(wing('#8f989d'), mat, 6);
+  const heronS = species(MODELS.heron(), PONDS.length * HERONS_PER_POND);
+  const heronWings = new THREE.InstancedMesh(wing('#8f989d'), mat, PONDS.length * HERONS_PER_POND * 2);
   heronWings.castShadow = true; scene.add(heronWings); allMeshes.push(heronWings);
   const shore = (p, a) => ({ x: p.x + Math.cos(a) * p.rx * 0.93, z: p.z + Math.sin(a) * p.rz * 0.93 });
-  const herons = PONDS.map((p, k) => { const a = R() * 6.28, s = shore(p, a); return { ...s, y: 0, h: R() * 6.28, pond: k, ang: a, state: 'stand', wait: R() * 10, flap: 0, v: 0, tx: s.x, tz: s.z }; });
+  const herons = PONDS.flatMap((p, k) => Array.from({ length: HERONS_PER_POND }, () => k)).map(k => { const p = PONDS[k], a = R() * 6.28, s = shore(p, a); return { ...s, y: 0, h: R() * 6.28, pond: k, ang: a, state: 'stand', wait: R() * 10, flap: 0, v: 0, tx: s.x, tz: s.z }; });
   wings.castShadow = true; scene.add(wings); allMeshes.push(wings);
 
   const agent = (p, extra) => Object.assign({ x: p.x, z: p.z, h: R() * 6.28, tx: p.x, tz: p.z, v: 0, phase: R() * 6, wait: R() * 4, fleeing: 0 }, extra);
   const dog = agent({ x: -20, z: -24 }, { follow: null, barkT: 3 });
   const cats = [agent(pickIn(R, CATS)), agent(pickIn(R, CATS))];
-  const hares = Array.from({ length: 16 }, (_, k) => { const area = OPEN[k % OPEN.length]; return agent(pickIn(R, area, true), { s: 0.9 + R() * 0.25, area }); });
-  const foxes = FOX_AREAS.map(r => agent(pickIn(R, r), { area: r }));
+  const hares = Array.from({ length: N_HARES }, (_, k) => { const area = OPEN[k % OPEN.length]; return agent(pickIn(R, area, true), { s: 0.9 + R() * 0.25, area }); });
+  const foxes = FOX_AREAS.flatMap(r => Array.from({ length: FOX_PER_AREA }, () => agent(pickIn(R, r), { area: r })));
   const herd = { ...pickIn(R, DEER_DAY), tx: 0, tz: 0, wait: 0 };
-  const deer = Array.from({ length: 5 }, (_, k) => agent({ x: herd.x + (R() - 0.5) * 8, z: herd.z + (R() - 0.5) * 8 }, { s: k === 0 ? 1.1 : 0.85 + R() * 0.15, ox: (R() - 0.5) * 10, oz: (R() - 0.5) * 10 }));
+  const deer = Array.from({ length: N_DEER }, (_, k) => agent({ x: herd.x + (R() - 0.5) * 8, z: herd.z + (R() - 0.5) * 8 }, { s: k === 0 ? 1.1 : 0.85 + R() * 0.15, ox: (R() - 0.5) * 10, oz: (R() - 0.5) * 10 }));
   const flock = { x: 30, z: 20, mode: 'sit', t: 20 };
-  const crows = Array.from({ length: 12 }, () => ({ x: 30 + (R() - 0.5) * 10, z: 20 + (R() - 0.5) * 10, y: 0, h: R() * 6.28, state: 'ground', ang: R() * 6.28, rad: 8 + R() * 8, alt: 14 + R() * 10, flap: R() * 6, tx: 0, tz: 0, wait: R() * 3, v: 0 }));
+  // wild boar: a sounder roaming the western forest, the whole group bolts from machines
+  const BOAR_AREA = { x0: -400, x1: -175, z0: -330, z1: 440 };
+  const sounder = { ...pickIn(R, BOAR_AREA), wait: 0 };
+  const boars = Array.from({ length: N_BOARS }, (_, k) => agent({ x: sounder.x + (R() - 0.5) * 6, z: sounder.z + (R() - 0.5) * 6 }, { s: k === 0 ? 1.15 : 0.6 + R() * 0.35, ox: (R() - 0.5) * 8, oz: (R() - 0.5) * 8 }));
+  // pheasants along the field edges in the open farmland
+  const pheasants = Array.from({ length: N_PHEASANTS }, (_, k) => { const area = OPEN[(k + 2) % OPEN.length]; return agent(pickIn(R, area, true), { s: 0.9 + R() * 0.2, area }); });
+  const crows = Array.from({ length: N_CROWS }, () => ({ x: 30 + (R() - 0.5) * 10, z: 20 + (R() - 0.5) * 10, y: 0, h: R() * 6.28, state: 'ground', ang: R() * 6.28, rad: 8 + R() * 8, alt: 14 + R() * 10, flap: R() * 6, tx: 0, tz: 0, wait: R() * 3, v: 0 }));
   let callT = 8;
 
   function wander(a, dt, area, walk, pause, avoidTown) {
@@ -224,7 +256,7 @@ export function buildWildlife() {
 
   return {
     /** For tests and debugging. */
-    agents: { dog, cats, hares, foxes, deer, crows, flock, herons },
+    agents: { dog, cats, hares, foxes, deer, crows, flock, herons, boars, pheasants },
     /** Shows or hides every animal (developer panel). */
     setVisible(on) { for (const m of allMeshes) m.visible = on; },
     /** ctx = { vehicles, active, hour, cows, hens } */
@@ -314,6 +346,37 @@ export function buildWildlife() {
         });
         deerS.flush();
       }
+
+      /* wild boar: rooting about the forest in a group, all of them run when a machine comes */
+      {
+        if ((sounder.wait -= dt) <= 0) { const p = pickIn(R, BOAR_AREA); sounder.x = p.x; sounder.z = p.z; sounder.wait = 30 + R() * 50; }
+        let scare = null;
+        for (const a of boars) { const t = threat(a, vehicles, 30); if (t) { scare = t.v; break; } }
+        boars.forEach((a, i) => {
+          if (scare && a.fleeing <= 0) fleeFrom(a, scare.x, scare.z, 32, R);
+          if (a.fleeing > 0) { a.fleeing -= dt; if (moveTo(a, dt, 8, 5)) a.fleeing = 0; if (a.fleeing <= 0) { sounder.x = a.x; sounder.z = a.z; } }
+          else if (a.wait > 0) { a.wait -= dt; a.v = 0; }
+          else {
+            a.tx = sounder.x + a.ox; a.tz = sounder.z + a.oz;
+            if (moveTo(a, dt, 1.1, 3)) { a.wait = 3 + R() * 10; a.ox = (R() - 0.5) * 10; a.oz = (R() - 0.5) * 10; }
+          }
+          a.phase += dt * (2 + a.v * 2.4);
+          // rooting: snout down while standing
+          boarS.put(i, a, 0, a.v < 0.1 ? 0.1 : 0);
+        });
+        boarS.flush();
+      }
+
+      /* pheasants: strut along the field edges, scurry off from machines */
+      pheasants.forEach((a, i) => {
+        const t = threat(a, vehicles, 12);
+        if (t && a.fleeing <= 0) fleeFrom(a, t.v.x, t.v.z, 15 + R() * 8, R);
+        if (a.fleeing > 0) { a.fleeing -= dt; if (moveTo(a, dt, 6.5, 9)) a.fleeing = 0; }
+        else wander(a, dt, a.area, 0.9, [3, 14], true);
+        a.phase += dt * (6 + a.v * 3);
+        pheasantS.put(i, a, a.v > 0.1 ? Math.abs(Math.sin(a.phase)) * 0.03 : 0, a.v > 3 ? -0.15 : 0);
+      });
+      pheasantS.flush();
 
       /* crows: follow the plough, otherwise sit on a field or circle over the valley */
       {
