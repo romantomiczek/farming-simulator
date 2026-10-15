@@ -180,6 +180,8 @@ export const riverDist = (x, z) => polyDist(x, z, RIVER);
 export const circles = [];
 export const boxes = [];
 export const addBox = (x0, x1, z0, z1) => boxes.push({ x0, x1, z0, z1 });
+/** Moving obstacles (cars, the train) as circles { x, z, r }, updated by the traffic every frame. */
+export const movers = [];
 
 /**
  * Spatial index over circles and boxes (cells of CELL metres), rebuilt whenever shapes were added.

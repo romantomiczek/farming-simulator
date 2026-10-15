@@ -25,15 +25,17 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | Mezerník | spustit / zvednout nářadí |
 | Tab | přesednout do dalšího stroje, který vlastníš (traktor, kombajn, sklízeč cukrovky, harvestor) |
 | F | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
-| 1–7 | v kůlně: přímý výběr nářadí traktoru (1–7) nebo adaptéru kombajnu (1–2) |
+| 1–8 | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2) |
 | R | v kůlně: oprava stroje a připojeného nářadí |
-| K | kancelář: obchod se stroji, zakázky, finance (čas se zastaví) |
+| K | kancelář: obchod se stroji, zakázky, farma a pozemky, cíle, finance (čas se zastaví) |
+| M | velká mapa celého kraje; kliknutím na svůj stroj do něj přesedneš |
 | H | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit |
 | C | změnit osivo |
 | T | rychlost času 1× / 5× / 20× |
 | Q / E, tažení myší | otočení kamery |
 | kolečko | přiblížení |
 | Esc | menu, nastavení grafiky, uložení do souboru |
+| F9 | vývojářský režim (jen při vývoji, viz níže) |
 
 ## Stroje a plodiny
 
@@ -43,9 +45,10 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | 2 Pluh | 3,2 m | totéž, pomaleji, ale +15 % výnosu |
 | 3 Secí stroj | 4 m | zasívá zvolenou plodinu (C) |
 | 4 Rozmetadlo | 12 m | hnojivo za 2 Kč/m², +25 % výnosu (i na rostoucí plodiny) |
-| 5 Lis na balíky | 2 m | sbírá řádky slámy, každých 60 m² vyhodí balík |
+| 5 Lis na balíky | 2 m | sbírá řádky slámy nebo sena, každých 60 m² vyhodí balík |
 | 6 Přívěs | 14 000 l / 8 balíků | odvoz úrody nebo balíků |
 | 7 Cisterna na vodu | 8 000 l | voda z rybníka pro skleníky |
+| 8 Žací lišta | 3 m | poseče louku a nechá řádek sena |
 
 Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **řádkový adaptér** na kukuřici a slunečnici. Vyměníš je v kůlně (F nebo 1–2).
 
@@ -55,7 +58,16 @@ Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, ne
 
 ## Svět
 
-Údolí se táhne od farmy na východ. Hlavní silnice vede kolem polí 5 a 6 do vesnice s kostelem. Na prodej je šest polí (3–8).
+Kraj má 1,2 × 1 km. Uprostřed leží domovské údolí s farmou, poli 1–8 a vesnicí. Kolem něj:
+
+- **Západ:** hustý smíšený les s mýtinami a lesními cestami. Jsou tu dvě nové parcely pro harvestor, posedy a hráně dřeva.
+- **Sever:** mírně zvlněné kopce s velkými lány (pole 9–17 a 23, až 2,4 ha), remízky, živými ploty, kapličkou na kopci a větrnými elektrárnami na hřebeni.
+- **Jih:** rybníky s hrázemi, rákosím, molem a volavkami, louky na seno a pole 20–22.
+- **Východ:** řeka s vrbami, dvěma mosty a brodem. Za ní leží městečko Lánov s kostelem, nádražím a železnicí, pole 18 a 19 a pískovna.
+
+Pole leží na plochých terasách ve výšce podle okolního terénu, stroje jezdí po svazích a naklánějí se. Řeka a rybníky stroje nepustí, přes řeku vedou mosty a brod. Některá pole mají nepravidelný tvar a každé má kvalitu půdy, která ovlivňuje výnos (v Kanceláři je vidět jako „půda 90 %“). Cena pole se odvíjí od výměry a kvality.
+
+Po silnicích jezdí auta. Když jim stroj stojí v cestě, počkají. Po trati jezdí vlak a u nádraží houká.
 
 | Výkup | Kde | Co bere | Cena |
 | --- | --- | --- | --- |
@@ -63,8 +75,12 @@ Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, ne
 | Mlýn Zlatý klas | u vjezdu do vesnice | pšenice, ječmen | 110–112 % |
 | Olejna | za vesnicí jižně od silnice | řepka, slunečnice | 112–114 % |
 | Cukrovar a bioplynka | na konci silnice | cukrovka, kukuřice | 110–115 % |
+| Nádraží – výkup obilí | městečko za řekou, u trati | pšenice, ječmen, řepka | 112–118 % |
+| Krmivárna | městečko, jižně od hlavní silnice | kukuřice, ječmen, cukrovka | 108–116 % |
 
-Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodinu, kde se teď prodá nejdráž. Minimapa sleduje stroj, ve kterém sedíš.
+Dřevo kupuje pila u polní cesty a dřevosklad v městečku, který platí o 15 % víc.
+
+Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodinu, kde se teď prodá nejdráž. Vzdálenější výkupy platí víc. Minimapa sleduje stroj, ve kterém sedíš, celý kraj ukáže velká mapa (M).
 
 **Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu.
 
@@ -171,9 +187,11 @@ src/
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc, obloha (sky.js),
                        vítr ve vegetaci (wind.js)
-  world/               rozvržení mapy, terén, budovy a vesnice, vegetace, pole, balíky,
-                       kravín, kurník a skleníky (farmstead.js), les (forest.js),
-                       divoká a domácí zvířata (wildlife.js)
+  world/               rozvržení mapy (layout.js), terén s terasami, řekou a rybníky,
+                       budovy a vesnice, městečko, nádraží a pískovna (landmarks.js),
+                       vegetace, pole a louky, balíky, kravín, kurník a skleníky
+                       (farmstead.js), les (forest.js), zvířata (wildlife.js),
+                       auta a vlak (traffic.js)
   vehicles/            modely a jízda strojů, nářadí, přívěs
   game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
@@ -194,9 +212,19 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 6. **Pomocníci:** najatí řidiči, kteří sami obdělají pole.
 7. **Obsah:** zvířata, skleníky, lesnictví a další stroje a vylepšení v obchodě.
 8. **Svět a atmosféra:** obloha, zlatá hodina, zvuk, zvířata v krajině, vítr, stopy kol, cíle a statistiky, nákup polí v Kanceláři.
+9. **Velký kraj:** mapa 1,2 × 1 km s terénem, řekou, rybníky, lesem, městečkem a železnicí, 23 polí a 3 louky, seno, doprava, velká mapa, vývojářský režim.
+
+## Louky a seno
+
+Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pole, ale nic se na nich nesije.
+
+- **Sečení:** žací lišta (obchod, v kůlně klávesa 8) poseče vysokou trávu a nechá uprostřed záběru řádek sena. Posečená tráva sama doroste zhruba za 10 herních hodin, pod ležícím řádkem neroste.
+- **Lisování:** lis udělá z řádku kulaté balíky sena (zelenější než sláma). Naložíš je přívěsem a u stodoly prodáš dráž než slámu. Ceník ukazuje cenu balíku sena zvlášť.
+- **Pomocník** umí louku posekat i slisovat. Polní nářadí a kombajn na louce nic nedělají a na loukách nejsou zakázky.
 
 ## Známá omezení a nápady
 
 - Zima je zatím jen bledší, bez sněhu na zemi.
 - Harvestor a lesní stromy pomocník neobsluhuje, kácí se jen ručně.
-- Nápady na další obsah: prasata nebo ovce, výroba krmné směsi, prodej mléka do mlékárny, více lesních parcel.
+- Pomocník začíná práci na poli, kam ho dovezeš. Sám po silnicích na vzdálené pole nejede.
+- Nápady na další obsah: prasata nebo ovce, výroba krmné směsi, seno jako krmivo pro krávy, prodej mléka do mlékárny.

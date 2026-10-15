@@ -87,10 +87,10 @@ function till() {
   tone('triangle', 2640, 2600, t + 0.07, 0.3, 0.04);
 }
 
-/** Animal and other calls at a world position; quieter with distance (heard up to ~90 m). */
-export function playAt(kind, x, z, listener) {
+/** Animal and other calls at a world position; quieter with distance (heard up to range metres). */
+export function playAt(kind, x, z, listener, range = 90) {
   if (!A || !sound.on) return;
-  const d = Math.hypot(x - listener.x, z - listener.z), k = Math.max(0, 1 - d / 90);
+  const d = Math.hypot(x - listener.x, z - listener.z), k = Math.max(0, 1 - d / range);
   if (k <= 0.02) return;
   const t = A.ac.currentTime, v = 0.09 * k * k;
   if (kind === 'moo') {
@@ -103,6 +103,9 @@ export function playAt(kind, x, z, listener) {
   } else if (kind === 'meow') {
     tone('sawtooth', 620, 880, t, 0.18, v * 0.6, null, A.filt('bandpass', 1100, 4));
     tone('sawtooth', 880, 520, t + 0.18, 0.35, v * 0.6, null, A.filt('bandpass', 1100, 4));
+  } else if (kind === 'horn') {
+    // two-tone train horn
+    for (const [f, dt] of [[330, 0], [262, 0.55]]) tone('sawtooth', f, f * 0.99, t + dt, 0.5, v * 1.4, null, A.filt('lowpass', 1200));
   } else if (kind === 'crow') {
     tone('sawtooth', 700, 500, t, 0.25, v * 0.5, null, A.filt('bandpass', 1500, 3));
   }

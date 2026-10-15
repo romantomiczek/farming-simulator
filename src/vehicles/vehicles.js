@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
-import { nearShapes, BOUNDS } from '../world/layout.js';
+import { nearShapes, BOUNDS, movers } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower } from './models.js';
@@ -160,6 +160,7 @@ function penetration(x, z, r, skip) {
   for (const c of forestColliders(treeBuf, x, z, r + 2)) circ(c);
   for (const o of vehicles) if (o.available && !skip.includes(o)) circ(o);
   if (!skip.includes(trailer)) for (const c of trailerCircles([])) circ(c);
+  for (const c of movers) circ(c);
   return p;
 }
 /** True if a circle would sit noticeably inside a fixed obstacle or another vehicle. */
@@ -224,6 +225,7 @@ function collide(v) {
   treeBuf.length = 0;
   for (const c of forestColliders(treeBuf, v.x, v.z, v.r + 2)) push(c);
   for (const o of vehicles) if (o !== v && o.available) push(o);
+  for (const c of movers) push(c);
   // a parked trailer, or the trailer of another vehicle, is an obstacle too (not for the tractor towing it)
   if (!(v === tractor && tractor.impl === 'trailer')) for (const c of trailerNow()) push(c);
   const x = clamp(v.x, BOUNDS.x0, BOUNDS.x1), z = clamp(v.z, BOUNDS.z0, BOUNDS.z1);
