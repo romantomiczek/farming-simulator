@@ -8,8 +8,13 @@ import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap } from '../game/
 import { trees, matureCount } from '../world/forest.js';
 import { forester } from '../vehicles/vehicles.js';
 import { toast } from './toast.js';
+import { GOALS, activeGoals, isDone, progressOf, progressText } from '../game/goals.js';
+import { FIELDS } from '../world/fields.js';
+import { S_STUB, S_CULT, S_SOWN, S_RIPE } from '../game/crops.js';
+import { buyField } from '../game/actions.js';
 
-// The farm office (K): machine shop, neighbour contracts and finances. Time stops while it is open.
+// The farm office (K): machine shop, neighbour contracts, the farm and its fields, goals and finances.
+// Time stops while it is open.
 const $ = id => document.getElementById(id);
 const box = $('office'), body = $('officeBody'), tabs = $('officeTabs');
 let tab = 'shop', h = null;
@@ -60,6 +65,7 @@ function act(a, key) {
     case 'loan': takeLoan(); break;
     case 'repay': repayLoan(); break;
     case 'fuel': ok = emergencyFuel(); break;
+    case 'field': ok = buyField(FIELDS.find(f => f.id === +key)); break;
   }
   if (ok) h.onChange();
   render();
@@ -68,7 +74,7 @@ function act(a, key) {
 function render() {
   for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   $('officeMoney').textContent = fmt(G.money) + ' Kč';
-  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'jobs' ? jobsHTML() : tab === 'farm' ? farmHTML() : finHTML();
+  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'jobs' ? jobsHTML() : tab === 'farm' ? farmHTML() : tab === 'goals' ? goalsHTML() : finHTML();
 }
 
 function shopHTML() {
@@ -130,6 +136,8 @@ function farmHTML() {
   const F = G.farm, row = (title, sub, state, extra = '') =>
     `<div class="row"><div class="rmain"><b>${title}</b><span>${sub}</span>${extra}</div><div class="rstate">${state}</div></div>`;
   let out = '<p class="lede small">Mléko, vejce a rajčata se odvážejí a platí o půlnoci. Krmivo vyložíš klávesou F ve sklízeči nebo přívěsem v kruhu u budovy, vodu přivezeš cisternou z rybníka.</p>';
+  out += fieldsHTML();
+  out += '<h3 class="grp">Budovy a les</h3>';
   for (const key of ['cows', 'hens']) {
     const b = BUILDINGS[key];
     if (!has(key)) { out += row(b.name, 'Koupíš v Obchodě.', '<span class="chip">Nevlastníš</span>'); continue; }
@@ -146,6 +154,47 @@ function farmHTML() {
     : row('Skleníky', 'Koupíš v Obchodě.', '<span class="chip">Nevlastníš</span>');
   out += row('Les na severu', matureCount() + ' z ' + trees.length + ' stromů je vzrostlých' + (has('forest') ? ' · v harvestoru ' + String(forester.logs.toFixed(1)).replace('.', ',') + ' m³' : ''),
     has('forest') ? '<span class="chip on">Harvestor</span>' : '<span class="chip">Bez harvestoru</span>');
+  return out;
+}
+
+const ha = m2 => String((m2 / 10000).toFixed(2)).replace('.', ',') + ' ha';
+
+/** Every field: size, what is on it and, for the neighbours' fields, the price. */
+function fieldsHTML() {
+  let out = '<h3 class="grp">Pozemky</h3>';
+  for (const f of FIELDS) {
+    const parts = [[S_RIPE, 'zralé'], [S_SOWN, 'oseto'], [S_CULT, 'připraveno'], [S_STUB, 'strniště']]
+      .filter(([k]) => f.cnt[k] / f.n >= 0.05).map(([k, name]) => name + ' ' + pct(f.cnt[k] / f.n));
+    const state = f.owned ? '<span class="chip on">Tvoje</span>' : '<span class="chip">Soused</span>';
+    const buyBtn = f.owned ? '' : `<div class="ract">${btn('field', f.id, 'Koupit · ' + fmt(f.price) + ' Kč', G.money < f.price)}</div>`;
+    out += `<div class="row"><div class="rmain"><b>Pole ${f.id} · ${ha(f.n)}</b><span>${parts.join(' · ') || '—'}</span></div><div class="rstate">${state}</div>${buyBtn}</div>`;
+  }
+  return out;
+}
+
+/** Active goals with progress, what comes next, finished ones and the farm's statistics. */
+function goalsHTML() {
+  const S = G.stats, act = activeGoals(), next = GOALS.filter(g => !isDone(g) && !act.includes(g)).slice(0, 3);
+  let out = '<p class="lede small">Za každý splněný cíl dostaneš odměnu. Aktivní jsou vždy tři, po splnění se odemkne další.</p>';
+  out += '<h3 class="grp">Aktivní cíle</h3>';
+  out += act.map(g => `<div class="row active"><div class="rmain"><b>${g.title}</b><span>${g.desc}</span>
+      <div class="bar"><i style="width:${(progressOf(g) * 100).toFixed(1)}%"></i></div><span class="muted">${progressText(g)}</span></div>
+      <div class="rstate"><span class="chip warn">${fmt(g.reward)} Kč</span></div></div>`).join('') || '<p class="lede small">Všechny cíle jsou splněné. Gratuluju!</p>';
+  if (next.length) out += '<h3 class="grp">Další na řadě</h3>' + next.map(g => `<div class="row slim"><div class="rmain"><b>${g.title}</b><span class="muted">${g.desc}</span></div><div class="rstate"><span class="muted">${fmt(g.reward)} Kč</span></div></div>`).join('');
+  const done = GOALS.filter(isDone);
+  if (done.length) out += '<h3 class="grp">Splněno (' + done.length + ' z ' + GOALS.length + ')</h3>' + done.map(g => `<div class="row slim"><div class="rmain"><b>${g.title}</b></div><div class="rstate"><span class="chip on">Hotovo</span></div></div>`).join('');
+  const crops = CROPS.map((c, i) => [c.name, S.harvest[i]]).filter(([, n]) => n > 0);
+  out += `<h3 class="grp">Statistiky</h3><div class="stats">
+      <div><span>Vyděláno prodejem</span><b>${fmt(S.earned)} Kč</b></div>
+      <div><span>Sklizeno celkem</span><b>${fmt(S.harvest.reduce((a, b) => a + b, 0))} l</b></div>
+      <div><span>Zkultivováno a zoráno</span><b>${ha(S.cult + S.plough)}</b></div>
+      <div><span>Oseto</span><b>${ha(S.sown)}</b></div>
+      <div><span>Pohnojeno</span><b>${ha(S.fert)}</b></div>
+      <div><span>Balíky slámy</span><b>${fmt(S.bales)}</b></div>
+      <div><span>Pokácené stromy</span><b>${fmt(S.trees)}</b></div>
+      <div><span>Zakázky</span><b>${fmt(S.contracts)}</b></div>
+    </div>`;
+  if (crops.length) out += '<div class="stats">' + crops.map(([n, l]) => `<div><span>${n}</span><b>${fmt(l)} l</b></div>`).join('') + '</div>';
   return out;
 }
 

@@ -70,6 +70,12 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 **Počasí** se mění po čtyřech hodinách: jasno, oblačno, déšť, v zimě sněžení. Za deště a hodinu po něm se nesklízí. Déšť trochu urychlí růst. Předpověď je pod hodinami.
 
+**Atmosféra:** obloha se sluncem, které zapadá za obzor, s měsícem, hvězdami a mraky (při zatažení jich je víc a šednou). Ráno a večer je světlo zlaté. Obilí, stromy a živé ploty se vlní ve větru, při dešti víc. Kola nechávají v poli koleje, které zmizí, až pole obděláš, a za sucha se za stroji práší. Kameru sklopíš myší až k obzoru.
+
+**Zvuk** se zapne po kliknutí na Hrát (vypíná se tlačítkem Zvuk nahoře): motor podle otáček a zátěže, mlácení, nářadí v půdě, vítr, déšť, ptáci přes den, cvrčci v noci a cinknutí kasy při příjmu peněz. Všechno je syntetizované, hra nemá zvukové soubory.
+
+**Zvířata v krajině:** pes běhá po dvoře a vyběhne za projíždějícím strojem, u stodoly a domu posedávají dvě kočky. V údolí skáčou zajíci, na kraji lesa a kopců žijí lišky (víc za soumraku a v noci), na jižních svazích se pase stádo srnek, které za svítání a soumraku schází na louku. Hejno vran sedá na pole za strojem, který orá, kultivuje nebo sklízí. Zvířata utíkají před jedoucími stroji.
+
 ## Zvířata, skleníky a les
 
 Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce a rajčata se odvážejí a platí o půlnoci.
@@ -102,10 +108,12 @@ Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přes
 
 ## Ekonomika
 
-**Kancelář (K)** má tři záložky. Dokud je otevřená, čas stojí.
+**Kancelář (K)** má pět záložek. Dokud je otevřená, čas stojí.
 
 - **Obchod:** na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs. Pluh, rozmetadlo, lis, řádkový adaptér a sklízeč cukrovky koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den). Vlastní stroj prodáš za 55 % ceny podle stavu.
 - **Zakázky:** obděláváš sousedova pole, která ti nepatří (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem.
+- **Farma:** pozemky (výměra, co na nich je, nákup sousedových polí na dálku), zásoby zvířat a skleníků, stav lesa.
+- **Cíle:** tři aktivní cíle s odměnou (od první sklizně po celé údolí) a statistiky farmy. Aktuální cíl je vidět i pod Dalším krokem.
 - **Finance:** úvěr až 1 000 000 Kč po 100 000 Kč s úrokem 0,4 % denně. Najdeš tu i nouzový dovoz 60 l nafty, když v poli dojde.
 
 **Nafta:** stroje ji spotřebovávají při jízdě a víc při práci. Tankuje se v červeném kruhu u čerpací stanice vedle kůlny (F, 36 Kč/l). Bez nafty se stroj nerozjede.
@@ -150,14 +158,16 @@ Proč zbývá výkon na detail:
 src/
   main.js              start hry a hlavní smyčka
   core/                pomocné funkce, vstup, nastavení grafiky
-  render/              renderer, materiály a slučování, kamera, den a noc
+  render/              renderer, materiály a slučování, kamera, den a noc, obloha (sky.js),
+                       vítr ve vegetaci (wind.js)
   world/               rozvržení mapy, terén, budovy a vesnice, vegetace, pole, balíky,
-                       kravín, kurník a skleníky (farmstead.js), les (forest.js)
+                       kravín, kurník a skleníky (farmstead.js), les (forest.js),
+                       divoká a domácí zvířata (wildlife.js)
   vehicles/            modely a jízda strojů, nářadí, přívěs
   game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
-                       zvířata a skleníky (farm.js), lesnictví (forestry.js)
-  fx/                  částice (prach, plevy, kouř), déšť a sníh
+                       zvířata a skleníky (farm.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
+  fx/                  částice (prach, plevy, kouř), déšť a sníh, stopy kol (tracks.js)
   ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky
 prototyp/              původní jednosouborový prototyp
 godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), viz godot-demo/README.md
@@ -172,6 +182,7 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 5. **Svět:** větší mapa s vesnicí a osmi poli, čtyři výkupy s různými cenami, roční období a počasí.
 6. **Pomocníci:** najatí řidiči, kteří sami obdělají pole.
 7. **Obsah:** zvířata, skleníky, lesnictví a další stroje a vylepšení v obchodě.
+8. **Svět a atmosféra:** obloha, zlatá hodina, zvuk, zvířata v krajině, vítr, stopy kol, cíle a statistiky, nákup polí v Kanceláři.
 
 ## Známá omezení a nápady
 

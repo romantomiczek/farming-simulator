@@ -1,3 +1,4 @@
+import { stat, earn } from './goals.js';
 import * as THREE from 'three';
 import { lerp, fmt, plural } from '../core/util.js';
 import { G } from './state.js';
@@ -35,10 +36,10 @@ function applyCell(v, x, z, k, dirBit, res) {
   if (v.type === 'tractor') {
     switch (v.impl) {
       case 'cultivator':
-        if (s === S_STUB) { f.state[i] = S_CULT; f.straw[i] = 0; changed = true; }
+        if (s === S_STUB) { f.state[i] = S_CULT; f.straw[i] = 0; changed = true; stat('cult'); }
         break;
       case 'plough':
-        if ((s === S_STUB || s === S_CULT) && !(f.bonus[i] & B_PLOW)) { f.state[i] = S_CULT; f.bonus[i] |= B_PLOW; f.straw[i] = 0; changed = true; }
+        if ((s === S_STUB || s === S_CULT) && !(f.bonus[i] & B_PLOW)) { f.state[i] = S_CULT; f.bonus[i] |= B_PLOW; f.straw[i] = 0; changed = true; stat('plough'); }
         break;
       case 'seeder':
         if (s === S_CULT) {
@@ -49,7 +50,7 @@ function applyCell(v, x, z, k, dirBit, res) {
             G.money -= cr.seed;
           }
           f.state[i] = S_SOWN; f.crop[i] = crop; f.growth[i] = 0; f.stage[i] = 0;
-          changed = true;
+          changed = true; stat('sown');
         } else if (s === S_STUB) res.stub = true;
         break;
       case 'spreader':
@@ -58,7 +59,7 @@ function applyCell(v, x, z, k, dirBit, res) {
             if (G.money < FERT_COST) { res.blocked = 'money'; return; }
             G.money -= FERT_COST;
           }
-          f.bonus[i] |= B_FERT; changed = true; setDir = false;
+          f.bonus[i] |= B_FERT; changed = true; setDir = false; stat('fert');
         }
         break;
       case 'baler':
@@ -73,7 +74,7 @@ function applyCell(v, x, z, k, dirBit, res) {
       if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
       const y = cr.yield * yieldMult(f.bonus[i]);
       if (tk.amount + y > tk.cap) { res.blocked = 'full'; return; }
-      tk.crop = c; tk.amount += y;
+      tk.crop = c; tk.amount += y; stat('harvest', y, c);
     }
     f.state[i] = S_STUB; f.stage[i] = 0; f.bonus[i] = 0;
     f.straw[i] = cr.straw && Math.abs(k) < 0.9 ? 1 : 0;
@@ -130,7 +131,7 @@ export function work(v, dt) {
     while (v.baleAcc >= BALE_CELLS) {
       v.baleAcc -= BALE_CELLS;
       const bz = -1.75 - 4.2;
-      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h)) warn('bale', 'Lis vyhodil balík slámy.', '');
+      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h)) { stat('bales'); warn('bale', 'Lis vyhodil balík slámy.', ''); }
     }
   }
 
@@ -182,7 +183,7 @@ function deliver(m, crop, amt, who) {
     return take;
   }
   const pr = marketPrice(m, crop, G.gameMin);
-  who.soldAt = m.name; who.sold += amt; who.soldMoney += amt * pr; G.money += amt * pr; G.flashT = 0.4;
+  who.soldAt = m.name; who.sold += amt; who.soldMoney += amt * pr; G.money += amt * pr; earn(amt * pr); G.flashT = 0.4;
   return amt;
 }
 
@@ -287,7 +288,7 @@ export function stopTipping(onDone) {
 export function sellBales(onDone) {
   const n = trailer.bales, pr = balePrice(G.gameMin);
   if (!n) return;
-  G.money += n * pr; G.flashT = 0.4;
+  G.money += n * pr; earn(n * pr); G.flashT = 0.4;
   trailer.bales = 0;
   toast('Prodáno ' + plural(n, 'balík', 'balíky', 'balíků') + ' slámy za ' + fmt(n * pr) + ' Kč', 'good');
   onDone?.();

@@ -20,7 +20,7 @@
         <b id="day">Den 1</b><span id="time">08:00</span>
         <button id="speedBtn" class="chipbtn" title="Rychlost času (T)">1×</button>
         <button id="soundBtn" class="chipbtn" title="Zvuk hry">Zvuk: vyp.</button>
-        <button id="officeBtn" class="chipbtn" title="Kancelář: obchod, zakázky, finance (K)">Kancelář</button>
+        <button id="officeBtn" class="chipbtn" title="Kancelář: obchod, zakázky, farma, cíle, finance (K)">Kancelář</button>
         <button id="menuBtn" class="chipbtn" title="Menu (Esc)">Menu</button>
       </div>
       <div class="wx" id="wxLine">Léto · den 1 ze 3 · Jasno</div>
@@ -29,6 +29,7 @@
     <section class="panel task" aria-live="polite">
       <span class="eyebrow">Další krok</span>
       <p id="task">Skliď zralou pšenici na poli 1.</p>
+      <p id="goalLine" class="job" hidden></p>
       <p id="jobLine" class="job" hidden></p>
       <p id="helperLine" class="job helpers" hidden></p>
     </section>
@@ -90,6 +91,7 @@
         <button role="tab" data-tab="shop">Obchod</button>
         <button role="tab" data-tab="jobs">Zakázky</button>
         <button role="tab" data-tab="farm">Farma</button>
+        <button role="tab" data-tab="goals">Cíle</button>
         <button role="tab" data-tab="fin">Finance</button>
       </div>
       <div id="officeBody" class="officeBody"></div>

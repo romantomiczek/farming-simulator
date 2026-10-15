@@ -1,3 +1,4 @@
+import { stat, earn } from './goals.js';
 import { fmt } from '../core/util.js';
 import { G, dayOf } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE } from './crops.js';
@@ -105,7 +106,7 @@ export function checkContract(onDone) {
   const c = G.contracts.active;
   if (!c) return;
   if (c.done >= c.target * DONE_SHARE) {
-    G.money += c.reward; G.flashT = 0.4;
+    G.money += c.reward; earn(c.reward); stat('contracts'); G.flashT = 0.4;
     G.contracts.active = null;
     drawSigns();
     generateOffers();

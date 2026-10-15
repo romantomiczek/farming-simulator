@@ -9,6 +9,7 @@ import { forester, IMPL as TOOLS } from '../vehicles/vehicles.js';
 import { serializeForest, loadForest } from '../world/forest.js';
 import { emptyFarm } from './farm.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
+import { emptyStats, loadStats, loadGoals, GOALS, progressOf } from './goals.js';
 
 const KEY = 'zlate-lany-v1';
 // 1 = first release, 2 = grain trailer, 3 = bonus bits, straw, bales, combine header.
@@ -46,6 +47,7 @@ export function newGame() {
   G.contracts = { offers: [], active: null };
   G.lastDay = dayOf(G.gameMin);
   G.farm = emptyFarm();
+  G.stats = emptyStats(); G.goals = [];
   forester.logs = 0; forester.cutting = null; TOOLS.watertank.water = 0;
   loadForest(null);
   resetMachines(false);
@@ -66,7 +68,7 @@ export function serialize() {
     })),
     veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel, helper: serializeHelper(v) })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
-    farm: G.farm, forest: serializeForest(), logs: forester.logs, water: TOOLS.watertank.water,
+    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), logs: forester.logs, water: TOOLS.watertank.water,
     trailer: { tank: trailer.tank, bales: trailer.bales },
     bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3) })),
   };
@@ -138,6 +140,9 @@ export function applySave(d) {
   // helpers carry on where they were (after ownership and contracts are known)
   vehicles.forEach((v, k) => { v.helper = null; if (v.available) restoreHelper(v, d.veh[k]?.helper); });
   if (G.active.helper) G.active = vehicles.find(v => v.available && !v.helper) || G.active;
+  G.stats = loadStats(d.stats);
+  // saves from before goals existed: whatever is already achieved counts as done, without a reward
+  G.goals = d.stats ? loadGoals(d.goals) : GOALS.filter(g => progressOf(g) >= 1).map(g => g.id);
   return true;
 }
 

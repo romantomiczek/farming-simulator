@@ -2,6 +2,7 @@ import { fmt } from '../core/util.js';
 import { G } from './state.js';
 import { has } from './machines.js';
 import { toast } from '../ui/toast.js';
+import { earn } from './goals.js';
 
 /**
  * Animals and greenhouses. Storage lives in G.farm; production runs on game time
@@ -51,7 +52,7 @@ export function sellProducts() {
   F.eggs -= sell(F.eggs, BUILDINGS.hens.price, 'vajec');
   F.tomatoes -= sell(F.tomatoes, GREENHOUSE.price, 'kg rajčat');
   if (total > 0) {
-    G.money += total; G.flashT = 0.4;
+    G.money += total; earn(total); G.flashT = 0.4;
     toast('Odvoz z farmy: ' + parts.join(', ') + ' za ' + fmt(total) + ' Kč', 'good');
   }
 }

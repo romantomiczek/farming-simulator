@@ -1,3 +1,4 @@
+import { activeGoals, progressText } from '../game/goals.js';
 import { fmt, fmt2, plural } from '../core/util.js';
 import { G, TIME_SCALES } from '../game/state.js';
 import {
@@ -24,7 +25,7 @@ const ui = {
   prices: $('priceList'), vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'),
   vTankLabel: $('vTankLabel'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
   shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'), wx: $('wxLine'), helpers: $('helperLine'),
-  vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), job: $('jobLine'),
+  vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), job: $('jobLine'), goal: $('goalLine'),
 };
 
 // Only touch the DOM when a value actually changed: layout work is expensive on weak machines.
@@ -220,6 +221,9 @@ export function updSlowUI() {
   ui.helpers.hidden = !hs.length;
   setHTML(ui.helpers, 'helpers', hs.map(h => '<span><b>Pomocník</b> · ' + h.name.split(' ')[0] + ': ' + jobName(h) + ' pole ' + h.helper.field.id + ' · ' +
     pct(helperProgress(h)) + (h.helper.wait ? ' · ' + helperWaitText[h.helper.wait] : '') + ' · ' + fmt(h.helper.wage) + ' Kč</span>').join(''));
+  const g = activeGoals()[0];
+  ui.goal.hidden = !g;
+  if (g) setHTML(ui.goal, 'goal', '<b>Cíl:</b> ' + g.title + ' · ' + progressText(g) + ' · ' + fmt(g.reward) + ' Kč');
   const c = G.contracts.active;
   ui.job.hidden = !c;
   if (c) {

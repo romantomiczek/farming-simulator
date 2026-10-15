@@ -15,6 +15,8 @@ export const G = {
   contracts: { offers: [], active: null },
   farm: { cowFeed: 0, henFeed: 0, water: 0, milk: 0, eggs: 0, tomatoes: 0, hungry: {} },
   upgrades: {},
+  stats: null, // see goals.js emptyStats()
+  goals: [], // ids of finished goals
 };
 
 /** Speed multiplier from wear: full speed down to 50 % condition, then down to 70 % at 0. */

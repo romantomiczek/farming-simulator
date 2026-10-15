@@ -4,6 +4,7 @@ import { forester } from '../vehicles/vehicles.js';
 import { trees, volume, nearestMature, startFell, stepFell } from '../world/forest.js';
 import { SAWMILL } from '../world/layout.js';
 import { toast } from '../ui/toast.js';
+import { stat, earn } from './goals.js';
 
 /** Felling with the harvester and selling wood at the sawmill. */
 export const REACH = 9; // metres from the harvester to a tree it can cut
@@ -27,12 +28,13 @@ export function forestryTick(dt) {
   const got = Math.min(c.vol, v.logCap - v.logs);
   v.logs = +(v.logs + got).toFixed(2);
   v.cutting = null;
+  stat('trees'); stat('wood', got);
   toast('Pokáceno: ' + String(got.toFixed(1)).replace('.', ',') + ' m³ dřeva · v harvestoru ' + String(v.logs.toFixed(1)).replace('.', ',') + ' / ' + v.logCap + ' m³. Na místě vyroste nový strom.', 'good');
 }
 
 export function sellLogs(v, onDone) {
   const p = logPrice(G.gameMin), money = Math.round(v.logs * p);
-  G.money += money; G.flashT = 0.4;
+  G.money += money; earn(money); G.flashT = 0.4;
   toast('Pila koupila ' + String(v.logs.toFixed(1)).replace('.', ',') + ' m³ dřeva za ' + fmt(money) + ' Kč', 'good');
   v.logs = 0;
   onDone?.();

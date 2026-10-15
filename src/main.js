@@ -20,6 +20,7 @@ import { forestryTick } from './game/forestry.js';
 import { has, ownershipHooks } from './game/machines.js';
 import { upkeep, chargeDays } from './game/economy.js';
 import { generateOffers, checkContract } from './game/contracts.js';
+import { checkGoals } from './game/goals.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
 import { flushBales, bales, addBale } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
@@ -143,7 +144,7 @@ function tick(dt) {
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
   updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
-  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }
   renderer.render(scene, camera);
 }

@@ -162,15 +162,21 @@ export function doF() {
     case 'swap': swapImpl(a.impl); return;
     case 'header': swapHeader(a.header); return;
   }
-  const s = a.sign;
-  if (G.money >= s.f.price) {
-    G.money -= s.f.price; s.f.owned = true; G.flashT = 0.4;
-    if (G.contracts.active?.field === s.f.id) G.contracts.active = null; // your own field now
-    G.contracts.offers = G.contracts.offers.filter(o => o.field !== s.f.id);
-    drawSign(s);
-    toast('Pole ' + s.f.id + ' je tvoje. Úroda na něm patří tobě.', 'good');
-    saveLocal();
-  } else {
-    toast('Na pole ' + s.f.id + ' ti chybí ' + fmt(s.f.price - G.money) + ' Kč.', 'bad');
+  buyField(a.sign.f);
+}
+
+/** Buys field f (at its sign or from the office). Returns true when bought. */
+export function buyField(f) {
+  if (f.owned) return false;
+  if (G.money < f.price) {
+    toast('Na pole ' + f.id + ' ti chybí ' + fmt(f.price - G.money) + ' Kč.', 'bad');
+    return false;
   }
+  G.money -= f.price; f.owned = true; G.flashT = 0.4;
+  if (G.contracts.active?.field === f.id) G.contracts.active = null; // your own field now
+  G.contracts.offers = G.contracts.offers.filter(o => o.field !== f.id);
+  drawSign(signs.find(s => s.f === f));
+  toast('Pole ' + f.id + ' je tvoje. Úroda na něm patří tobě.', 'good');
+  saveLocal();
+  return true;
 }
