@@ -13,6 +13,7 @@ import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/sa
 import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper } from './game/actions.js';
 import { helperTick } from './game/helpers.js';
 import { buildFarmstead } from './world/farmstead.js';
+import { buildWildlife } from './world/wildlife.js';
 import { growForest, trees as forestTrees } from './world/forest.js';
 import { farmTick, sellProducts } from './game/farm.js';
 import { forestryTick } from './game/forestry.js';
@@ -39,6 +40,7 @@ const terrain = buildTerrain(scene);
 const { rotors } = buildFarm(scene);
 const vegetation = buildVegetation(scene);
 const farmstead = buildFarmstead();
+const wildlife = buildWildlife();
 ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
@@ -54,6 +56,7 @@ const hasSave = loadLocal();
 if (!hasSave) newGame();
 snapSeasonTint(terrain.material, vegetation.leafMat, season());
 cam.yaw = G.active.h;
+wildlife.update(0.001, { vehicles, active: G.active, hour: 12, cows: false, hens: false }); // place the animals before the first frame
 cam.t.set(G.active.x, 1, G.active.z);
 
 /* ---------- input & menu ---------- */
@@ -124,6 +127,7 @@ function tick(dt) {
   flushBales();
   forestryTick(dt);
   farmstead.update(dt);
+  if (G.playing) wildlife.update(dt, { vehicles, active: G.active, hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
@@ -156,7 +160,7 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed, fields: FIELDS, forest: forestTrees, bales, addBale,
+    G, vehicles, trailer, renderer, wildlife, attach: attachImpl, pick: pickInShed, fields: FIELDS, forest: forestTrees, bales, addBale,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
   };
 }
