@@ -27,6 +27,7 @@ import { flushBales, bales, addBale } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
 import { cam, bindCamera, updateCamera } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
+import { updSnow, snapSnow } from './render/snow.js';
 import { WX, updateWeather, season, isWinter } from './game/weather.js';
 import { updRain } from './fx/rain.js';
 import { updTracks } from './fx/tracks.js';
@@ -62,6 +63,7 @@ function applyQuality() {
 const hasSave = loadLocal();
 if (!hasSave) newGame();
 snapSeasonTint(terrain.material, vegetation.leafMat, season());
+snapSnow(isWinter());
 cam.yaw = G.active.h;
 wildlife.update(0.001, { vehicles, active: G.active, hour: 12, cows: false, hens: false }); // place the animals before the first frame
 traffic.update(0.001, { vehicles, listener: G.active });
@@ -120,6 +122,7 @@ let slowT = 0, mapT = 0, forestHours = 0, growHours = 0;
 function tick(dt) {
   if (G.playing) {
     const gm = DEV.freezeTime ? 0 : dt * TIME_SCALES[G.tsIdx] * DEV.timeMult;
+    updSnow(gm / 60, isWinter(), WX.rain > 0.05);
     G.gameMin += gm;
     updateWeather(dt);
     growHours += (gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1);

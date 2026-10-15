@@ -9,6 +9,7 @@ import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
 import { addWind } from '../render/wind.js';
 import { FIELD_PER_HA, MEADOW_PER_HA } from '../game/balance.js';
+import { addSnow } from '../render/snow.js';
 
 const CP = 4; // canvas pixels per field cell
 // crop block without its bottom face (never visible): 10 triangles instead of 12
@@ -92,7 +93,7 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.upT = 0;
 
   if (!f.poly) flatPlane(f.w + 1.4, f.h + 1.4, '#86a654', f.x0 + f.w / 2, f.y + 0.012, f.z0 + f.h / 2, borders);
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 }));
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), addSnow(new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 })));
   plane.rotation.x = -Math.PI / 2; plane.position.set(f.x0 + f.w / 2, f.y + 0.03, f.z0 + f.h / 2); plane.receiveShadow = true;
   scene.add(plane);
 

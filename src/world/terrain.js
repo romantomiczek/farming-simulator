@@ -4,6 +4,7 @@ import {
   BOUNDS, HOME, TOWN, FIELD_DEFS, RIVER_HALF, FORD, PONDS, PIT, CHAPEL, BRIDGES, MEADOW_AREAS, RAIL,
   riverDist, inRect, inPond,
 } from './layout.js';
+import { addSnow } from '../render/snow.js';
 
 /**
  * Terrain (variant A): rolling hills whose height depends on the region, flattened into terraces
@@ -192,7 +193,7 @@ export function updTerrainLOD(x, z, fine, mid) {
  */
 export function buildTerrain(scene) {
   if (!grid) buildGrid();
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
+  const material = addSnow(new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 }));
   const group = new THREE.Group();
   const TX = 3, TZ = 2, tnx = NX / TX, tnz = NZ / TZ;
   tiles.length = 0;

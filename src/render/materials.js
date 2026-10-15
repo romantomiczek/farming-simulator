@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { col } from '../core/util.js';
+import { addSnow } from './snow.js';
 
 const cache = new Map();
 /** Shared flat-shaded material per colour + options, so meshes can be merged by material. */
@@ -57,10 +58,13 @@ const baseCompile = THREE.Material.prototype.onBeforeCompile;
 const plain = m => m.isMeshStandardMaterial && !m.map && !m.transparent && m.opacity === 1 && !m.vertexColors &&
   m.emissive.r + m.emissive.g + m.emissive.b === 0 && m.onBeforeCompile === baseCompile;
 const vcCache = new Map();
-/** Shared vertex-coloured material for merged plain meshes with the same surface settings. */
-function vcMat(m) {
-  const k = [m.roughness, m.metalness, m.flatShading, m.side].join('|');
-  if (!vcCache.has(k)) vcCache.set(k, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: m.roughness, metalness: m.metalness, flatShading: m.flatShading, side: m.side }));
+/** Shared vertex-coloured material for merged plain meshes with the same surface settings (with or without winter snow). */
+function vcMat(m, snowy) {
+  const k = [m.roughness, m.metalness, m.flatShading, m.side, snowy].join('|');
+  if (!vcCache.has(k)) {
+    const vm = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: m.roughness, metalness: m.metalness, flatShading: m.flatShading, side: m.side });
+    vcCache.set(k, snowy ? addSnow(vm) : vm);
+  }
   return vcCache.get(k);
 }
 /**
@@ -70,14 +74,16 @@ function vcMat(m) {
  * Sub-groups stay separate, so moving parts (wheels, lifts, reels) keep working.
  * This cuts draw calls from hundreds to a few dozen, which matters most on integrated GPUs.
  * Meshes with userData.noBake, multi-material meshes and instanced meshes are left alone.
+ * opts.snow = false: no winter snow on the merged surfaces (machines).
  */
-export function bake(root) {
+export function bake(root, opts = {}) {
+  const snowy = opts.snow !== false;
   const visit = node => {
     const groups = new Map();
     for (const ch of [...node.children]) {
       const leaf = ch.isMesh && !ch.isInstancedMesh && ch.children.length === 0 && !Array.isArray(ch.material) && !ch.userData.noBake;
       if (!leaf) { if (!ch.isLight) visit(ch); continue; }
-      const vc = plain(ch.material), mat = vc ? vcMat(ch.material) : ch.material;
+      const vc = plain(ch.material), mat = vc ? vcMat(ch.material, snowy) : ch.material;
       const key = mat.uuid + (ch.castShadow ? '|c' : '') + (ch.receiveShadow ? '|r' : '');
       if (!groups.has(key)) groups.set(key, { mat, cast: ch.castShadow, recv: ch.receiveShadow, geos: [] });
       ch.updateMatrix();

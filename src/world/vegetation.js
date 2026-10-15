@@ -8,6 +8,7 @@ import {
   FIELD_DEFS, ROADS, PAD, POND, PONDS, NO_TREES, BOUNDS, PIT, FOREST_PLOTS, BRIDGES, TURBINES, RAIL, RIVER,
   circles, addBox, inRect, inPond, polyDist, riverDist,
 } from './layout.js';
+import { addSnow } from '../render/snow.js';
 
 /**
  * Trees and hedges. A tree is one merged model (trunk + crown, vertex colours, a "leaf" flag so the
@@ -205,8 +206,8 @@ export function buildVegetation(scene) {
   }
 
   /* ---------- meshes per tile ---------- */
-  const decidMat = leafOnly(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.88, flatShading: true }), { amp: 0.04, base: 1.8, spatial: 0.05 }));
-  const conifMat = addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.88, flatShading: true }), { amp: 0.02, base: 1.2, spatial: 0.05 });
+  const decidMat = addSnow(leafOnly(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.88, flatShading: true }), { amp: 0.04, base: 1.8, spatial: 0.05 })));
+  const conifMat = addSnow(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.88, flatShading: true }), { amp: 0.02, base: 1.2, spatial: 0.05 }));
   const tint = [col('#ffffff'), col('#f2ffe6'), col('#e6f2d9'), col('#fff7e0'), col('#dcebd0')];
   const dummy = new THREE.Object3D(), c = new THREE.Color();
   const tiles = new Map();

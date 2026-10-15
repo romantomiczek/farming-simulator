@@ -7,6 +7,7 @@ import { col } from '../core/util.js';
 // Moving parts are separate groups; everything else is merged by bake(), so the small
 // details below cost triangles but no extra draw calls.
 
+const NO_SNOW = { snow: false }; // machines stay clean in winter
 const DARK = '#3a3f42', TYRE = '#2a2c2e', STEEL = '#b9bfc2', IRON = '#56595b', TAIL = '#c4473a';
 
 /** Box with rounded (chamfered, flat-shaded) edges. */
@@ -137,7 +138,7 @@ export function buildJeep() {
     const w = wheel(0.42, 0.32, '#4f5458', 'lug'); p.add(w); wheels.push(w); front.push(p);
   }
   const spot = addLights(g, 1.18, 1.96, [-0.6, 0.6]);
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(-0.55, 0.5, -2.05) };
 }
 
@@ -193,7 +194,7 @@ export function buildTractor() {
     arc(p, body, 0, 0, 0, 0.64, Math.PI * 0.2, Math.PI * 0.8, 5, 0.48, 0.05); // steers with the wheel
   }
   const spot = addLights(g, 2.0, 2.2, [-0.4, 0.4]);
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(0.42, 3.05, 1.85) };
 }
 
@@ -221,7 +222,7 @@ export function buildCultivator() {
   for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; B(4.05, 0.05, 0.05, '#6a6f72', 0, Math.cos(a) * 0.29, Math.sin(a) * 0.29, roller); }
   CY(0.05, 0.05, 4.1, 6, DARK, 0, 0, 0, roller).rotation.z = Math.PI / 2;
   for (const sx of [-1, 1]) B(0.12, 0.12, 0.8, y, sx * 2.0, 0.6, -2.05, lift);
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, roller, up: 0.45, down: -0.2 };
 }
 
@@ -250,7 +251,7 @@ export function buildSeeder() {
   B(1.4, 0.05, 0.35, STEEL, 0, 0.98, -0.45, lift);
   const wheels = [];
   for (const sx of [-1, 1]) { const w = wheel(0.36, 0.22, '#d7dde2'); w.position.set(sx * 2.15, 0.36, -0.95); lift.add(w); wheels.push(w); }
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, wheels, up: 0.4, down: -0.05 };
 }
 
@@ -304,7 +305,7 @@ export function buildTrailer() {
       baleMeshes.push(m);
     }
   }
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, tip, grain, grainMat, wheels, baleMeshes };
 }
 
@@ -404,7 +405,7 @@ export function buildCombine() {
   for (const z of [-0.6, -2.3, -4.0]) CY(0.2, 0.2, 0.08, 10, light, 0, 0, z, pipe).rotation.x = Math.PI / 2;
   B(0.36, 0.5, 0.36, DARK, 0, -0.2, -4.6, pipe);
   const spot = addLights(g, 4.75, 2.3, [-0.6, 0.6]);
-  bake(g);
+  bake(g, NO_SNOW);
   return {
     group: g, wheels, front: [], rear, headerLift: hl, grainHdr, cornHdr, reel, pipe, grain, grainMat, spot,
     exhaust: new THREE.Vector3(-0.8, 5.5, -2.7),
@@ -450,7 +451,7 @@ export function buildPlough() {
   }
   rod([0.75, 0.85, -3.4], [1.15, 0.4, -3.9], 0.05, red, lift);
   const w = wheel(0.4, 0.25, '#d7dde2'); w.position.set(1.15, 0.4, -3.9); lift.add(w);
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, wheels: [w], up: 0.5, down: -0.25 };
 }
 
@@ -475,7 +476,7 @@ export function buildSpreader() {
     for (let k = 0; k < 4; k++) { const v = B(0.7, 0.08, 0.04, orange, 0, 0.05, 0, d); v.rotation.y = (k * Math.PI) / 4; }
     discs.push(d);
   }
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, discs, up: 0.05, down: 0 };
 }
 
@@ -492,7 +493,7 @@ export function buildMower() {
   RB(3.2, 0.5, 0.95, 0.08, red, 0, 0.55, -1.3, lift); // guard
   B(3.0, 0.06, 0.1, '#e8e4da', 0, 0.81, -0.86, lift);
   B(0.3, 0.6, 0.3, red, 0, 0.9, -0.75, lift); // gearbox
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, up: 0.55, down: -0.05 };
 }
 
@@ -517,7 +518,7 @@ export function buildBaler() {
   B(2.0, 0.22, 0.55, DARK, 0, 0.3, 0, lift);
   for (let i = 0; i < 9; i++) { const t = B(0.04, 0.3, 0.04, STEEL, -0.9 + i * 0.225, 0.18, 0.25, lift); t.rotation.x = 0.5; }
   CY(0.12, 0.12, 2.0, 8, IRON, 0, 0.5, -0.1, lift).rotation.z = Math.PI / 2; // crop roller
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, wheels, up: 0.25, down: 0 };
 }
 
@@ -578,7 +579,7 @@ export function buildBeetHarvester() {
   for (let k = 0; k < 10; k++) B(0.5, 0.04, 0.06, DARK, 0, 0.3, -0.3 - k * 0.48, pipe); // elevator slats
   B(0.6, 0.5, 0.4, DARK, 0, -0.2, -5.0, pipe);
   const spot = addLights(g, 3.95, 3.15, [-0.7, 0.7]);
-  bake(g);
+  bake(g, NO_SNOW);
   return {
     group: g, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot,
     exhaust: new THREE.Vector3(-0.8, 4.3, -4.6),
@@ -612,7 +613,7 @@ export function buildWaterTank() {
     arc(lift, DARK, sx * 1.05, 0.5, -2.6, 0.62, Math.PI * 0.15, Math.PI * 0.85, 5, 0.38, 0.05);
     B(0.12, 0.16, 0.06, TAIL, sx * 0.55, 0.75, -4.12, lift);
   }
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, lift, wheels, up: 0, down: 0 };
 }
 
@@ -669,6 +670,6 @@ export function buildForester() {
   for (const sx of [-1, 1]) B(0.08, 0.5, 0.12, yel, sx * 0.32, -0.1, 6.75, boom).rotation.z = sx * 0.3; // grapple arms
   CY(0.32, 0.32, 0.04, 12, STEEL, 0, -0.18, 6.6, boom); // saw disc guard
   const spot = addLights(g, 2.5, 2.75, [-0.6, 0.6]);
-  bake(g);
+  bake(g, NO_SNOW);
   return { group: g, wheels, front: rear, rear: [], crane, boom, logMeshes: logs, spot, exhaust: new THREE.Vector3(0.7, 3.7, -0.9) };
 }
