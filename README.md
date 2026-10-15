@@ -1,6 +1,6 @@
 # Zlaté lány
 
-Low-poly farmářská hra v prohlížeči. Herní smyčka je jako ve Farming Simulatoru (sklizeň, prodej, orba a kultivace, hnojení, setí, růst, sláma a balíky, nákup polí), vzhled je inspirovaný hrou The Headlands.
+Low-poly farmářská hra v prohlížeči. Herní smyčka je jako ve Farming Simulatoru: sklizeň a prodej ve výkupech, orba, kultivace, hnojení, setí, sláma a balíky, nákup polí a strojů, zakázky, úvěr, roční období a počasí a najatí pomocníci. Vzhled je inspirovaný hrou The Headlands.
 
 ## Spuštění
 
@@ -24,7 +24,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | A / D | zatáčení |
 | Mezerník | spustit / zvednout nářadí |
 | Tab | přesednout do dalšího stroje (traktor → kombajn → sklízeč cukrovky) |
-| F | prodej zrna u sil, překládka z kombajnu do přívěsu, vysypání přívěsu, prodej balíků u stodoly, výměna nářadí v kůlně, koupě pole u cedule |
+| F | prodej úrody ve výkupu, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, výměna nářadí v kůlně, koupě pole u cedule |
 | 1–6 | v kůlně: přímý výběr nářadí traktoru (1–6) nebo adaptéru kombajnu (1–2) |
 | R | v kůlně: oprava stroje a připojeného nářadí |
 | K | kancelář: obchod se stroji, zakázky, finance (čas se zastaví) |
@@ -48,7 +48,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 
 Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **řádkový adaptér** na kukuřici a slunečnici. Vyměníš je v kůlně (F nebo 1–2).
 
-**Cukrovku** sklízí jen samojízdný **sklízeč cukrovky** (zásobník 20 000 l). Stojí u sil a přesedneš do něj klávesou Tab. Vykládá stejně jako kombajn: ve žlutém kruhu u sil, nebo dopravníkem vlevo do přívěsu.
+**Cukrovku** sklízí jen samojízdný **sklízeč cukrovky** (zásobník 20 000 l). Na začátku ho nevlastníš: koupíš nebo pronajmeš ho v Kanceláři (K), pak stojí u sil a přesedneš do něj klávesou Tab. Vykládá stejně jako kombajn: v kruhu výkupu, který cukrovku bere (Cukrovar, Družstvo), nebo dopravníkem vlevo do přívěsu.
 
 Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou.
 
@@ -95,14 +95,14 @@ Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přes
 
 Úroky a leasing se strhávají o půlnoci. Starší uložené hry si ponechají všechny stroje, které v nich už byly.
 
-## Přívěs na zrno
+## Přívěs na úrodu
 
-1. V kůlně připoj klávesou F přívěs (kultivátor → secí stroj → přívěs).
-2. Postav přívěs vlevo od kombajnu, pod jeho výsypnou rouru.
-3. Stiskni F v kombajnu nebo v traktoru. Zrno se přeloží, přívěs pojme 14 000 l.
-4. Zajeď s přívěsem do žlutého kruhu u sil a stiskni F. Korba se zvedne a zrno se prodá.
+1. V kůlně připoj přívěs klávesou 6 (nebo procházej nářadí klávesou F).
+2. Postav přívěs vlevo od kombajnu nebo sklízeče, pod jeho výsypnou rouru.
+3. Stiskni F ve sklízeči nebo v traktoru. Úroda se přeloží, přívěs pojme 14 000 l.
+4. Zajeď s přívěsem do kruhu výkupu, který tu plodinu bere, a stiskni F. Korba se zvedne a úroda se prodá.
 
-Vykládka kombajnu běží dál, i když přesedneš do druhého stroje (Tab). Když přívěs během vykládky odjede, kombajn počká s vysunutou rourou, dokud se přívěs nevrátí. Vykládku zastavíš znovu klávesou F.
+Vykládka sklízeče běží dál, i když přesedneš do jiného stroje (Tab). Když přívěs během vykládky odjede, sklízeč počká s vysunutou rourou, dokud se přívěs nevrátí. Vykládku zastavíš znovu klávesou F.
 
 ## Výkon
 
@@ -116,7 +116,8 @@ Cílový počítač: notebook s Intel Core i7-5500U, 8 GB RAM, GeForce 840M a In
 Jak to držíme nízko:
 
 - Statické budovy a díly strojů se při startu slučují podle materiálu (`bake()` v `src/render/materials.js`), takže místo stovek objektů se kreslí desítky.
-- Plodiny, stromy, živé ploty i částice jsou instancované (jedno volání na druh).
+- Plodiny, stromy, živé ploty, balíky, částice i déšť jsou instancované (jedno volání na druh).
+- Plodiny pole mimo záběr kamery a mimo oblast stínů se nekreslí vůbec a jejich kvádry nemají neviditelnou spodní stěnu.
 - HUD nepoužívá rozmazání pozadí ani CSS filtry přes plátno a sahá do DOM jen při změně hodnoty.
 
 ## Struktura
@@ -126,19 +127,27 @@ src/
   main.js              start hry a hlavní smyčka
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc
-  world/               rozvržení mapy, terén, budovy, vegetace, pole
-  vehicles/            modely a jízda strojů
-  game/                stav hry, plodiny a ceny, práce nářadí, akce, ukládání
-  fx/                  částice (prach, plevy, kouř)
-  ui/                  HUD, minimapa, menu, měřič FPS, hlášky
+  world/               rozvržení mapy, terén, budovy a vesnice, vegetace, pole, balíky
+  vehicles/            modely a jízda strojů, nářadí, přívěs
+  game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
+                       stroje a ekonomika, zakázky, počasí a roční období, pomocníci
+  fx/                  částice (prach, plevy, kouř), déšť a sníh
+  ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky
 prototyp/              původní jednosouborový prototyp
 ```
 
-## Plán
+## Hotové fáze
 
-1. **Základ:** projekt s moduly, nastavení grafiky, měřič FPS, ukládání do souboru (hotovo).
-2. **Logistika:** přívěs na zrno, překládka z kombajnu a vysypání ve výkupu (hotovo).
-3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem, cukrovka se sklízečem (hotovo).
-4. **Ekonomika:** obchod se stroji (nákup, pronájem, prodej), nafta a opotřebení, zakázky u souseda, úvěr (hotovo).
-5. **Svět:** větší mapa s vesnicí a osmi poli, čtyři výkupy s různými cenami, roční období a počasí (hotovo).
-6. **Pomocníci:** najatí řidiči, kteří sami obdělají pole (hotovo).
+1. **Základ:** projekt s moduly, nastavení grafiky, měřič FPS, ukládání do souboru.
+2. **Logistika:** přívěs, překládka ze sklízeče a vysypání ve výkupu.
+3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem, cukrovka se sklízečem.
+4. **Ekonomika:** obchod se stroji (nákup, pronájem, prodej), nafta a opotřebení, zakázky u souseda, úvěr.
+5. **Svět:** větší mapa s vesnicí a osmi poli, čtyři výkupy s různými cenami, roční období a počasí.
+6. **Pomocníci:** najatí řidiči, kteří sami obdělají pole.
+
+## Známá omezení a nápady
+
+- Přívěs a balíky nemají kolize, stroje jimi projedou. Pomocník může na konci pole s živým plotem plot lehce „projet“.
+- Zima je zatím jen bledší, bez sněhu na zemi.
+- Pomocníci se neukládají, po načtení hry je stačí najmout znovu.
+- Nápady na další obsah: zvířata, skleníky, lesnictví, více strojů v obchodě.
