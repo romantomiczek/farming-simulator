@@ -2,10 +2,10 @@ import { fmt } from '../core/util.js';
 import { G, TIME_SCALES } from './state.js';
 import { CROPS, HEADERS } from './crops.js';
 import {
-  inSell, inBaleZone, hasTrailer, trailerInReach, startCombineUnload, stopCombineUnload, startTipping, stopTipping, sellBales,
+  inSell, inBaleZone, hasTrailer, trailerInReach, startUnload, stopUnload, startTipping, stopTipping, sellBales,
 } from './work.js';
 import { saveLocal } from './save.js';
-import { tractor, combine, trailer, trailerCenter, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
+import { tractor, combine, trailer, trailerCenter, vehicles, HARVESTERS, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
 import { cam } from '../render/camera.js';
@@ -20,17 +20,17 @@ export const otherHeader = () => (combine.header === 'grain' ? 'corn' : 'grain')
 /** What F would do right now for the active vehicle, or null. Shared by doF() and the HUD prompts. */
 export function fAction() {
   const v = G.active;
-  if (v.type === 'combine') {
-    if (combine.unloading) return { kind: 'stopCombine' };
-    if (combine.tank.amount > 0 && inSell(combine)) return { kind: 'sellCombine' };
-    if (combine.tank.amount > 0 && trailerInReach()) return { kind: 'overload' };
-    if (inShed(v)) return { kind: 'header', header: otherHeader() };
+  if (v.harvester) {
+    if (v.unloading) return { kind: 'stopUnload', h: v };
+    if (v.tank.amount > 0 && inSell(v)) return { kind: 'sell', h: v };
+    if (v.tank.amount > 0 && trailerInReach(v)) return { kind: 'overload', h: v };
+    if (v === combine && inShed(v)) return { kind: 'header', header: otherHeader() };
   } else {
     if (trailer.tipping) return { kind: 'stopTip' };
     if (hasTrailer() && trailer.tank.amount > 0 && inSell(trailerCenter())) return { kind: 'tip' };
     if (hasTrailer() && trailer.bales > 0 && inBaleZone(trailerCenter())) return { kind: 'sellBales' };
-    if (combine.unloading && trailerInReach()) return { kind: 'stopCombine' };
-    if (combine.tank.amount > 0 && trailerInReach()) return { kind: 'overload' };
+    for (const h of HARVESTERS) if (h.unloading && trailerInReach(h)) return { kind: 'stopUnload', h };
+    for (const h of HARVESTERS) if (h.tank.amount > 0 && trailerInReach(h)) return { kind: 'overload', h };
     if (inShed(v)) return { kind: 'swap', impl: otherImpl() };
   }
   const s = nearSign(v);
@@ -53,8 +53,8 @@ export function toggleTool() {
 }
 
 export function switchVehicle() {
-  // a running combine unload keeps going, so you can hop into the tractor and drive under the pipe
-  G.active = G.active === tractor ? combine : tractor;
+  // a running unload keeps going, so you can hop into the tractor and drive under the pipe
+  G.active = vehicles[(vehicles.indexOf(G.active) + 1) % vehicles.length];
   cam.manual = -99; // swing the camera behind the new vehicle
   toast('Sedíš v: ' + G.active.name);
 }
@@ -62,7 +62,7 @@ export function switchVehicle() {
 export function cycleSeed() {
   tractor.seedCrop = (tractor.seedCrop + 1) % CROPS.length;
   const c = CROPS[tractor.seedCrop];
-  const hdr = c.header === 'corn' ? ' · sklízí se řádkovým adaptérem' : '';
+  const hdr = c.header === 'corn' ? ' · sklízí se řádkovým adaptérem' : c.header === 'beet' ? ' · sklízí se sklízečem cukrovky' : '';
   toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h' + hdr);
 }
 
@@ -84,7 +84,7 @@ export function pickInShed(n) {
   const v = G.active;
   if (!inShed(v)) return;
   if (v.type === 'tractor' && IMPL_ORDER[n - 1]) swapImpl(IMPL_ORDER[n - 1]);
-  if (v.type === 'combine' && n <= 2) swapHeader(n === 1 ? 'grain' : 'corn');
+  if (v === combine && n <= 2) swapHeader(n === 1 ? 'grain' : 'corn');
 }
 
 /** The context action on F: sell, overload, swap implement or header, or buy a field. */
@@ -92,8 +92,8 @@ export function doF() {
   const a = fAction();
   if (!a) return;
   switch (a.kind) {
-    case 'stopCombine': stopCombineUnload(saveLocal); return;
-    case 'sellCombine': case 'overload': startCombineUnload(); return;
+    case 'stopUnload': stopUnload(a.h, saveLocal); return;
+    case 'sell': case 'overload': startUnload(a.h); return;
     case 'tip': startTipping(); return;
     case 'stopTip': stopTipping(saveLocal); return;
     case 'sellBales': sellBales(saveLocal); return;

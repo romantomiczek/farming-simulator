@@ -182,7 +182,12 @@ export function buildCombine() {
   B(0.36, 0.5, 0.36, dark, 0, -0.2, -4.6, pipe);
   const spot = addLights(g, 4.75, 2.3, [-0.6, 0.6]);
   bake(g);
-  return { group: g, wheels, front: [], rear, headerLift: hl, grainHdr, cornHdr, reel, pipe, grain, grainMat, spot, exhaust: new THREE.Vector3(-0.8, 5.5, -2.7) };
+  return {
+    group: g, wheels, front: [], rear, headerLift: hl, grainHdr, cornHdr, reel, pipe, grain, grainMat, spot,
+    exhaust: new THREE.Vector3(-0.8, 5.5, -2.7),
+    pipeTip: new THREE.Vector3(0, -0.3, -4.6), // pipe-local spout, for the grain stream
+    pipeReach: { lx: 1.05 + 4.6, lz: -1.9 }, // vehicle-local spout position when the pipe is out
+  };
 }
 
 /** Round straw bale, axis along x, sitting on the ground at y = 0. */
@@ -258,3 +263,60 @@ export function buildBaler() {
   return { group: g, lift, wheels, up: 0.25, down: 0 };
 }
 const steelHex = '#b9bfc2';
+
+/**
+ * Self-propelled six-row sugar beet harvester: lifting unit in front, cab, big bunker in the middle,
+ * unloading elevator on the left that swings out like the combine pipe.
+ */
+export function buildBeetHarvester() {
+  const g = new THREE.Group(), blue = '#4d7c9e', dark = '#3a3f42', light = '#e8e4da';
+  B(2.2, 0.8, 7.0, dark, 0, 1.0, -0.6, g);
+  B(3.0, 2.0, 4.0, blue, 0, 2.6, -1.8, g);
+  for (const sx of [-1, 1]) B(0.14, 0.16, 4.1, light, sx * 1.5, 3.65, -1.8, g); // bunker rim
+  for (const sz of [-1, 1]) B(3.1, 0.16, 0.14, light, 0, 3.65, -1.8 + sz * 2.0, g);
+  B(2.4, 1.4, 1.5, blue, 0, 2.3, -4.5, g);
+  B(1.8, 0.06, 1.0, '#2f3437', 0, 3.02, -4.5, g);
+  B(2.2, 0.9, 1.8, blue, 0, 2.1, 2.3, g);
+  mk(new THREE.BoxGeometry(2.0, 1.5, 1.6), glassMat, 0, 3.3, 2.3, g, false);
+  B(2.2, 0.15, 1.8, light, 0, 4.12, 2.3, g);
+  for (const sx of [-0.96, 0.96]) for (const sz of [1.55, 3.05]) B(0.09, 1.5, 0.09, dark, sx, 3.3, sz, g);
+  CY(0.09, 0.09, 1.3, 6, dark, -0.8, 3.6, -4.6, g);
+  B(0.18, 0.18, 0.18, beaconMat, 0.9, 4.28, 2.0, g);
+  // beet heap in the bunker, scaled by fill level
+  const grainMat = new THREE.MeshStandardMaterial({ color: col('#d9c9a4'), roughness: 1, flatShading: true });
+  const gg = new THREE.BoxGeometry(2.8, 1, 3.8); gg.translate(0, 0.5, 0);
+  const grain = mk(gg, grainMat, 0, 3.55, -1.8, g);
+  grain.userData.noBake = true; grain.visible = false;
+  const wheels = [], rear = [];
+  for (const sx of [-1, 1]) { const w = wheel(1.05, 0.8, light); w.position.set(sx * 1.6, 1.05, 1.4); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * 1.6, 1.05, -3.3); g.add(p);
+    const w = wheel(1.05, 0.8, light); p.add(w); wheels.push(w); rear.push(p);
+  }
+  // six-row lifting unit with a topper roller
+  const header = new THREE.Group(); header.position.set(0, 0, 3.7); g.add(header);
+  const hl = new THREE.Group(); header.add(hl);
+  B(4.8, 0.6, 1.3, blue, 0, 0.75, 0.2, hl);
+  B(4.8, 0.12, 0.2, light, 0, 1.1, 0.85, hl);
+  for (let i = 0; i < 6; i++) {
+    const x = -1.875 + i * 0.75;
+    B(0.22, 0.55, 0.9, dark, x, 0.35, 0.8, hl);
+    const c = mk(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 10), '#55595c', x + 0.15, 0.25, 1.2, hl); c.rotation.z = Math.PI / 2;
+  }
+  const reel = new THREE.Group(); reel.position.set(0, 0.55, 1.35); hl.add(reel);
+  const rc = mk(new THREE.CylinderGeometry(0.22, 0.22, 4.6, 8), '#6a6f72', 0, 0, 0, reel); rc.rotation.z = Math.PI / 2;
+  for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; B(4.5, 0.06, 0.12, light, 0, Math.cos(a) * 0.25, Math.sin(a) * 0.25, reel); }
+  // unloading elevator, folded back along the left side
+  const pipe = new THREE.Group(); pipe.position.set(1.3, 3.7, -0.5); g.add(pipe);
+  B(0.55, 0.35, 5.0, blue, 0, 0, -2.5, pipe);
+  B(0.6, 0.12, 4.8, light, 0, 0.22, -2.5, pipe);
+  B(0.6, 0.5, 0.4, dark, 0, -0.2, -5.0, pipe);
+  const spot = addLights(g, 3.95, 3.15, [-0.7, 0.7]);
+  bake(g);
+  return {
+    group: g, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot,
+    exhaust: new THREE.Vector3(-0.8, 4.3, -4.6),
+    pipeTip: new THREE.Vector3(0, -0.3, -5.0),
+    pipeReach: { lx: 1.3 + 5.0, lz: -0.5 },
+  };
+}

@@ -4,7 +4,7 @@ import { quality } from './core/settings.js';
 import { buildTerrain } from './world/terrain.js';
 import { buildFarm } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
-import { flushFields, growFields, countFields, drawSigns, setCropShadows } from './world/fields.js';
+import { FIELDS, flushFields, growFields, countFields, drawSigns, setCropShadows } from './world/fields.js';
 import { vehicles, trailer, drive, visual, updateTrailer, attachImpl } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
@@ -86,9 +86,9 @@ function tick(dt) {
   for (const v of vehicles) {
     drive(v, dt, v === G.active ? input : null);
     work(v, dt);
-    visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].cols[4] : null);
+    visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
-  updateTrailer(dt, trailer.tank.crop >= 0 ? CROPS[trailer.tank.crop].cols[4] : null);
+  updateTrailer(dt, trailer.tank.crop >= 0 ? CROPS[trailer.tank.crop].heapCol : null);
   updateLogistics(dt, saveLocal);
   flushFields();
   flushBales();
@@ -122,7 +122,7 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed,
+    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed, fields: FIELDS,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
   };
 }

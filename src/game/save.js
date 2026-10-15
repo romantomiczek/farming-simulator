@@ -1,11 +1,12 @@
 import { G } from './state.js';
 import { CROPS, S_STUB, S_SOWN, S_RIPE } from './crops.js';
 import { FIELDS, refreshField, flushFields, drawSigns, countFields } from '../world/fields.js';
-import { vehicles, tractor, combine, trailer, attachImpl, setHeader, IMPL } from '../vehicles/vehicles.js';
+import { vehicles, combine, trailer, attachImpl, setHeader, sendHome, IMPL } from '../vehicles/vehicles.js';
 import { bales, setBales, flushBales } from '../world/bales.js';
 
 const KEY = 'zlate-lany-v1';
 // 1 = first release, 2 = grain trailer, 3 = bonus bits, straw, bales, combine header.
+// Version 3 saves may hold 2 or 3 vehicles (the beet harvester came later); a missing one starts at home.
 // Older saves still load; missing data starts empty.
 const VERSION = 3;
 
@@ -35,8 +36,8 @@ export function newGame() {
   f4.state.fill(S_SOWN); f4.crop.fill(1); // growing barley, for sale
   for (let i = 0; i < f4.n; i++) { f4.growth[i] = 2.4 + f4.jit[i] * 0.4; f4.stage[i] = stageOf(f4, i); }
   FIELDS.forEach((f, k) => (f.owned = k < 2));
-  Object.assign(combine, { x: -10, z: -8, h: 0, speed: 0, lowered: false, unloading: false, tank: { crop: -1, amount: 0, cap: 9000 } });
-  Object.assign(tractor, { x: 8.5, z: -36.5, h: 0, speed: 0, lowered: false, seedCrop: 0, baleAcc: 0 });
+  vehicles.forEach(sendHome);
+  Object.assign(vehicles[0], { seedCrop: 0, baleAcc: 0 });
   trailer.tank = { crop: -1, amount: 0, cap: 14000 };
   trailer.bales = 0;
   setBales([]);
@@ -80,11 +81,11 @@ export function applySave(d) {
     f.growth.set(new Float32Array(s.growth.buffer));
     for (let i = 0; i < f.n; i++) f.stage[i] = stageOf(f, i);
   });
-  d.veh.forEach((s, k) => {
-    const v = vehicles[k];
-    if (!v) return;
+  vehicles.forEach((v, k) => {
+    const s = d.veh[k];
+    if (!s) { sendHome(v); return; }
     Object.assign(v, { x: +s.x || 0, z: +s.z || 0, h: +s.h || 0, speed: 0, lowered: false, unloading: false, seedCrop: (s.seedCrop | 0) % CROPS.length, baleAcc: s.baleAcc | 0 });
-    if (s.tank) v.tank = { crop: s.tank.crop | 0, amount: +s.tank.amount || 0, cap: 9000 };
+    if (s.tank && v.harvester) v.tank = { crop: s.tank.crop | 0, amount: Math.max(0, +s.tank.amount || 0), cap: v.tank.cap };
   });
   const t = d.trailer?.tank;
   trailer.tank = t ? { crop: t.crop | 0, amount: Math.max(0, +t.amount || 0), cap: 14000 } : { crop: -1, amount: 0, cap: 14000 };
@@ -93,7 +94,7 @@ export function applySave(d) {
   setBales(d.bales);
   attachImpl(IMPL[d.veh[0]?.impl] ? d.veh[0].impl : 'cultivator');
   setHeader(d.veh[1]?.header === 'corn' ? 'corn' : 'grain');
-  G.active = d.active === 'tractor' ? tractor : combine;
+  G.active = vehicles.find(v => v.type === d.active) || combine;
   afterLoad();
   return true;
 }

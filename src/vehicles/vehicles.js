@@ -4,7 +4,7 @@ import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { circles, boxes, BOUNDS } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G } from '../game/state.js';
-import { buildTractor, buildCombine, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler } from './models.js';
 
 /**
  * Tractor attachments. Field tools ride rigidly on the hitch: width = working width,
@@ -53,16 +53,34 @@ function makeVehicle(type) {
     moved: 0, movedCrop: 0, waiting: null, baleAcc: 0,
   };
   if (type === 'tractor') {
-    Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c' }, buildTractor());
+    Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c', home: [8.5, -36.5] }, buildTractor());
+  } else if (type === 'combine') {
+    Object.assign(v, {
+      name: 'Kombajn Klas 7', gen: 'kombajnu', harvester: true, r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4,
+      toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a', home: [-10, -8], chaff: col('#eadba6'),
+    }, buildCombine());
   } else {
-    Object.assign(v, { name: 'Kombajn Klas 7', r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4, toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a' }, buildCombine());
+    Object.assign(v, {
+      name: 'Sklízeč cukrovky Bulva 6', gen: 'sklízeče', harvester: true, r: 3.2, wb: 4.6, vmax: 6.4, vwork: 2.5, acc: 1.6, brk: 5, vrev: 2.2,
+      toolW: 4.5, toolZ: 4.6, header: 'beet', mapCol: '#4d7c9e', home: [18, -27], chaff: col('#a98a66'),
+    }, buildBeetHarvester());
+    v.tank.cap = 20000;
   }
+  v.x = v.home[0]; v.z = v.home[1];
   scene.add(v.group);
   return v;
 }
 export const tractor = makeVehicle('tractor');
 export const combine = makeVehicle('combine');
-export const vehicles = [tractor, combine];
+export const beeter = makeVehicle('beet');
+export const vehicles = [tractor, combine, beeter];
+export const HARVESTERS = [combine, beeter];
+
+/** Puts a vehicle back at its start position (new game, or missing in an old save). */
+export function sendHome(v) {
+  Object.assign(v, { x: v.home[0], z: v.home[1], h: 0, speed: 0, steer: 0, lowered: false, unloading: false });
+  if (v.harvester) v.tank = { crop: -1, amount: 0, cap: v.tank.cap };
+}
 
 /* ---------- combine headers ---------- */
 const HEADER_PARK = [-17, -27];
@@ -196,7 +214,7 @@ export function visual(v, dt, tankCropColor) {
     }
   } else {
     v.headerLift.position.y += ((v.lowered ? 0 : 0.6) - v.headerLift.position.y) * k;
-    if (v.lowered && v.header === 'grain') v.reel.rotation.x += dt * 2.6;
+    if (v.lowered && v.header !== 'corn') v.reel.rotation.x += dt * (v.header === 'beet' ? 6 : 2.6);
     v.pipe.rotation.y += ((v.unloading ? -Math.PI / 2 : 0) - v.pipe.rotation.y) * Math.min(1, dt * 2.5);
     v.grain.visible = v.tank.amount > 0;
     v.grain.scale.y = Math.max(0.02, (v.tank.amount / v.tank.cap) * 0.7);

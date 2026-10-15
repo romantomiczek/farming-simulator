@@ -142,15 +142,16 @@ export function growFields(dh) {
 export function countFields() {
   for (const f of FIELDS) {
     const c = [0, 0, 0, 0];
-    let pg = 0, straw = 0, fert = 0;
+    let pg = 0, straw = 0, fert = 0, ripeBeet = 0;
     for (let i = 0; i < f.n; i++) {
       const s = f.state[i]; c[s]++;
       if (s === S_SOWN) pg += f.growth[i] / CROPS[f.crop[i]].hours;
       if (f.straw[i]) straw++;
       if (f.bonus[i] & B_FERT) fert++;
+      if (s === S_RIPE && CROPS[f.crop[i]].header === 'beet') ripeBeet++;
     }
     f.cnt = c; f.prog = c[2] ? pg / c[2] : 0;
-    f.strawCnt = straw; f.fertShare = fert / f.n;
+    f.strawCnt = straw; f.fertShare = fert / f.n; f.ripeBeet = ripeBeet;
   }
 }
 

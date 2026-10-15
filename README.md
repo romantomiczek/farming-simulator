@@ -23,7 +23,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | W / S | plyn, brzda, couvání |
 | A / D | zatáčení |
 | Mezerník | spustit / zvednout nářadí |
-| Tab | přesednout do druhého stroje |
+| Tab | přesednout do dalšího stroje (traktor → kombajn → sklízeč cukrovky) |
 | F | prodej zrna u sil, překládka z kombajnu do přívěsu, vysypání přívěsu, prodej balíků u stodoly, výměna nářadí v kůlně, koupě pole u cedule |
 | 1–6 | v kůlně: přímý výběr nářadí traktoru (1–6) nebo adaptéru kombajnu (1–2) |
 | C | změnit osivo |
@@ -44,6 +44,8 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | 6 Přívěs | 14 000 l / 8 balíků | odvoz zrna nebo balíků |
 
 Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **řádkový adaptér** na kukuřici a slunečnici. Vyměníš je v kůlně (F nebo 1–2).
+
+**Cukrovku** sklízí jen samojízdný **sklízeč cukrovky** (zásobník 20 000 l). Stojí u sil a přesedneš do něj klávesou Tab. Vykládá stejně jako kombajn: ve žlutém kruhu u sil, nebo dopravníkem vlevo do přívěsu.
 
 Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou.
 
@@ -90,7 +92,7 @@ prototyp/              původní jednosouborový prototyp
 
 1. **Základ:** projekt s moduly, nastavení grafiky, měřič FPS, ukládání do souboru (hotovo).
 2. **Logistika:** přívěs na zrno, překládka z kombajnu a vysypání ve výkupu (hotovo).
-3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem (hotovo). Cukrovka se sklízečem zbývá.
+3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem, cukrovka se sklízečem (hotovo).
 4. **Ekonomika:** obchod se stroji, palivo a opotřebení, zakázky, úvěr.
 5. **Svět:** větší mapa, více výkupů, roční období a počasí.
 6. **Pomocníci:** najatí řidiči.

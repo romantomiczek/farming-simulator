@@ -5,7 +5,7 @@ import {
 } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
 import { bales } from '../world/bales.js';
-import { IMPL, IMPL_ORDER, BALE_CELLS, tractor, combine, trailer } from '../vehicles/vehicles.js';
+import { IMPL, IMPL_ORDER, BALE_CELLS, HARVESTERS, tractor, combine, trailer } from '../vehicles/vehicles.js';
 import { hasTrailer } from '../game/work.js';
 import { fAction, inShed } from '../game/actions.js';
 
@@ -30,18 +30,23 @@ const implLabel = k => { const im = IMPL[k]; return k === 'trailer' ? 'Sklápěc
 function taskText() {
   const owned = FIELDS.filter(f => f.owned), sum = k => owned.reduce((a, f) => a + f.cnt[k], 0);
   const straw = owned.reduce((a, f) => a + f.strawCnt, 0);
-  const ripe = owned.filter(f => f.cnt[S_RIPE] > 0).map(f => f.id);
+  const ripe = owned.filter(f => f.cnt[S_RIPE] - f.ripeBeet > 0).map(f => f.id);
+  const ripeBeet = owned.filter(f => f.ripeBeet > 0).map(f => f.id);
+  const fullH = HARVESTERS.find(h => full(h.tank));
+  const waitingH = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
+  const loadedH = HARVESTERS.find(h => h.tank.amount > 0);
   const unfert = owned.filter(f => f.cnt[S_SOWN] > f.n * 0.3 && f.fertShare < 0.5).map(f => f.id);
   let t;
-  if (full(combine.tank)) {
+  if (fullH) {
     t = hasTrailer()
-      ? 'Zásobník kombajnu je plný. Přistav přívěs vlevo od kombajnu pod rouru a stiskni F, nebo jeď k silům.'
-      : 'Zásobník kombajnu je plný. Zajeď do žlutého kruhu u sil a stiskni F. Rychlejší je připojit v kůlně přívěs.';
+      ? 'Zásobník ' + fullH.gen + ' je plný. Přistav přívěs vlevo od něj pod rouru a stiskni F, nebo jeď k silům.'
+      : 'Zásobník ' + fullH.gen + ' je plný. Zajeď do žlutého kruhu u sil a stiskni F. Rychlejší je připojit v kůlně přívěs.';
   } else if (full(trailer.tank)) t = 'Přívěs je plný. Odvez ho do žlutého kruhu u sil a vysyp klávesou F.';
   else if (trailer.bales >= trailer.baleCap) t = 'Přívěs je plný balíků. Odvez je do hnědého kruhu u stodoly a prodej klávesou F.';
-  else if (combine.unloading && combine.waiting === 'reach') t = 'Kombajn vykládá. Najeď přívěsem vlevo od kombajnu pod výsypnou rouru.';
+  else if (waitingH) t = (waitingH === combine ? 'Kombajn' : 'Sklízeč') + ' vykládá. Najeď přívěsem vlevo od něj pod výsypnou rouru.';
   else if (ripe.length) t = 'Skliď zralé plodiny kombajnem na poli ' + ripe.join(' a ') + '. Spusť lištu mezerníkem.';
-  else if (combine.tank.amount > 0) t = hasTrailer() ? 'Přelož zrno z kombajnu do přívěsu (F), nebo ho prodej u sil.' : 'Prodej zrno z kombajnu ve výkupu u sil (F).';
+  else if (ripeBeet.length) t = 'Skliď cukrovku na poli ' + ripeBeet.join(' a ') + ' sklízečem cukrovky. Přesedneš do něj klávesou Tab.';
+  else if (loadedH) t = hasTrailer() ? 'Přelož úrodu ze zásobníku ' + loadedH.gen + ' do přívěsu (F), nebo ji prodej u sil.' : 'Prodej úrodu ze zásobníku ' + loadedH.gen + ' ve výkupu u sil (F).';
   else if (trailer.tank.amount > 0) t = 'Odvez zrno v přívěsu k silům a vysyp ho klávesou F.';
   else if (straw > 40) t = 'Na poli leží řádky slámy. Připoj v kůlně lis a slisuj je do balíků, než pole zkultivuješ.';
   else if (bales.length) t = 'Na poli leží ' + plural(bales.length, 'balík', 'balíky', 'balíků') + '. Připoj přívěs a projeď kolem nich, naloží se samy. Prodáš je u stodoly.';
@@ -61,9 +66,9 @@ function taskText() {
 function fPrompt(a) {
   if (!a) return null;
   switch (a.kind) {
-    case 'stopCombine': return 'Zastavit vykládku kombajnu';
-    case 'sellCombine': return 'Prodat ' + fmt(combine.tank.amount) + ' l ' + CROPS[combine.tank.crop].gen + ' za ' + fmt(combine.tank.amount * price(combine.tank.crop, G.gameMin)) + ' Kč';
-    case 'overload': return 'Přeložit ' + fmt(combine.tank.amount) + ' l ' + CROPS[combine.tank.crop].gen + ' do přívěsu';
+    case 'stopUnload': return 'Zastavit vykládku ' + a.h.gen;
+    case 'sell': return 'Prodat ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' za ' + fmt(a.h.tank.amount * price(a.h.tank.crop, G.gameMin)) + ' Kč';
+    case 'overload': return 'Přeložit ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' do přívěsu';
     case 'tip': return 'Vysypat a prodat ' + fmt(trailer.tank.amount) + ' l za ' + fmt(trailer.tank.amount * price(trailer.tank.crop, G.gameMin)) + ' Kč';
     case 'stopTip': return 'Zastavit vysypávání';
     case 'sellBales': return 'Prodat ' + plural(trailer.bales, 'balík', 'balíky', 'balíků') + ' za ' + fmt(trailer.bales * balePrice(G.gameMin)) + ' Kč';
@@ -75,7 +80,7 @@ function fPrompt(a) {
 }
 
 function toolKv(v) {
-  if (v.type === 'combine') return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' 5,4 m</dd>';
+  if (v.harvester) return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m</dd>';
   const c = CROPS[v.seedCrop];
   let kv = '<dt>Nářadí</dt><dd>' + implLabel(v.impl) + '</dd>';
   if (v.impl === 'seeder') kv += '<dt>Osivo <kbd>C</kbd></dt><dd>' + c.name + ' · ' + c.seed + ' Kč/m²</dd>';
@@ -87,7 +92,7 @@ function toolKv(v) {
 }
 
 function shedPanel(v) {
-  const show = inShed(v);
+  const show = inShed(v) && (v === tractor || v === combine);
   ui.shed.hidden = !show;
   if (!show) return;
   const items = v.type === 'tractor'
@@ -109,17 +114,17 @@ export function updUI() {
   const withTrailer = v.type === 'tractor' && v.impl === 'trailer';
   setText(ui.vName, 'vname', v.name);
   const working = v.lowered && v.speed > 0.3;
-  const busy = (v.type === 'combine' && v.unloading) || (withTrailer && trailer.tipping);
+  const busy = (v.harvester && v.unloading) || (withTrailer && trailer.tipping);
   const chip = busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
   setText(ui.vChip, 'chip', withTrailer && !busy ? 'Přívěs' : chip[0]);
   ui.vChip.className = 'chip ' + chip[1];
   setText(ui.vSpeed, 'spd', String(Math.round(Math.abs(v.speed) * 3.6)));
   setHTML(ui.vKv, 'kv', toolKv(v));
 
-  const tank = v.type === 'combine' ? v.tank : withTrailer && !trailer.bales ? trailer.tank : null;
+  const tank = v.harvester ? v.tank : withTrailer && !trailer.bales ? trailer.tank : null;
   ui.vTank.hidden = !tank;
   if (tank) {
-    setText(ui.vTankLabel, 'tlabel', v.type === 'combine' ? 'Zásobník' : 'Přívěs');
+    setText(ui.vTankLabel, 'tlabel', v.harvester ? 'Zásobník' : 'Přívěs');
     setText(ui.vTankTxt, 'tank', tankText(tank));
     ui.vTankBar.style.width = ((tank.amount / tank.cap) * 100).toFixed(1) + '%';
   }
@@ -142,10 +147,11 @@ export function updUI() {
   const pr = [];
   const fa = fPrompt(fAction());
   if (fa) pr.push(['F', fa]);
-  if (combine.unloading && combine.waiting === 'reach') pr.push(['', 'Najeď přívěsem pod rouru kombajnu']);
+  const waiting = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
+  if (waiting) pr.push(['', 'Najeď přívěsem pod rouru ' + waiting.gen]);
   if (f && f.owned && !v.lowered && !withTrailer) pr.push(['Mezerník', 'Spustit ' + (v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : HEADERS[v.header].short)]);
   if (f && f.owned && v.lowered && Math.abs(v.speed) < 0.3) pr.push(['W', 'Jeď, nářadí pracuje jen v pohybu']);
-  if (v.type === 'combine' && full(v.tank) && !fa) pr.push(['', 'Zásobník je plný']);
+  if (v.harvester && full(v.tank) && !fa) pr.push(['', 'Zásobník je plný']);
   setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
 }
 
