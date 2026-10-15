@@ -173,8 +173,21 @@ function patch(x0, z0, nx, nz, sx, sz, height, material, skirt) {
   return m;
 }
 
+const tiles = [];
 /**
- * Builds the terrain: the playable area in 6 tiles (5 m grid) and the surrounding hills in
+ * Picks each playable tile's grid by its distance from (x, z): 5 m closer than fine, 10 m closer than mid,
+ * 20 m beyond. Wheels always follow the 5 m grid (groundH), the coarse grids are only drawn far away.
+ */
+export function updTerrainLOD(x, z, fine, mid) {
+  for (const m of tiles) {
+    const r = m.userData.rect, d = Math.hypot(Math.max(0, r.x0 - x, x - r.x1), Math.max(0, r.z0 - z, z - r.z1));
+    const level = d < fine ? 0 : d < mid ? 1 : 2;
+    if (level !== m.userData.level) { m.userData.level = level; m.geometry = m.userData.lods[level]; }
+  }
+}
+
+/**
+ * Builds the terrain: the playable area in 6 tiles (5 m grid, coarser far away, see updTerrainLOD) and the surrounding hills in
  * coarser patches. Tiles are culled separately. Returns { material, group }.
  */
 export function buildTerrain(scene) {
@@ -182,11 +195,18 @@ export function buildTerrain(scene) {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
   const group = new THREE.Group();
   const TX = 3, TZ = 2, tnx = NX / TX, tnz = NZ / TZ;
+  tiles.length = 0;
   for (let tj = 0; tj < TZ; tj++) {
     for (let ti = 0; ti < TX; ti++) {
       const i0 = ti * tnx, j0 = tj * tnz;
-      group.add(patch(GX0 + i0 * STEP, GZ0 + j0 * STEP, tnx, tnz, STEP, STEP, (i, j) => gh(i0 + i, j0 + j), material,
-        { s: tj === 0, n: tj === TZ - 1, w: ti === 0, e: ti === TX - 1 }));
+      // three levels of detail (5, 10 and 20 m grid), all with skirts so tiles of different detail meet without cracks
+      const lods = [1, 2, 4].map(k => patch(GX0 + i0 * STEP, GZ0 + j0 * STEP, tnx / k, tnz / k, STEP * k, STEP * k, (i, j) => gh(i0 + i * k, j0 + j * k), material,
+        { s: true, n: true, w: true, e: true }).geometry);
+      const m = new THREE.Mesh(lods[0], material);
+      m.receiveShadow = true;
+      m.userData = { lods, level: 0, rect: { x0: GX0 + i0 * STEP, x1: GX0 + (i0 + tnx) * STEP, z0: GZ0 + j0 * STEP, z1: GZ0 + (j0 + tnz) * STEP } };
+      tiles.push(m);
+      group.add(m);
     }
   }
   // surrounding hills: four strips, one mesh each (few triangles, so culling them finer is not worth a draw call)

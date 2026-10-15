@@ -52,8 +52,21 @@ export function flatten(root) {
 }
 
 const KEEP_ATTR = new Set(['position', 'normal', 'uv']);
+const baseCompile = THREE.Material.prototype.onBeforeCompile;
+/** A plain coloured material: no texture, transparency, glow or shader tweaks, so its colour can move into the vertices. */
+const plain = m => m.isMeshStandardMaterial && !m.map && !m.transparent && m.opacity === 1 && !m.vertexColors &&
+  m.emissive.r + m.emissive.g + m.emissive.b === 0 && m.onBeforeCompile === baseCompile;
+const vcCache = new Map();
+/** Shared vertex-coloured material for merged plain meshes with the same surface settings. */
+function vcMat(m) {
+  const k = [m.roughness, m.metalness, m.flatShading, m.side].join('|');
+  if (!vcCache.has(k)) vcCache.set(k, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: m.roughness, metalness: m.metalness, flatShading: m.flatShading, side: m.side }));
+  return vcCache.get(k);
+}
 /**
- * Merges the leaf meshes of every group into one mesh per material (and shadow flag).
+ * Merges the leaf meshes of every group into as few meshes as possible. Plain coloured materials are
+ * merged together with their colours stored in the vertices (one mesh per surface type, e.g. a whole
+ * machine body), the others (glass, lamps, textures) one mesh per material. Shadow flags are kept.
  * Sub-groups stay separate, so moving parts (wheels, lifts, reels) keep working.
  * This cuts draw calls from hundreds to a few dozen, which matters most on integrated GPUs.
  * Meshes with userData.noBake, multi-material meshes and instanced meshes are left alone.
@@ -64,13 +77,19 @@ export function bake(root) {
     for (const ch of [...node.children]) {
       const leaf = ch.isMesh && !ch.isInstancedMesh && ch.children.length === 0 && !Array.isArray(ch.material) && !ch.userData.noBake;
       if (!leaf) { if (!ch.isLight) visit(ch); continue; }
-      const key = ch.material.uuid + (ch.castShadow ? '|c' : '') + (ch.receiveShadow ? '|r' : '');
-      if (!groups.has(key)) groups.set(key, { mat: ch.material, cast: ch.castShadow, recv: ch.receiveShadow, geos: [] });
+      const vc = plain(ch.material), mat = vc ? vcMat(ch.material) : ch.material;
+      const key = mat.uuid + (ch.castShadow ? '|c' : '') + (ch.receiveShadow ? '|r' : '');
+      if (!groups.has(key)) groups.set(key, { mat, cast: ch.castShadow, recv: ch.receiveShadow, geos: [] });
       ch.updateMatrix();
       const g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
       g.applyMatrix4(ch.matrix);
       for (const name of Object.keys(g.attributes)) if (!KEEP_ATTR.has(name)) g.deleteAttribute(name);
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      if (vc) {
+        const n = g.attributes.position.count, cols = new Float32Array(n * 3), c = ch.material.color; // linear, like the material colour
+        for (let i = 0; i < n; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; }
+        g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      }
       g.clearGroups();
       groups.get(key).geos.push(g);
       node.remove(ch);

@@ -1,7 +1,7 @@
 import './styles.css';
 import { renderer, scene, camera, canvas, resize, applyRenderQuality, setShadowSize } from './render/core.js';
 import { quality, settings, saveSettings } from './core/settings.js';
-import { buildTerrain } from './world/terrain.js';
+import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
 import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD } from './world/fields.js';
@@ -158,7 +158,7 @@ function tick(dt) {
   updDev(dt);
   updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(G.active.x, G.active.z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
-  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5))); updLabels(cam.t.x, cam.t.z); }
+  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) renderer.render(scene, camera);
 }
 

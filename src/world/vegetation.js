@@ -19,7 +19,7 @@ import {
  * willows along the river, alleys along the roads, hedges along field edges, scattered trees on
  * the hills around the map.
  */
-const TILE = 450;
+const TILE = 225;
 /** Tiles whose nearest point is further than this use the low-detail tree models. */
 const NEAR = 170;
 /** Positions of the trees inside the playable area, flat [x, z, x, z, ...] (for the maps). */
@@ -53,7 +53,8 @@ const conifLow = mergeGeometries([
   part(new THREE.ConeGeometry(1.7, 6.6, 6, 1, true).translate(0, 4.3, 0), '#527d4b', 1),
 ]);
 const bushGeo = part(new THREE.IcosahedronGeometry(1, 1), '#6f9a4a', 1);
-for (const g of [decidGeo, conifGeo, decidLow, conifLow, bushGeo]) g.computeVertexNormals();
+const bushLow = part(new THREE.IcosahedronGeometry(1, 0), '#6f9a4a', 1);
+for (const g of [decidGeo, conifGeo, decidLow, conifLow, bushGeo, bushLow]) g.computeVertexNormals();
 
 /** Season tint (material colour) on leaves only: trunks keep their own colour. */
 function leafOnly(mat) {
@@ -216,7 +217,7 @@ export function buildVegetation(scene) {
   }
   const meshes = [];
   for (const list of tiles.values()) {
-    list.sort((a, b) => a.rank - b.rank); // solid trees first (rank 0), then scenery in thinning order
+    list.sort((a, b) => a.rank - b.rank || a.r - b.r); // solid trees first (rank 0, mixed so a prefix thins evenly), then scenery in thinning order
     const conif = list[0].kind === 'conif';
     const m = new THREE.InstancedMesh(conif ? conifGeo : decidGeo, conif ? conifMat : decidMat, list.length);
     list.forEach((t, i) => {
@@ -227,6 +228,8 @@ export function buildVegetation(scene) {
     m.computeBoundingSphere();
     m.castShadow = false; m.receiveShadow = true; // shadows come from the near casters below
     m.userData.ranks = list.map(t => t.rank);
+    m.userData.solid = list.filter(t => t.rank === 0).length;
+    m.userData.base = list.length;
     m.userData.geo = conif ? [conifGeo, conifLow] : [decidGeo, decidLow];
     let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
     for (const t of list) { bx0 = Math.min(bx0, t.x); bx1 = Math.max(bx1, t.x); bz0 = Math.min(bz0, t.z); bz1 = Math.max(bz1, t.z); }
@@ -277,13 +280,21 @@ export function buildVegetation(scene) {
   return {
     leafMat: decidMat,
     count: trees.length + hedge.length,
-    /** Near tiles get the detailed models, far ones the simple ones (call a few times a second). */
-    updLOD(x, z, shadowR) {
-      updCasters(x, z, shadowR + 12);
+    /**
+     * Near tiles get the detailed models, far ones the simple ones; far tiles draw only part of their trees
+     * (q = quality preset: treeNear, treeFar, treeFarKeep, hedgeLow, casterK). Call a few times a second.
+     */
+    updLOD(x, z, shadowR, q) {
+      updCasters(x, z, shadowR * (q.casterK ?? 1) + 12);
+      const near = q.treeNear ?? NEAR, far = q.treeFar ?? Infinity, keep = q.treeFarKeep ?? 1;
       for (const m of meshes) {
         const b = m.userData.box, d = Math.hypot(Math.max(0, b.x0 - x, x - b.x1), Math.max(0, b.z0 - z, z - b.z1));
-        m.geometry = m.userData.geo[d < NEAR ? 0 : 1];
+        m.geometry = m.userData.geo[d < near ? 0 : 1];
+        // thin only tiles made of playable-area trees; mixed and scenery tiles follow setDensity alone
+        const thin = d >= far && m.userData.solid === m.userData.ranks.length;
+        m.count = thin ? Math.ceil(m.userData.base * keep) : m.userData.base;
       }
+      hedges.geometry = q.hedgeLow ? bushLow : bushGeo;
     },
     /** 0..2: share of the scenery trees outside the playable area (0.5 at density 1, all at 2). */
     setDensity(d) {
@@ -292,7 +303,7 @@ export function buildVegetation(scene) {
         const r = m.userData.ranks;
         let n = 0;
         while (n < r.length && (r[n] === 0 || r[n] < keep)) n++;
-        m.count = n;
+        m.count = m.userData.base = n;
       }
     },
   };

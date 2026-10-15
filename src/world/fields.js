@@ -110,7 +110,8 @@ export const FIELDS = FIELD_DEFS.map(def => {
       mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(x0 + cw / 2, f.y + 1, z0 + chh / 2), Math.hypot(cw, chh) / 2 + 3);
       for (let k = 0; k < cw * chh; k++) { mesh.setMatrixAt(k, ZERO); mesh.setColorAt(k, _c.set(0xffffff)); }
       scene.add(mesh);
-      f.chunks.push({ mesh, cx, cz, cw, x0, z0, x1: x0 + cw, z1: z0 + chh, dirty: false });
+      // on = which cells show a crop, filled = how many: empty chunks (stubble, ploughed land) are not drawn at all
+      f.chunks.push({ mesh, cx, cz, cw, x0, z0, x1: x0 + cw, z1: z0 + chh, dirty: false, on: new Uint8Array(cw * chh), filled: 0 });
     }
   }
   return f;
@@ -131,7 +132,7 @@ export function updFieldLOD(x, z, dist) {
   for (const f of FIELDS) {
     for (const ch of f.chunks) {
       const d = Math.hypot(Math.max(0, ch.x0 - x, x - ch.x1), Math.max(0, ch.z0 - z, z - ch.z1));
-      ch.mesh.visible = d < dist;
+      ch.mesh.visible = d < dist && ch.filled > 0;
     }
   }
 }
@@ -245,7 +246,9 @@ export function updCrop(f, i) {
   const st = f.meadow ? (s === S_RIPE ? 4 : s === S_STUB && !f.straw[i] ? grassStage(f.growth[i]) : 0) : s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
   const [ch, k] = chunkOf(f, i);
   ch.dirty = true; f.cropDirty = true;
-  if (st === 0) { ch.mesh.setMatrixAt(k, ZERO); return; }
+  const show = st === 0 ? 0 : 1;
+  if (ch.on[k] !== show) { ch.on[k] = show; ch.filled += show ? 1 : -1; }
+  if (!show) { ch.mesh.setMatrixAt(k, ZERO); return; }
   const cr = f.meadow ? GRASS : CROPS[f.crop[i]], j = f.jit[i];
   const row = (f.dir[i] === 0 ? i % f.w : (i / f.w) | 0) & 1;
   const hgt = cr.h[st] * (0.95 + j * 0.08 + row * 0.03), fw = cr.fw[st];

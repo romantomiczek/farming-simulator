@@ -153,7 +153,7 @@ Grafika není stažená na nejslabší počítač. Čtyři předvolby (Menu → 
 
 | Předvolba | Pro koho | Co přidává |
 | --- | --- | --- |
-| Nízká | integrovaná grafika (Intel HD 5500) | 70 % rozlišení, plodiny bez stínů, řidší les, kratší dohled |
+| Nízká | integrovaná grafika (Intel HD 5500) | 70 % rozlišení, plodiny bez stínů, řidší les, kratší dohled, vzdálený terén v hrubší mřížce, jednodušší stromy a keře |
 | Střední | starší samostatné karty (GeForce 840M) | 85 % rozlišení, vyhlazování hran, stíny všech objektů |
 | Vysoká | běžné herní karty | plné rozlišení i na displejích s jemnými pixely, stínová mapa 2048, celý les, nejdelší dohled |
 | Ultra | výkonné karty | stínová mapa 4096, plastické plodiny (čtyři snopy na metr čtvereční místo kvádru), dvojnásobně hustý les na kopcích, hustší déšť |
@@ -162,6 +162,10 @@ Grafika není stažená na nejslabší počítač. Čtyři předvolby (Menu → 
 - **Notebook se dvěma grafikami:** Windows často nechá prohlížeč na integrované Intel. Ve Windows otevři Nastavení → Systém → Obrazovka → Grafika, přidej prohlížeč, zvol „Vysoký výkon“ a prohlížeč restartuj. Hra v menu ukazuje, kterou kartu používá.
 
 Proč zbývá výkon na detail:
+
+- Stroje a budovy se při startu slučují: díly obyčejné barvy do jednoho tvaru s barvou ve vrcholech, sklo a světla zvlášť (`bake()` v `src/render/materials.js`). Stroj tak stojí jedno až dvě vykreslovací volání.
+- Terén a stromy mají úrovně detailu podle vzdálenosti od kamery; hranice nastavuje předvolba (`terrainFine`, `treeNear`… v `src/core/settings.js`). Vzdálený terén má mřížku 10 nebo 20 m, jízda se vždy řídí jemnou mřížkou 5 m. Na Nízké a Střední se vzdálené stromy v hratelné oblasti jen vizuálně zředí, překážkou zůstávají všechny.
+- Prázdné části polí (strniště, oranice) se nekreslí vůbec.
 
 - Statické budovy a díly strojů se při startu slučují podle materiálu (`bake()` v `src/render/materials.js`). Vypadají stejně, jen je grafická karta dostane v pár velkých dávkách místo stovek malých, a ušetřený čas jde do stínů, rozlišení a hustší scény.
 - Plodiny, stromy, živé ploty, balíky, částice i déšť jsou instancované, takže tisíce kusů stojí stejně volání jako jeden. Díky tomu může Ultra kreslit plastické plodiny na všech polích a dvakrát víc stromů bez většího počtu volání.
