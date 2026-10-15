@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { scene } from '../render/core.js';
+import { groundH } from './terrain.js';
 import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col, rng } from '../core/util.js';
 import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, boxes, circles } from './layout.js';
@@ -143,7 +144,7 @@ function buildGreenhouse(gh) {
 
 function ring(z, hex, parent) {
   const r = new THREE.Mesh(new THREE.RingGeometry(z.r - 0.5, z.r, 40), new THREE.MeshBasicMaterial({ color: col(hex), transparent: true, opacity: 0.75 }));
-  r.rotation.x = -Math.PI / 2; r.position.set(z.x, 0.06, z.z); parent.add(r);
+  r.rotation.x = -Math.PI / 2; r.position.set(z.x, groundH(z.x, z.z) + 0.06, z.z); parent.add(r);
   return r;
 }
 
@@ -215,15 +216,15 @@ function makeHerd(geo, n, pen, colors, speed, seed) {
 
 /* ---------- sawmill (always there) ---------- */
 function buildSawmill(st) {
-  const g = new THREE.Group(); st.add(g);
-  B(16, 5, 10, '#b9a07c', -36, 2.5, 124, g);
-  gableRoof(g, 16, 10, 5, -36, 124, '#6c777d');
+  const { x, z } = SAWMILL, g = new THREE.Group(); g.position.set(x, groundH(x, z), z); st.add(g);
+  B(16, 5, 10, '#b9a07c', -16, 2.5, 8, g);
+  gableRoof(g, 16, 10, 5, -16, 8, '#6c777d');
   for (let k = 0; k < 3; k++) for (let j = 0; j < 4; j++) {
-    const lg = CY(0.35, 0.35, 5, 8, '#a5784f', -42 + j * 0.75, 0.35 + k * 0.62, 112, g);
+    const lg = CY(0.35, 0.35, 5, 8, '#a5784f', -22 + j * 0.75, 0.35 + k * 0.62, -4, g);
     lg.rotation.x = Math.PI / 2;
   }
-  boxes.push({ x0: -44, x1: -28, z0: 119, z1: 129 });
-  circles.push({ x: -40.9, z: 112, r: 2.8 });
+  boxes.push({ x0: x - 24, x1: x - 8, z0: z + 3, z1: z + 13 });
+  circles.push({ x: x - 20.9, z: z - 4, r: 2.8 });
 }
 
 export function buildFarmstead() {
@@ -239,6 +240,11 @@ export function buildFarmstead() {
   groups.pigs = bake(buildPigs());
   groups.mixer = bake(buildMixer());
   for (const gh of GREENHOUSES) groups[gh.key] = bake(buildGreenhouse(gh));
+  // a pen moved in the map editor onto a hill stands on its own terrace: lift the whole group
+  const lift = { cows: COW_PEN, hens: HEN_RUN, sheep: SHEEP_PEN, pigs: PIG_PEN };
+  const yOf = p => groundH((p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2);
+  for (const k in lift) groups[k].position.y = yOf(lift[k]);
+  groups.mixer.position.y = groundH(MIXER_AT.x, MIXER_AT.z);
   for (const k in groups) { groups[k].visible = false; scene.add(groups[k]); }
   const rings = {
     cows: ring(COW_PEN.feed, '#7fa653', markers), hens: ring(HEN_RUN.feed, '#e0b13a', markers),
@@ -251,6 +257,7 @@ export function buildFarmstead() {
   const pigs = makeHerd(pigGeo(), 12, PIG_PEN, ['#e8b4a8', '#e2a99c', '#d99a8e', '#c48a7a'], 0.3, 41);
   scene.add(cows.mesh, hens.mesh, sheep.mesh, pigs.mesh);
   const herds = { cows, hens, sheep, pigs };
+  for (const k in herds) herds[k].mesh.position.y = yOf(lift[k]);
 
   return {
     /** Shows a building and turns its collisions on or off. */

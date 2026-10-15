@@ -3,7 +3,7 @@ import { mk, B, CY, bake, flatten } from '../render/materials.js';
 import { rng } from '../core/util.js';
 import { groundH } from './terrain.js';
 import { gable, label, strip } from './buildings.js';
-import { RAIL, STATION, PIT, CHAPEL, PONDS, WOOD_BUYERS, DAIRY, circles, addBox, roadAt } from './layout.js';
+import { RAIL, STATION, PIT, CHAPEL, PONDS, WOOD_BUYERS, DAIRY, BUYER_AT, circles, addBox, roadAt } from './layout.js';
 import { col } from '../core/util.js';
 import { townBlocks } from '../ui/minimap.js';
 
@@ -41,17 +41,19 @@ function street(st, ax, az, bx, bz, half, skip = []) {
       const w = 8 + R() * 3, dep = 6.5 + R() * 1.5, off = half + 3 + dep / 2;
       const x = ax + ux * d + uz * off * side, z = az + uz * d - ux * off * side;
       if (roadAt(x, z, dep / 2 + 1)) continue;
-      if (Math.hypot(x - DAIRY.x, z - DAIRY.z) < 16) continue; // the dairy's ring
+      if (YARDS.some(p => Math.hypot(x - p.x, z - p.z) < 16)) continue; // the buyers' rings (movable in the map editor)
       // the house sits at side·(uz, -ux) from the street; its front (local +z) points back at it
       house(st, x, z, Math.atan2(-side * uz, side * ux), w, dep);
     }
   }
 }
 
+const YARDS = [BUYER_AT.feed, WOOD_BUYERS[1], DAIRY];
+
 function buildTown(st, scene) {
   const y0 = 0;
-  // main road through the town, the northern and eastern streets
-  street(st, 405, 48, 660, 48, 4, [[25, 45], [65, 85], [133, 160], [185, 205], [235, 260]]);
+  // main road through the town, the northern and eastern streets (gaps for the side streets and the station)
+  street(st, 405, 48, 660, 48, 4, [[65, 85], [185, 205], [235, 260]]);
   street(st, 480, 56, 480, 160, 3, []);
   street(st, 600, 56, 600, 140, 3, []);
   // church with a tower on the little square
@@ -67,37 +69,38 @@ function buildTown(st, scene) {
   label(scene, 'Městečko Lánov', 540, 3.2, 86.5 + 0.1, Math.PI);
 
   // feed mill: hall with a silo, ring on the main road
-  B(16, 6, 9, '#d9dcd8', 548, 3, 10, st); B(16.6, 0.3, 9.6, '#6c777d', 548, 6.15, 10, st);
-  CY(2.4, 2.4, 11, 14, '#e8e2c8', 560, 5.5, 4, st); mk(new THREE.ConeGeometry(2.5, 1.8, 14), '#c9b13a', 560, 11.9, 4, st);
-  addBox(540, 556, 5.5, 14.5); circles.push({ x: 560, z: 4, r: 2.6 });
-  townBlocks.push({ x0: 540, x1: 556, z0: 5.5, z1: 14.5, col: '#d9dcd8' });
-  label(scene, 'Krmivárna', 548, 4.2, 14.6, 0);
+  { const f = BUYER_AT.feed, g = new THREE.Group(); g.position.set(f.x, groundH(f.x, f.z), f.z); st.add(g);
+    B(16, 6, 9, '#d9dcd8', 0, 3, -18, g); B(16.6, 0.3, 9.6, '#6c777d', 0, 6.15, -18, g);
+    CY(2.4, 2.4, 11, 14, '#e8e2c8', 12, 5.5, -24, g); mk(new THREE.ConeGeometry(2.5, 1.8, 14), '#c9b13a', 12, 11.9, -24, g);
+    addBox(f.x - 8, f.x + 8, f.z - 22.5, f.z - 13.5); circles.push({ x: f.x + 12, z: f.z - 24, r: 2.6 });
+    townBlocks.push({ x0: f.x - 8, x1: f.x + 8, z0: f.z - 22.5, z1: f.z - 13.5, col: '#d9dcd8' });
+    label(scene, 'Krmivárna', f.x, g.position.y + 4.2, f.z - 13.4, 0); }
 
   // dairy: white hall with a blue roof, two upright milk silos and the tank ring on the main road
-  { const d = DAIRY, hx = d.x, hz = d.z - 18;
-    B(15, 5.5, 9, '#f3f1ea', hx, 2.75, hz, st); B(15.6, 0.3, 9.6, '#4f6f8f', hx, 5.65, hz, st);
-    B(3.2, 3.2, 0.12, '#9aa3a8', hx - 3, 1.6, hz + 4.53, st);
-    for (const sz of [-1, 1]) for (const dx of [-6, -3.5, 1, 3.5, 6]) if (sz < 0 || dx > 0) B(1.4, 0.9, 0.1, '#5d7d8c', hx + dx, 3.8, hz + sz * 4.53, st);
-    B(5, 3, 4, '#e6e8e4', hx - 9.5, 1.5, hz + 1, st); B(5.4, 0.25, 4.4, '#4f6f8f', hx - 9.5, 3.1, hz + 1, st); // office
-    B(1.2, 0.9, 0.1, '#5d7d8c', hx - 9.5, 1.9, hz + 3.03, st);
-    for (const dx of [5, 8.2]) { CY(1.4, 1.4, 9, 14, '#dde2e5', hx + dx + 4, 4.5, hz - 1, st); mk(new THREE.SphereGeometry(1.4, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#c9d0d4', hx + dx + 4, 9, hz - 1, st); circles.push({ x: hx + dx + 4, z: hz - 1, r: 1.5 }); }
+  { const d = DAIRY, hx = d.x, hz = d.z - 18, y = groundH(d.x, d.z), g = new THREE.Group(); g.position.y = y; st.add(g);
+    B(15, 5.5, 9, '#f3f1ea', hx, 2.75, hz, g); B(15.6, 0.3, 9.6, '#4f6f8f', hx, 5.65, hz, g);
+    B(3.2, 3.2, 0.12, '#9aa3a8', hx - 3, 1.6, hz + 4.53, g);
+    for (const sz of [-1, 1]) for (const dx of [-6, -3.5, 1, 3.5, 6]) if (sz < 0 || dx > 0) B(1.4, 0.9, 0.1, '#5d7d8c', hx + dx, 3.8, hz + sz * 4.53, g);
+    B(5, 3, 4, '#e6e8e4', hx - 9.5, 1.5, hz + 1, g); B(5.4, 0.25, 4.4, '#4f6f8f', hx - 9.5, 3.1, hz + 1, g); // office
+    B(1.2, 0.9, 0.1, '#5d7d8c', hx - 9.5, 1.9, hz + 3.03, g);
+    for (const dx of [5, 8.2]) { CY(1.4, 1.4, 9, 14, '#dde2e5', hx + dx + 4, 4.5, hz - 1, g); mk(new THREE.SphereGeometry(1.4, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#c9d0d4', hx + dx + 4, 9, hz - 1, g); circles.push({ x: hx + dx + 4, z: hz - 1, r: 1.5 }); }
     addBox(hx - 7.5, hx + 7.5, hz - 4.5, hz + 4.5); addBox(hx - 12, hx - 7, hz - 1, hz + 3);
     townBlocks.push({ x0: hx - 12, x1: hx + 7.5, z0: hz - 4.5, z1: hz + 4.5, col: '#f3f1ea' });
-    label(scene, 'Mlékárna', hx + 2, 4.2, hz + 4.6, 0);
+    label(scene, 'Mlékárna', hx + 2, y + 4.2, hz + 4.6, 0);
     const ring = new THREE.Mesh(new THREE.RingGeometry(d.r - 0.5, d.r, 40), new THREE.MeshBasicMaterial({ color: col('#f2efe6'), transparent: true, opacity: 0.8 }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(d.x, groundH(d.x, d.z) + 0.06, d.z); scene.add(ring); }
+    ring.rotation.x = -Math.PI / 2; ring.position.set(d.x, y + 0.06, d.z); scene.add(ring); }
 
   // timber yard: log stacks and a hut
-  const wb = WOOD_BUYERS[1];
+  const wb = WOOD_BUYERS[1], ty = groundH(wb.x, wb.z), tg = new THREE.Group(); tg.position.y = ty; st.add(tg);
   for (let k = 0; k < 3; k++) {
     for (let r = 0; r < 3; r++) for (let c = 0; c < 5 - r; c++) {
-      const log = CY(0.35, 0.35, 6, 7, '#9b7a5a', wb.x - 14 + k * 9, 0.35 + r * 0.6, wb.z - 18 + c * 0.72 + r * 0.36, st); log.rotation.z = Math.PI / 2;
+      const log = CY(0.35, 0.35, 6, 7, '#9b7a5a', wb.x - 14 + k * 9, 0.35 + r * 0.6, wb.z - 18 + c * 0.72 + r * 0.36, tg); log.rotation.z = Math.PI / 2;
     }
     addBox(wb.x - 17 + k * 9, wb.x - 11 + k * 9, wb.z - 18.5, wb.z - 14);
   }
-  B(5, 3, 4, '#c9a27a', wb.x + 12, 1.5, wb.z - 16, st); addBox(wb.x + 9.5, wb.x + 14.5, wb.z - 18, wb.z - 14);
+  B(5, 3, 4, '#c9a27a', wb.x + 12, 1.5, wb.z - 16, tg); addBox(wb.x + 9.5, wb.x + 14.5, wb.z - 18, wb.z - 14);
   townBlocks.push({ x0: wb.x - 17, x1: wb.x + 15, z0: wb.z - 19, z1: wb.z - 13, col: '#b89a74' });
-  label(scene, 'Dřevosklad', wb.x + 12, 3.6, wb.z - 13.9, 0);
+  label(scene, 'Dřevosklad', wb.x + 12, ty + 3.6, wb.z - 13.9, 0);
 }
 
 function buildRailway(st, scene) {

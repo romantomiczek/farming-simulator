@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { M, mk, B, CY, flatPlane, bake, flatten } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y } from './terrain.js';
-import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, circles, addBox } from './layout.js';
+import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, circles, addBox, onBridge } from './layout.js';
 import { MARKETS } from '../game/markets.js';
 import { buildLandmarks } from './landmarks.js';
 import { WOOD_BUYERS } from './layout.js';
@@ -91,17 +91,21 @@ function buildWater(st) {
     }
   }
   for (const b of BRIDGES) {
-    const g = new THREE.Group(); g.position.set(b.x, 0, b.z); g.rotation.y = b.along === 'x' ? 0 : Math.PI / 2; st.add(g);
+    const g = new THREE.Group(); g.position.set(b.x, 0, b.z); g.rotation.y = -b.ang; st.add(g);
     B(b.len, 0.5, b.w, '#a9a59a', 0, 0.1, 0, g);
     for (const s of [-1, 1]) {
       B(b.len, 0.12, 0.15, '#7b6150', 0, 1.15, s * (b.w / 2 - 0.1), g);
       for (let k = -b.len / 2 + 1; k <= b.len / 2 - 1; k += 2.5) B(0.15, 1.0, 0.15, '#7b6150', k, 0.6, s * (b.w / 2 - 0.1), g);
     }
     for (const s of [-1, 1]) CY(0.6, 0.7, 3, 8, '#9d988c', s * 3, -1.2, 0, g);
-    // railings block the sides
+    // railings block the sides: boxes when the bridge lies along x or z, a row of posts otherwise
+    const ux = Math.cos(b.ang), uz = Math.sin(b.ang), square = Math.abs(ux) > 0.999 || Math.abs(uz) > 0.999;
     for (const s of [-1, 1]) {
-      if (b.along === 'x') addBox(b.x - b.len / 2, b.x + b.len / 2, b.z + s * (b.w / 2) - 0.2, b.z + s * (b.w / 2) + 0.2);
-      else addBox(b.x + s * (b.w / 2) - 0.2, b.x + s * (b.w / 2) + 0.2, b.z - b.len / 2, b.z + b.len / 2);
+      const ox = -uz * s * (b.w / 2), oz = ux * s * (b.w / 2);
+      if (square) {
+        const ex = Math.abs(ux) * b.len / 2 + 0.2 * Math.abs(uz), ez = Math.abs(uz) * b.len / 2 + 0.2 * Math.abs(ux);
+        addBox(b.x + ox - ex, b.x + ox + ex, b.z + oz - ez, b.z + oz + ez);
+      } else for (let k = -b.len / 2; k <= b.len / 2; k += 0.8) circles.push({ x: b.x + ox + ux * k, z: b.z + oz + uz * k, r: 0.35 });
     }
   }
   // the river blocks vehicles except on the bridges and at the ford
@@ -109,7 +113,7 @@ function buildWater(st) {
     const [x0, z0] = RIVER[k - 1], [x1, z1] = RIVER[k], L = Math.hypot(x1 - x0, z1 - z0);
     for (let d = 0; d < L; d += 4) {
       const x = x0 + ((x1 - x0) * d) / L, z = z0 + ((z1 - z0) * d) / L;
-      if (BRIDGES.some(b => Math.hypot(x - b.x, z - b.z) < b.len / 2 + 2)) continue;
+      if (BRIDGES.some(b => onBridge(b, x, z, RIVER_HALF - 1))) continue; // keeps the circles clear of the deck
       if (Math.hypot(x - FORD.x, z - FORD.z) < FORD.r) continue;
       circles.push({ x, z, r: RIVER_HALF - 2.5 });
     }
@@ -248,30 +252,34 @@ export function label(scene, text, x, y, z, ry) {
 
 /** Mill, oil mill and sugar factory along the main road, plus a label on the farm intake. */
 function buildBuyers(st, scene) {
-  // mill: tall gabled building with two small silos
-  { const g = new THREE.Group(); g.position.set(138, 0, 72); st.add(g);
-    gable(12, 10, 9, '#efe6d6', '#8a5a44', g);
-    for (const x of [-3.5, 0, 3.5]) for (const y of [3, 6.5]) B(1.1, 1.3, 0.1, '#5d7d8c', x, y, -5.03, g);
-    for (const dz of [-2.5, 2.5]) { CY(1.8, 1.8, 11, 14, '#dfe1dc', 9, 5.5, dz, g); mk(new THREE.ConeGeometry(1.9, 1.6, 14), '#c9cdc7', 9, 11.8, dz, g); circles.push({ x: 147, z: 72 + dz, r: 2 }); }
-    addBox(132, 144, 67, 77);
-    label(scene, 'Mlýn', 138, 6, 66.9, Math.PI); }
-  // oil mill: hall and three tanks
-  { B(18, 5, 6, '#d9dcd8', 205, 2.5, 25, st);
-    B(18.6, 0.3, 6.6, '#6c777d', 205, 5.15, 25, st);
-    for (const x of [198, 205, 212]) { CY(2.2, 2.2, 7, 16, '#e8e2c8', x, 3.5, 30.5, st); CY(2.25, 2.25, 0.3, 16, '#c9b13a', x, 7.1, 30.5, st); circles.push({ x, z: 30.5, r: 2.3 }); }
-    addBox(196, 214, 22, 28);
-    label(scene, 'Olejna', 205, 3.6, 28.08, 0); }
+  const place = id => { const m = MARKETS.find(k => k.id === id), g = new THREE.Group(); g.position.set(m.x, groundH(m.x, m.z), m.z); st.add(g); return [g, m]; };
+  // mill: tall gabled building with two small silos, behind the ring
+  { const [g, m] = place('mill'), y = g.position.y;
+    const b = new THREE.Group(); b.position.z = 14; g.add(b);
+    gable(12, 10, 9, '#efe6d6', '#8a5a44', b);
+    for (const x of [-3.5, 0, 3.5]) for (const yy of [3, 6.5]) B(1.1, 1.3, 0.1, '#5d7d8c', x, yy, -5.03, b);
+    for (const dz of [-2.5, 2.5]) { CY(1.8, 1.8, 11, 14, '#dfe1dc', 9, 5.5, dz, b); mk(new THREE.ConeGeometry(1.9, 1.6, 14), '#c9cdc7', 9, 11.8, dz, b); circles.push({ x: m.x + 9, z: m.z + 14 + dz, r: 2 }); }
+    addBox(m.x - 6, m.x + 6, m.z + 9, m.z + 19);
+    label(scene, 'Mlýn', m.x, y + 6, m.z + 8.9, Math.PI); }
+  // oil mill: hall and three tanks, south of the ring
+  { const [g, m] = place('oil'), y = g.position.y;
+    B(18, 5, 6, '#d9dcd8', 0, 2.5, -15, g);
+    B(18.6, 0.3, 6.6, '#6c777d', 0, 5.15, -15, g);
+    for (const x of [-7, 0, 7]) { CY(2.2, 2.2, 7, 16, '#e8e2c8', x, 3.5, -9.5, g); CY(2.25, 2.25, 0.3, 16, '#c9b13a', x, 7.1, -9.5, g); circles.push({ x: m.x + x, z: m.z - 9.5, r: 2.3 }); }
+    addBox(m.x - 9, m.x + 9, m.z - 18, m.z - 12);
+    label(scene, 'Olejna', m.x, y + 3.6, m.z - 11.92, 0); }
   // sugar factory and biogas: big hall, chimney, two green domes
-  { const g = new THREE.Group(); g.position.set(240, 0, 72); st.add(g);
-    gable(16, 10, 7, '#e7dfd2', '#5d6268', g);
-    CY(0.9, 1.3, 22, 12, '#b9a89a', 10, 11, -2, g);
-    CY(1.0, 1.0, 1.2, 12, '#c8553f', 10, 21.5, -2, g);
-    addBox(232, 248, 67, 77); circles.push({ x: 250, z: 70, r: 1.5 });
+  { const [g, m] = place('sugar'), y = g.position.y;
+    const b = new THREE.Group(); b.position.z = 14; g.add(b);
+    gable(16, 10, 7, '#e7dfd2', '#5d6268', b);
+    CY(0.9, 1.3, 22, 12, '#b9a89a', 10, 11, -2, b);
+    CY(1.0, 1.0, 1.2, 12, '#c8553f', 10, 21.5, -2, b);
+    addBox(m.x - 8, m.x + 8, m.z + 9, m.z + 19); circles.push({ x: m.x + 10, z: m.z + 12, r: 1.5 });
     for (const [dx, dz] of [[-12, -1], [-12, -9]]) { // clear of field 8 to the north
-      const d = mk(new THREE.SphereGeometry(4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#6f9a6a', dx, 0, dz, g);
-      d.scale.y = 0.7; circles.push({ x: 240 + dx, z: 72 + dz, r: 4 });
+      const d = mk(new THREE.SphereGeometry(4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#6f9a6a', dx, 0, dz, b);
+      d.scale.y = 0.7; circles.push({ x: m.x + dx, z: m.z + 14 + dz, r: 4 });
     }
-    label(scene, 'Cukrovar', 240, 5, 66.9, Math.PI); }
+    label(scene, 'Cukrovar', m.x, y + 5, m.z + 8.9, Math.PI); }
   label(scene, 'Družstvo', 5, 7.6, -18.88, 0);
 }
 

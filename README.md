@@ -63,7 +63,7 @@ Kraj má 1,2 × 1 km. Uprostřed leží domovské údolí s farmou, poli 1–8 a
 - **Západ:** hustý smíšený les s mýtinami a lesními cestami. Jsou tu dvě nové parcely pro harvestor, posedy a hráně dřeva.
 - **Sever:** mírně zvlněné kopce s velkými lány (pole 9–17 a 23, až 2,4 ha), remízky, živými ploty, kapličkou na kopci a větrnými elektrárnami na hřebeni.
 - **Jih:** rybníky s hrázemi, rákosím, molem a volavkami, louky na seno a pole 20–22.
-- **Východ:** řeka s vrbami, dvěma mosty a brodem. Za ní leží městečko Lánov s kostelem, nádražím a železnicí, pole 18 a 19 a pískovna.
+- **Východ:** řeka s vrbami, dvěma mosty a brodem. Za ní leží městečko Lánov s kostelem, nádražím, mlékárnou a železnicí, pole 18 a 19 a pískovna.
 
 Pole leží na plochých terasách ve výšce podle okolního terénu, stroje jezdí po svazích a naklánějí se. Řeka a rybníky stroje nepustí, přes řeku vedou mosty a brod. Některá pole mají nepravidelný tvar a každé má kvalitu půdy, která ovlivňuje výnos (v Kanceláři je vidět jako „půda 90 %“). Cena pole se odvíjí od výměry a kvality.
 
@@ -82,7 +82,7 @@ Dřevo kupuje pila u polní cesty a dřevosklad v městečku, který platí o 15
 
 Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodinu, kde se teď prodá nejdráž. Vzdálenější výkupy platí víc. Minimapa sleduje stroj, ve kterém sedíš, celý kraj ukáže velká mapa (M).
 
-**Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu.
+**Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu a v zimě během pár herních hodin napadne sníh: bílé jsou louky, pole, střechy, cesty i koruny stromů, místy prosvítá tráva. Když sněží, přibývá ho rychleji, na jaře roztaje. Stroje zůstávají bez sněhu.
 
 **Počasí** se mění po čtyřech hodinách: jasno, oblačno, déšť, v zimě sněžení. Za deště a hodinu po něm se nesklízí. Déšť trochu urychlí růst. Předpověď je pod hodinami.
 
@@ -94,17 +94,23 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 ## Zvířata, skleníky a les
 
-Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce a rajčata se odvážejí a platí o půlnoci.
+Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce, vlna, vepřové a rajčata se odvážejí a platí o půlnoci.
 
-| Budova | Kde | Co potřebuje | Co dává |
+| Budova | Kde | Co potřebuje (denně) | Co dává (denně) |
 | --- | --- | --- | --- |
-| Kravín s 10 kravami | jihozápadně od farmy | ječmen, kukuřice nebo cukrovka (480 l denně) | 1 440 l mléka denně po 9 Kč |
-| Kurník se 40 slepicemi | vedle kravína | pšenice nebo ječmen (240 l denně) | 96 vajec denně po 15 Kč |
-| Skleník s rajčaty (2×) | mezi farmou a rybníkem | voda (960 l denně na skleník) | 240 kg rajčat denně po 24 Kč |
+| Kravín s 10 kravami | jihozápadně od farmy | ječmen, kukuřice, cukrovka nebo seno (1 920 l) | 9 600 l mléka po 9 Kč, v mlékárně 12 Kč |
+| Kurník se 40 slepicemi | vedle kravína | pšenice nebo ječmen (96 l) | 1 152 vajec po 15 Kč |
+| Ovčín s 16 ovcemi | jižně od kravína | balíky sena (960 l, asi 1 balík) | 480 kg vlny po 90 Kč |
+| Vepřín s 12 prasaty | vedle ovčína | kukuřice nebo ječmen (1 440 l) | 1 440 kg vepřového po 48 Kč |
+| Míchací krmný vůz | mezi kravínem a ovčínem | kravín | +25 % mléka, když je krmivo vyvážené |
+| Skleník s rajčaty (2×) | mezi farmou a rybníkem | voda (960 l na skleník) | 960 kg rajčat po 24 Kč |
 
-- **Krmení:** zajeď sklízečem nebo traktorem s přívěsem do kruhu u budovy (zelený u kravína, žlutý u kurníku) a stiskni F. Úroda se vyloží do krmelce místo prodeje. Hladová zvířata nic nedají.
+- **Krmení:** zajeď sklízečem nebo traktorem s přívěsem do kruhu u budovy (zelený u kravína, žlutý u kurníku, světlý u ovčína, růžový u vepřína) a stiskni F. Úroda se vyloží do krmelce místo prodeje. Hladová zvířata nic nedají.
+- **Seno:** přívěs s balíky sena v kruhu u kravína nebo ovčína vyloží klávesou F balíky do krmelce, jeden balík dá 1 000 l krmiva. Balíky slámy zůstanou v přívěsu.
+- **Krmná směs:** s míchacím vozem dávají krávy o 25 % víc mléka, když je v krmelci zrno (ječmen nebo kukuřice), seno i cukrovka, každé aspoň 15 %. Složení ukazuje Kancelář → Farma.
+- **Mlékárna:** cisterna veze vodu nebo mléko. Prázdnou cisternu naplníš mlékem klávesou F v bílém kruhu u chladicí nádrže kravína a mléko prodáš v mlékárně v městečku za 12 Kč/l. Co neodvezeš, koupí o půlnoci odvoz za 9 Kč/l. Mléčnou cisternu nejde naplnit vodou, dokud ji neprodáš.
 - **Voda:** cisternou (kůlna, klávesa 7) naber vodu klávesou F u rybníka a vylij ji v modrém kruhu u skleníků.
-- **Les:** na severu je smrková plantáž. Harvestor kácí stromy, které dorostly aspoň na 85 % (F u stromu), a pojme 18 m³ dřeva. Dřevo prodáš na pile na konci polní cesty (F, kolem 950 Kč/m³). Místo pokáceného stromu vyroste za čtyři dny nový, v zimě roste pomaleji.
+- **Les:** na severu je smrková plantáž. Harvestor kácí stromy, které dorostly aspoň na 85 % (F u stromu), a pojme 24 m³ dřeva. Dřevo prodáš na pile na konci polní cesty (F, kolem 1 500 Kč/m³) nebo v dřevoskladu v městečku. Místo pokáceného stromu vyroste asi za tři dny nový, v zimě roste pomaleji.
 - **Vylepšení:** výkonnější motor traktoru (50 km/h, o 10 % rychlejší práce), široký kultivátor 6,3 m, větší zásobník kombajnu (13 000 l) a nástavba přívěsu (22 000 l).
 
 Budovy a vylepšení se nedají pronajmout, jen koupit.
@@ -182,8 +188,11 @@ Proč zbývá výkon na detail:
 
 | Investice | Cena | Zisk za herní den | Návratnost |
 | --- | --- | --- | --- |
-| Kravín | 650 000 Kč | asi 79 000 Kč | 8 dní |
+| Kravín | 650 000 Kč | asi 79 000 Kč (s mlékárnou 108 000 Kč) | 8 dní (6 dní) |
 | Kurník | 140 000 Kč | asi 16 600 Kč | 8 dní |
+| Ovčín | 280 000 Kč | asi 41 000 Kč (seno za cenu balíku) | 7 dní |
+| Vepřín | 420 000 Kč | asi 60 000 Kč | 7 dní |
+| Míchací vůz | 220 000 Kč | asi 21 600 Kč víc za mléko | 10 dní |
 | Skleník | 180 000 Kč | asi 23 000 Kč | 8 dní |
 | Harvestor | 1 600 000 Kč | celý les asi 630 000 Kč, doroste za 2,5 dne | 6–7 dní |
 
@@ -206,11 +215,13 @@ V panelu F9 → **Editor mapy** se ukáže plán celého kraje shora (sever naho
 - **Pole a louky:** klikni a táhni. Rohy vybraného pole mění jeho velikost, po metrech. V panelu vpravo nastavíš číslo, rozměr, louku, vlastnictví na začátku hry, stav a plodinu v nové hře, kvalitu půdy a cenu (prázdná cena = podle plochy).
 - **Cesty:** táhni body. Dvojklik na cestu přidá bod, Delete smaže vybraný bod. **Přidat → Cestu** a klikáním zadáš novou, Enter ji dokončí.
 - **Rybníky a lesní parcely:** posun a úchyty velikosti. Stromy pro harvestor se v parcelách rozmístí znovu.
-- **Kontrola** upozorní na překrývající se pole, pole na cestě, řece nebo v rybníce, cestu přes řeku mimo most a věci za hranicí mapy.
+- **Budovy:** výkupy (mlýn, olejna, cukrovar, krmivárna, dřevosklad, mlékárna), pila, kravín, kurník, ovčín, vepřín a míchací vůz táhneš i s jejich budovami a kruhy. Mimo rovinu u farmy a v městečku se pod budovou srovná terén. V `map.json` se ukládá jen posun od výchozího místa.
+- **Řeka:** táhni body, dvojklik přidá bod, Delete ho smaže. Kde cesta kříží řeku, postaví se most sám, i šikmý. **Brod** táhneš podél řeky, cesta přes brod most nedostane.
+- **Kontrola** upozorní na překrývající se pole, pole na cestě, řece nebo v rybníce, posunutou budovu na poli, cestě, v řece nebo na jiné budově, brod bez cesty, příliš šikmý most, řeku, která nekončí na okraji mapy, a věci za hranicí mapy.
 - **Uložit a obnovit** zapíše změny do `src/world/map.json` a hra se obnoví s novou mapou. Terén, terasy, stromy, živé ploty, cedule, minimapa i doprava se přizpůsobí samy. Do souboru jde uložit jen při spuštění přes `spustit.bat` nebo `npm run dev`. V sestavené verzi editor ukáže text k ručnímu zkopírování do `map.json`.
 - **Výchozí mapa** vrátí původní rozvržení (prázdný `map.json`).
 - **Rozehraná hra** se načte i po úpravě mapy. Posunuté pole stejné velikosti si drží úrodu, pole se změněnou velikostí začne znovu podle nastavení pro novou hru. Koupená pole zůstanou koupená, zakázky na smazaných polích propadnou.
-- **Zůstává na místě:** řeka a mosty, městečko a železnice, dvůr s budovami, vesnice a výkupy, protože jejich budovy jsou postavené na pevných místech.
+- **Zůstává na místě:** městečko a železnice s nádražím, dvůr s budovami, skleníky, vesnice a kaplička.
 
 ## Struktura
 
@@ -247,6 +258,9 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 7. **Obsah:** zvířata, skleníky, lesnictví a další stroje a vylepšení v obchodě.
 8. **Svět a atmosféra:** obloha, zlatá hodina, zvuk, zvířata v krajině, vítr, stopy kol, cíle a statistiky, nákup polí v Kanceláři.
 9. **Velký kraj:** mapa 1,2 × 1 km s terénem, řekou, rybníky, lesem, městečkem a železnicí, 23 polí a 3 louky, seno, doprava, velká mapa, vývojářský režim.
+10. **Výkon a ekonomika:** úrovně detailu terénu, stromů a plotů, slučování barev do vrcholů, `npm test`, čísla ekonomiky v `balance.js` a `npm run ekonomika`, editor mapy (F9).
+11. **Pomocníci na velké mapě:** jízda po silnicích, odvoz úrody na nejlepší výkup, těžba dřeva, dovoz nafty, posílání z Kanceláře.
+12. **Obsah:** sníh v zimě, seno pro krávy, mlékárna, krmná směs, ovce a prasata; editor posouvá i budovy, řeku a brod.
 
 ## Jeep
 
@@ -257,10 +271,9 @@ Jeep Lesák 4×4 (obchod, 290 000 Kč, dá se i pronajmout) jezdí až 80 km/h a
 Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pole, ale nic se na nich nesije.
 
 - **Sečení:** žací lišta (obchod, v kůlně klávesa 8) poseče vysokou trávu a nechá uprostřed záběru řádek sena. Posečená tráva sama doroste zhruba za 10 herních hodin, pod ležícím řádkem neroste.
-- **Lisování:** lis udělá z řádku kulaté balíky sena (zelenější než sláma). Naložíš je přívěsem a u stodoly prodáš dráž než slámu. Ceník ukazuje cenu balíku sena zvlášť.
+- **Lisování:** lis udělá z řádku kulaté balíky sena (zelenější než sláma). Naložíš je přívěsem a u stodoly prodáš dráž než slámu, nebo je vyložíš do krmelce kravína či ovčína. Ceník ukazuje cenu balíku sena zvlášť.
 - **Pomocník** umí louku posekat i slisovat. Polní nářadí a kombajn na louce nic nedělají a na loukách nejsou zakázky.
 
 ## Známá omezení a nápady
 
-- Zima je zatím jen bledší, bez sněhu na zemi.
-- Nápady na další obsah: prasata nebo ovce, výroba krmné směsi, seno jako krmivo pro krávy, prodej mléka do mlékárny.
+- Nápady na další obsah: siláž a senáž, chov zvířat s rozmnožováním, pomocník, který sám krmí a vozí mléko.

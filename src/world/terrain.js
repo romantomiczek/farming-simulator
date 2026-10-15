@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { col, smooth, fbm, vnoise, hash2, clamp, lerp } from '../core/util.js';
 import {
-  BOUNDS, HOME, TOWN, FIELD_DEFS, RIVER_HALF, FORD, PONDS, PIT, CHAPEL, BRIDGES, MEADOW_AREAS, RAIL,
-  riverDist, inRect, inPond,
+  BOUNDS, HOME, TOWN, FIELD_DEFS, RIVER_HALF, FORD, PONDS, PIT, CHAPEL, BRIDGES, MEADOW_AREAS, RAIL, PLACES,
+  riverDist, inRect, inPond, onBridge,
 } from './layout.js';
 import { addSnow } from '../render/snow.js';
 
@@ -40,6 +40,7 @@ export function levelOf(f) {
   if (!levelCache.has(f.id)) levelCache.set(f.id, Math.round(hills(f.x0 + f.w / 2, f.z0 + f.h / 2) * 2) / 2);
   return levelCache.get(f.id);
 }
+const within = (r, o) => r.x0 >= o.x0 && r.x1 <= o.x1 && r.z0 >= o.z0 && r.z1 <= o.z1;
 const ZONES = [
   { r: HOME, level: 0, m: 60 },
   { r: { x0: TOWN.x0, x1: RAIL.x + 20, z0: TOWN.z0, z1: TOWN.z1 }, level: 0, m: 50 },
@@ -47,6 +48,10 @@ const ZONES = [
     r: { x0: f.x0 - FIELD_PAD, x1: f.x0 + f.w + FIELD_PAD, z0: f.z0 - FIELD_PAD, z1: f.z0 + f.h + FIELD_PAD }, level: levelOf(f), m: 22,
   })),
   { r: { x0: CHAPEL.x - 16, x1: CHAPEL.x + 16, z0: CHAPEL.z - 16, z1: CHAPEL.z + 16 }, level: Math.round(hills(CHAPEL.x, CHAPEL.z)), m: 18 },
+  // a building moved in the map editor out of the flat valley or the town gets its own terrace
+  ...PLACES.filter(p => !within(p.rect, HOME) && !within(p.rect, TOWN)).map(p => ({
+    r: { x0: p.rect.x0 - 3, x1: p.rect.x1 + 3, z0: p.rect.z0 - 3, z1: p.rect.z1 + 3 }, level: Math.round(hills((p.rect.x0 + p.rect.x1) / 2, (p.rect.z0 + p.rect.z1) / 2) * 2) / 2, m: 20,
+  })),
 ];
 const rectDist = (x, z, r) => Math.hypot(Math.max(0, r.x0 - x, x - r.x1), Math.max(0, r.z0 - z, z - r.z1));
 
@@ -95,10 +100,7 @@ export const WATER_Y = -0.75, POND_Y = -0.6;
  */
 export function groundH(x, z) {
   if (!grid) buildGrid();
-  for (const b of BRIDGES) {
-    const ax = b.along === 'x' ? Math.abs(x - b.x) : Math.abs(z - b.z), ac = b.along === 'x' ? Math.abs(z - b.z) : Math.abs(x - b.x);
-    if (ax < b.len / 2 && ac < b.w / 2) return 0.35;
-  }
+  for (const b of BRIDGES) if (onBridge(b, x, z)) return 0.35;
   const fx = (x - GX0) / STEP, fz = (z - GZ0) / STEP;
   if (fx < 0 || fz < 0 || fx >= NX || fz >= NZ) return terrainH(x, z);
   const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;

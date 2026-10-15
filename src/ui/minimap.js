@@ -3,7 +3,7 @@ import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import {
   BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
-  RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS, SHEEP_PEN, PIG_PEN, DAIRY,
+  RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS, SHEEP_PEN, PIG_PEN, DAIRY, BUYER_AT,
 } from '../world/layout.js';
 import { treeDots } from '../world/vegetation.js';
 import { MARKETS } from '../game/markets.js';
@@ -22,8 +22,8 @@ function drawStatic(c, sc) {
   const bx = x => (BOUNDS.x1 + PAD_M - x) * sc, by = z => (BOUNDS.z1 + PAD_M - z) * sc;
   const rect = (x0, x1, z0, z1, fill) => { c.fillStyle = fill; c.fillRect(bx(x1), by(z1), (x1 - x0) * sc, (z1 - z0) * sc); };
   const ring = (z, color) => { c.strokeStyle = color; c.lineWidth = Math.max(1, 1.5 * sc); c.beginPath(); c.arc(bx(z.x), by(z.z), z.r * sc, 0, 7); c.stroke(); };
-  const poly = (pts, width, color) => {
-    c.strokeStyle = color; c.lineWidth = width * sc; c.lineCap = 'round'; c.lineJoin = 'round';
+  const poly = (pts, width, color, cap = 'round') => {
+    c.strokeStyle = color; c.lineWidth = width * sc; c.lineCap = cap; c.lineJoin = 'round';
     c.beginPath(); pts.forEach(([x, z], i) => (i ? c.lineTo(bx(x), by(z)) : c.moveTo(bx(x), by(z)))); c.stroke();
   };
   c.fillStyle = '#9fbe66'; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
@@ -41,19 +41,20 @@ function drawStatic(c, sc) {
   c.beginPath(); c.arc(bx(POND.x), by(POND.z), POND.r * sc, 0, 7); c.fill();
   // roads, bridges, railway
   for (const rd of ROADS) poly(rd.pts, rd.w, rd.kind === 'road' ? '#e3d3b0' : '#d9c79f');
-  for (const b of BRIDGES) rect(b.x - b.len / 2, b.x + b.len / 2, b.z - b.w / 2, b.z + b.w / 2, '#cfcac0');
+  for (const b of BRIDGES) { const ux = Math.cos(b.ang) * b.len / 2, uz = Math.sin(b.ang) * b.len / 2; poly([[b.x - ux, b.z - uz], [b.x + ux, b.z + uz]], b.w, '#cfcac0', 'butt'); }
   poly([[RAIL.x, RAIL.z0], [RAIL.x, RAIL.z1]], 3, '#8f8a82');
   // farm and village buildings
   rect(COW_PEN.x0, COW_PEN.x1, COW_PEN.z0, COW_PEN.z1, '#b2a372'); rect(HEN_RUN.x0, HEN_RUN.x1, HEN_RUN.z0, HEN_RUN.z1, '#c4b487');
   rect(SHEEP_PEN.x0, SHEEP_PEN.x1, SHEEP_PEN.z0, SHEEP_PEN.z1, '#a3b07a'); rect(PIG_PEN.x0, PIG_PEN.x1, PIG_PEN.z0, PIG_PEN.z1, '#a08a72');
   for (const g of GREENHOUSES) rect(g.x - 3.5, g.x + 3.5, g.z - 8, g.z + 8, '#d7ece8');
-  rect(-44, -28, 119, 129, '#b9a07c');
+  rect(SAWMILL.x - 24, SAWMILL.x - 8, SAWMILL.z + 3, SAWMILL.z + 13, '#b9a07c');
   rect(PAD.x0, PAD.x1, PAD.z0, PAD.z1, '#ddd8ce');
   rect(-39, -25, -41, -31, '#c4614e'); rect(-38.5, -29.5, -22.5, -15.5, '#efe6d6'); rect(4, 20, -45, -35, '#a7afb0');
   for (const [x, z, w, d] of HOUSES) rect(x - d / 2, x + d / 2, z - w / 2, z + w / 2, '#e9ddc8');
   rect(CHURCH.x - 6, CHURCH.x + 7, CHURCH.z - 3.5, CHURCH.z + 3.5, '#f2ebdf');
   rect(CHAPEL.x - 4, CHAPEL.x + 4, CHAPEL.z - 3, CHAPEL.z + 3, '#f2ebdf');
-  rect(132, 144, 67, 77, '#efe6d6'); rect(196, 214, 22, 33, '#d9dcd8'); rect(232, 248, 67, 77, '#e7dfd2');
+  const { mill, oil, sugar } = BUYER_AT;
+  rect(mill.x - 6, mill.x + 6, mill.z + 9, mill.z + 19, '#efe6d6'); rect(oil.x - 9, oil.x + 9, oil.z - 18, oil.z - 7, '#d9dcd8'); rect(sugar.x - 8, sugar.x + 8, sugar.z + 9, sugar.z + 19, '#e7dfd2');
   for (const b of townBlocks) rect(b.x0, b.x1, b.z0, b.z1, b.col);
   c.fillStyle = '#dfe1dc';
   for (const x of [15, 21.5]) { c.beginPath(); c.arc(bx(x), by(-19), 3 * sc, 0, 7); c.fill(); }

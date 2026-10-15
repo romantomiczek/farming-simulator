@@ -4,21 +4,27 @@ import { MARKETS } from '../game/markets.js';
 import { saveLocal } from '../game/save.js';
 import { releaseAll } from '../core/input.js';
 import {
-  FIELD_DEFS, ROADS, PONDS, FOREST_PLOTS, MAP_DEFAULTS, BOUNDS, RIVER, RIVER_HALF, BRIDGES, FORD, RAIL, TOWN, PAD, POND,
-  HOUSES, CHAPEL, PIT, WOOD_BUYERS, COW_PEN, HEN_RUN, polyDist, riverDist, inPond,
+  FIELD_DEFS, ROADS, PONDS, FOREST_PLOTS, MAP_DEFAULTS, BOUNDS, RIVER, RIVER_HALF, FORD, RAIL, TOWN, PAD, POND,
+  HOUSES, CHAPEL, PIT, WOOD_BUYERS, DAIRY, PLACES, polyDist, inPond, findBridges,
 } from '../world/layout.js';
 import { townBlocks } from './minimap.js';
 
 /**
  * Map editor (F9 → Editor mapy): a top-down plan of the land in the same orientation as the big map
  * (north up, +x on the left). Fields, meadows, roads, ponds and forest plots can be moved, resized,
- * added and deleted. "Uložit a obnovit" sends the edited sections to the development server, which
- * writes src/world/map.json (see vite.config.js); the page then reloads and builds the new map.
- * River, town, railway, the farmyard and the buyers stay where they are.
+ * added and deleted; buyers with their buildings, the sawmill and the animal pens can be moved; the
+ * river can be reshaped point by point and the ford slid along it. Bridges appear by themselves
+ * wherever a road crosses the river away from the ford. "Uložit a obnovit" sends the edited sections
+ * to the development server, which writes src/world/map.json (see vite.config.js); the page then
+ * reloads and builds the new map. Town, railway and the farmyard stay where they are.
  */
 
 const KEYS = ['fields', 'roads', 'ponds', 'forestPlots'];
 const SOURCE = { fields: FIELD_DEFS, roads: ROADS, ponds: PONDS, forestPlots: FOREST_PLOTS };
+// movable buildings: base = anchor without any shift, so the editor works with absolute shifts
+const PLACE_BASE = PLACES.map(p => ({ id: p.id, name: p.name, foot: p.foot, x: p.x - p.shift[0], z: p.z - p.shift[1] }));
+const placeRect = (p, sh) => ({ x0: p.x + sh[0] + p.foot[0], x1: p.x + sh[0] + p.foot[1], z0: p.z + sh[1] + p.foot[2], z1: p.z + sh[1] + p.foot[3] });
+const RINGS = { ...Object.fromEntries(MARKETS.map(m => [m.id, m])), saw: WOOD_BUYERS[0], timber: WOOD_BUYERS[1], dairy: DAIRY };
 const DELETE = { fields: 'Smazat pole', roads: 'Smazat cestu', ponds: 'Smazat rybník', forestPlots: 'Smazat lesní parcelu' };
 const STATES = [['stub', 'Strniště'], ['cult', 'Zkultivované'], ['sown', 'Oseté'], ['ripe', 'Zralé']];
 const MIN_FIELD = 10;
@@ -77,6 +83,9 @@ export function toggleMapEditor(on = !ed.open) {
 
 function load() {
   ed.data = Object.fromEntries(KEYS.map(k => [k, clone(SOURCE[k])]));
+  ed.data.places = PLACES.map((p, i) => ({ ...PLACE_BASE[i], shift: [...p.shift] }));
+  ed.data.river = [{ pts: clone(RIVER) }];
+  ed.data.ford = [{ ...FORD }];
   ed.sel = null; ed.drag = null; ed.tool = null; ed.draft = []; ed.dirty = false; ed.closeArmed = false;
   status('');
 }
@@ -101,24 +110,27 @@ function draw() {
   rect(PIT.x0, PIT.x1, PIT.z0, PIT.z1, '#cbbfa4');
   rect(TOWN.x0, TOWN.x1, TOWN.z0, TOWN.z1, 'rgba(226,220,204,.55)');
   for (const b of townBlocks) rect(b.x0, b.x1, b.z0, b.z1, b.col);
-  line(RIVER, RIVER_HALF * 1.8, '#86b8c6');
-  for (const b of BRIDGES) rect(b.x - b.len / 2, b.x + b.len / 2, b.z - b.w / 2, b.z + b.w / 2, '#cfcac0');
-  ring(FORD.x, FORD.z, FORD.r, '#5f97a8', [4, 3]);
   line([[RAIL.x, RAIL.z0], [RAIL.x, RAIL.z1]], 3, '#8f8a82');
   rect(PAD.x0, PAD.x1, PAD.z0, PAD.z1, '#ddd8ce');
-  rect(COW_PEN.x0, COW_PEN.x1, COW_PEN.z0, COW_PEN.z1, '#b2a372'); rect(HEN_RUN.x0, HEN_RUN.x1, HEN_RUN.z0, HEN_RUN.z1, '#c4b487');
   c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(sx(POND.x), sy(POND.z), POND.r * ed.sc, 0, 7); c.fill();
   for (const [x, z, w, dd] of HOUSES) rect(x - dd / 2, x + dd / 2, z - w / 2, z + w / 2, '#e9ddc8');
   rect(CHAPEL.x - 4, CHAPEL.x + 4, CHAPEL.z - 3, CHAPEL.z + 3, '#f2ebdf');
   // editable layers, bottom to top
   d.forestPlots.forEach((p, i) => rect(p.x0, p.x1, p.z0, p.z1, isSel('forestPlots', i) ? '#4e7a42' : '#5f8a4f'));
   d.ponds.forEach(p => { c.fillStyle = '#86b8c6'; c.beginPath(); c.ellipse(sx(p.x), sy(p.z), p.rx * ed.sc, p.rz * ed.sc, 0, 0, 7); c.fill(); });
+  line(d.river[0].pts, RIVER_HALF * 1.8, isSel('river', 0) ? '#6fa6b6' : '#86b8c6');
+  const ford = d.ford[0];
   d.roads.forEach(r => line(r.pts, r.w, r.kind === 'road' ? '#e3d3b0' : '#d9c79f'));
+  for (const b of bridges()) { const ux = Math.cos(b.ang) * b.len / 2, uz = Math.sin(b.ang) * b.len / 2; c.lineCap = 'butt'; line([[b.x - ux, b.z - uz], [b.x + ux, b.z + uz]], b.w, '#a9a59a'); }
+  c.lineCap = 'round';
+  ring(ford.x, ford.z, ford.r, isSel('ford', 0) ? '#24312a' : '#3f7f95', [4, 3]);
+  d.places.forEach((p, i) => { const r = placeRect(p, p.shift); rect(r.x0, r.x1, r.z0, r.z1, isSel('places', i) ? 'rgba(160,110,70,.55)' : 'rgba(160,110,70,.3)', 'rgba(110,70,40,.7)'); });
   d.fields.forEach(f => drawField(f));
-  // buyers (fixed) with names
+  // buyers' rings follow their buildings; names of everything movable
   c.font = `700 ${Math.max(10, Math.min(13, 11 * ed.sc))}px Figtree, system-ui, sans-serif`; c.textAlign = 'center';
-  for (const m of MARKETS) { ring(m.x, m.z, m.r, m.color); label(m.short, m.x, m.z + m.r + 3); }
-  for (const w of WOOD_BUYERS) { ring(w.x, w.z, w.r, '#8a6a4a'); label(w.short, w.x, w.z + w.r + 3); }
+  const moved = id => { const p = d.places.find(q => q.id === id), o = PLACES.find(q => q.id === id); return p ? [p.shift[0] - o.shift[0], p.shift[1] - o.shift[1]] : [0, 0]; };
+  for (const [id, m] of Object.entries(RINGS)) { const [dx, dz] = moved(id); ring(m.x + dx, m.z + dz, m.r, m.color || (id === 'dairy' ? '#f2efe6' : '#8a6a4a')); }
+  for (const p of d.places) { const r = placeRect(p, p.shift); label(p.name, (r.x0 + r.x1) / 2, r.z1 + 4, '#24312a', true); }
   // field numbers on top
   c.font = `800 ${Math.max(11, Math.min(22, 14 * ed.sc))}px "Bricolage Grotesque", system-ui, sans-serif`;
   for (const f of d.fields) label(String(f.id), f.x0 + f.w / 2, f.z0 + f.h / 2, '#24312a', true);
@@ -182,6 +194,7 @@ function drawSelection() {
   if (s.kind === 'forestPlots') rect(o.x0, o.x1, o.z0, o.z1, null, '#24312a');
   if (s.kind === 'ponds') { c.strokeStyle = '#24312a'; c.lineWidth = 2; c.beginPath(); c.ellipse(sx(o.x), sy(o.z), o.rx * ed.sc, o.rz * ed.sc, 0, 0, 7); c.stroke(); }
   if (s.kind === 'roads') { c.setLineDash([]); line(o.pts, o.w + 1.5, 'rgba(36,49,42,.35)'); line(o.pts, o.w, o.kind === 'road' ? '#e3d3b0' : '#d9c79f'); }
+  if (s.kind === 'places') { const r = placeRect(o, o.shift); rect(r.x0, r.x1, r.z0, r.z1, null, '#24312a'); }
   c.setLineDash([]);
   for (const h of handles()) {
     const on = s.pt === h.pt && h.pt != null;
@@ -201,20 +214,26 @@ function handles() {
   }
   if (s.kind === 'forestPlots') return [[0, 0], [1, 0], [0, 1], [1, 1]].map(([a, b]) => ({ kind: 'corner', a, b, x: a ? o.x1 : o.x0, z: b ? o.z1 : o.z0 }));
   if (s.kind === 'ponds') return [{ kind: 'rx', x: o.x + o.rx, z: o.z }, { kind: 'rz', x: o.x, z: o.z + o.rz }];
-  if (s.kind === 'roads') return o.pts.map(([x, z], pt) => ({ kind: 'pt', pt, x, z }));
+  if (s.kind === 'roads' || s.kind === 'river') return o.pts.map(([x, z], pt) => ({ kind: 'pt', pt, x, z }));
   return [];
 }
 function hitHandle(px, py) {
   return handles().find(h => Math.abs(sx(h.x) - px) < 8 && Math.abs(sy(h.z) - py) < 8) || null;
 }
-/** Topmost editable object under the pointer: fields, then roads, ponds, forest plots. */
+/** Topmost editable object under the pointer: buildings, fields, the ford, roads, the river, ponds, forest plots. */
 function hitObject(x, z) {
   const d = ed.data, tol = 6 / ed.sc;
+  for (let i = d.places.length - 1; i >= 0; i--) {
+    const r = placeRect(d.places[i], d.places[i].shift);
+    if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return { kind: 'places', i };
+  }
   for (let i = d.fields.length - 1; i >= 0; i--) {
     const f = d.fields[i];
     if (x >= f.x0 && x <= f.x0 + f.w && z >= f.z0 && z <= f.z0 + f.h) return { kind: 'fields', i };
   }
+  if (Math.hypot(x - d.ford[0].x, z - d.ford[0].z) < d.ford[0].r) return { kind: 'ford', i: 0 };
   for (let i = d.roads.length - 1; i >= 0; i--) if (polyDist(x, z, d.roads[i].pts) < d.roads[i].w / 2 + tol) return { kind: 'roads', i };
+  if (polyDist(x, z, d.river[0].pts) < RIVER_HALF + tol) return { kind: 'river', i: 0 };
   for (let i = d.ponds.length - 1; i >= 0; i--) if (inPond(x, z, d.ponds[i])) return { kind: 'ponds', i };
   for (let i = d.forestPlots.length - 1; i >= 0; i--) {
     const p = d.forestPlots[i];
@@ -273,16 +292,16 @@ function onDbl(e) {
   if (ed.tool === 'road') { finishRoad(); return; }
   const [px, py] = pos(e), x = wx(px), z = wz(py);
   const hit = hitObject(x, z);
-  if (!hit || hit.kind !== 'roads') return;
-  // insert a point on the nearest segment of the road
-  const r = ed.data.roads[hit.i];
+  if (!hit || (hit.kind !== 'roads' && hit.kind !== 'river')) return;
+  // insert a point on the nearest segment of the road or river
+  const r = ed.data[hit.kind][hit.i];
   let best = 1, bd = Infinity;
   for (let k = 1; k < r.pts.length; k++) {
     const dd = polyDist(x, z, [r.pts[k - 1], r.pts[k]]);
     if (dd < bd) { bd = dd; best = k; }
   }
   r.pts.splice(best, 0, [snap(x, 0.5), snap(z, 0.5)]);
-  ed.sel = { kind: 'roads', i: hit.i, pt: best };
+  ed.sel = { kind: hit.kind, i: hit.i, pt: best };
   changed(); draw(); panel();
 }
 
@@ -320,10 +339,27 @@ function moveBy(o, orig, kind, dx, dz) {
     o.x0 = orig.x0 + mx; o.x1 = orig.x1 + mx; o.z0 = orig.z0 + mz; o.z1 = orig.z1 + mz;
   } else if (kind === 'ponds') {
     o.x = snap(orig.x + dx); o.z = snap(orig.z + dz);
-  } else if (kind === 'roads') {
+  } else if (kind === 'roads' || kind === 'river') {
     o.pts = orig.pts.map(([x, z]) => [snap(x + dx, 0.5), snap(z + dz, 0.5)]);
+  } else if (kind === 'places') {
+    o.shift = [orig.shift[0] + snap(dx), orig.shift[1] + snap(dz)];
+  } else if (kind === 'ford') {
+    // the ford stays on the river: the nearest point of the river to where it is dragged
+    const p = nearestOn(ed.data.river[0].pts, orig.x + dx, orig.z + dz);
+    o.x = snap(p[0], 0.5); o.z = snap(p[1], 0.5);
   }
 }
+function nearestOn(pts, x, z) {
+  let best = pts[0], bd = Infinity;
+  for (let k = 1; k < pts.length; k++) {
+    const [ax, az] = pts[k - 1], [bx, bz] = pts[k], dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz;
+    const t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L)) : 0, px = ax + dx * t, pz = az + dz * t;
+    const d = Math.hypot(x - px, z - pz);
+    if (d < bd) { bd = d; best = [px, pz]; }
+  }
+  return best;
+}
+const bridges = () => findBridges(ed.data.roads, ed.data.river[0].pts, ed.data.ford[0]);
 
 function resizeTo(o, orig, kind, h, x, z) {
   if (kind === 'fields') {
@@ -341,7 +377,7 @@ function resizeTo(o, orig, kind, h, x, z) {
   } else if (kind === 'ponds') {
     if (h.kind === 'rx') o.rx = Math.max(6, snap(Math.abs(x - o.x)));
     else o.rz = Math.max(6, snap(Math.abs(z - o.z)));
-  } else if (kind === 'roads') {
+  } else if (kind === 'roads' || kind === 'river') {
     o.pts[h.pt] = [snap(x, 0.5), snap(z, 0.5)];
   }
 }
@@ -349,8 +385,10 @@ function resizeTo(o, orig, kind, h, x, z) {
 function del() {
   const s = ed.sel; if (!s) return;
   const list = ed.data[s.kind];
-  if (s.kind === 'roads' && s.pt != null && list[s.i].pts.length > 2) {
+  if ((s.kind === 'roads' || s.kind === 'river') && s.pt != null && list[s.i].pts.length > 2) {
     list[s.i].pts.splice(s.pt, 1); s.pt = null;
+  } else if (s.kind === 'river' || s.kind === 'places' || s.kind === 'ford') {
+    return; // these stay, they can only be moved
   } else {
     list.splice(s.i, 1); ed.sel = null;
   }
@@ -411,16 +449,24 @@ function panel() {
         <p class="muted">${o.pts.length} bodů${s.pt != null ? ' · vybraný bod ' + (s.pt + 1) : ''}. Táhni body, dvojklik na cestu přidá bod, Delete smaže vybraný bod.</p>`;
     } else if (s.kind === 'ponds') {
       props = `<h3>Rybník</h3><div class="me2">${numIn('x', 'Střed x', o.x)}${numIn('z', 'Střed z', o.z)}${numIn('rx', 'Poloosa x', o.rx)}${numIn('rz', 'Poloosa z', o.rz)}</div>`;
+    } else if (s.kind === 'places') {
+      props = `<h3>${o.name}</h3><div class="me2">${numIn('shift.0', 'Posun x (m)', o.shift[0])}${numIn('shift.1', 'Posun z (m)', o.shift[1])}</div>
+        <p class="muted">Táhni budovu i s jejím kruhem. Mimo rovinu u farmy a v městečku se pod ní srovná terén.</p>${btn('home', 'Vrátit na původní místo')}`;
+    } else if (s.kind === 'river') {
+      props = `<h3>Řeka</h3><p class="muted">${o.pts.length} bodů${s.pt != null ? ' · vybraný bod ' + (s.pt + 1) : ''}. Táhni body, dvojklik na řeku přidá bod, Delete smaže vybraný bod.
+        Kde ji kříží cesta, postaví se most sám (teď ${bridges().length}). Brod se drží řeky.</p>`;
+    } else if (s.kind === 'ford') {
+      props = `<h3>Brod</h3><p class="muted">Mělké místo bez mostu. Táhni ho podél řeky; vede-li přes něj cesta, most se tam nestaví.</p>`;
     } else if (s.kind === 'forestPlots') {
       props = `<h3>Lesní parcela</h3><div class="me2">${numIn('x0', 'x od', o.x0)}${numIn('x1', 'x do', o.x1)}${numIn('z0', 'z od', o.z0)}${numIn('z1', 'z do', o.z1)}</div>
         <p class="muted">Stromy pro harvestor se rozmístí znovu po uložení.</p>`;
     }
-    props += `<div class="devbtns">${btn('del', s.kind === 'fields' && ed.data.fields[s.i].meadow ? 'Smazat louku' : DELETE[s.kind], 'danger')}</div>`;
+    if (DELETE[s.kind]) props += `<div class="devbtns">${btn('del', s.kind === 'fields' && ed.data.fields[s.i].meadow ? 'Smazat louku' : DELETE[s.kind], 'danger')}</div>`;
   } else if (ed.tool === 'road') {
     props = `<h3>Nová cesta</h3><p class="muted">Klikáním přidávej body. Enter nebo dvojklik cestu dokončí, Esc ji zruší.</p>`;
   } else {
-    props = `<h3>Plán kraje</h3><p class="muted">Klikni na pole, cestu, rybník nebo les a táhni. Rohy mění velikost.
-      Prázdné místo posouvá pohled, kolečko přibližuje. Řeka, městečko, železnice, dvůr a výkupy zůstávají na místě.</p>`;
+    props = `<h3>Plán kraje</h3><p class="muted">Klikni na pole, cestu, rybník, les, budovu, řeku nebo brod a táhni. Rohy mění velikost.
+      Prázdné místo posouvá pohled, kolečko přibližuje. Městečko, železnice a dvůr zůstávají na místě.</p>`;
   }
   const warn = warnings();
   ed.side.innerHTML = `${props}
@@ -447,6 +493,9 @@ function onProp(e) {
     o.start = { ...(o.start || { s: 'stub' }) };
     o.start[k.slice(6)] = k === 'start.crop' ? +v : v;
     if (o.start.s === 'sown' && o.start.growth == null) o.start.growth = 2;
+  } else if (k.startsWith('shift.')) {
+    if (v == null) return;
+    o.shift[+k.slice(6)] = Math.round(v);
   } else if (k === 'price') {
     if (v == null) delete o.price; else o.price = Math.max(0, v);
   } else if (s.kind === 'fields' && (k === 'w' || k === 'h')) {
@@ -491,24 +540,43 @@ function warnings() {
     if (r.x0 < BOUNDS.x0 || r.x1 > BOUNDS.x1 || r.z0 < BOUNDS.z0 || r.z1 > BOUNDS.z1) out.push(`${fieldName(f)} přesahuje hranici mapy.`);
     for (let j = i + 1; j < d.fields.length; j++) if (overlap(r, rectOf(d.fields[j]), 2)) out.push(`${fieldName(f)} a ${fieldName(d.fields[j])} se překrývají.`);
     for (const rd of d.roads) if (samples(rd.pts).some(([x, z]) => inside(x, z, r, rd.w / 2 - 0.5))) { out.push(`Cesta ${rd.id} vede přes ${fieldName(f).toLowerCase()}.`); }
-    if (samples(RIVER, 3).some(([x, z]) => inside(x, z, r, RIVER_HALF))) out.push(`${fieldName(f)} leží na řece.`);
+    if (samples(d.river[0].pts, 3).some(([x, z]) => inside(x, z, r, RIVER_HALF))) out.push(`${fieldName(f)} leží na řece.`);
     for (const p of d.ponds) if (inPond(Math.max(r.x0, Math.min(p.x, r.x1)), Math.max(r.z0, Math.min(p.z, r.z1)), p)) out.push(`${fieldName(f)} zasahuje do rybníka.`);
     if (overlap(r, TOWN) || overlap(r, PAD)) out.push(`${fieldName(f)} zasahuje do ${overlap(r, PAD) ? 'dvora' : 'městečka'}.`);
   });
+  const river = d.river[0].pts, ford = d.ford[0];
   for (const rd of d.roads) {
-    const wet = samples(rd.pts).filter(([x, z]) => riverDist(x, z) < RIVER_HALF);
-    const dry = ([x, z]) => BRIDGES.some(b => Math.abs(x - b.x) < b.len / 2 + 2 && Math.abs(z - b.z) < b.w / 2 + 2) || Math.hypot(x - FORD.x, z - FORD.z) < FORD.r;
-    if (wet.some(p => !dry(p))) out.push(`Cesta ${rd.id} kříží řeku mimo most a brod.`);
     if (rd.pts.some(([x, z]) => x < BOUNDS.x0 || x > BOUNDS.x1 || z < BOUNDS.z0 || z > BOUNDS.z1)) out.push(`Cesta ${rd.id} vede za hranici mapy.`);
   }
+  for (const b of bridges()) if (b.len >= 40) out.push(`Cesta ${b.road} kříží řeku hodně šikmo, most bude dlouhý ${b.len} m.`);
+  if (!d.roads.some(rd => polyDist(ford.x, ford.z, rd.pts) < ford.r)) out.push('Přes brod nevede žádná cesta.');
+  const edge = ([x, z]) => Math.min(x - BOUNDS.x0, BOUNDS.x1 - x, z - BOUNDS.z0, BOUNDS.z1 - z) < 15;
+  if (!edge(river[0]) || !edge(river[river.length - 1])) out.push('Řeka by měla začínat i končit na okraji mapy.');
+  // buildings: only the moved ones (at home the rings sit by the road and the pens touch on purpose)
+  d.places.forEach((p, i) => {
+    const o = PLACES[i];
+    if (p.shift[0] === o.shift[0] && p.shift[1] === o.shift[1]) return;
+    const r = placeRect(p, p.shift);
+    if (r.x0 < BOUNDS.x0 || r.x1 > BOUNDS.x1 || r.z0 < BOUNDS.z0 || r.z1 > BOUNDS.z1) out.push(`${p.name} stojí za hranicí mapy.`);
+    for (const f of d.fields) if (overlap(r, rectOf(f), -1)) out.push(`${p.name} stojí na poli ${f.id}.`);
+    for (const q of d.places) if (q !== p && overlap(r, placeRect(q, q.shift), -1.5)) out.push(`${p.name} se překrývá s budovou ${q.name}.`);
+    for (const rd of d.roads) if (samples(rd.pts).some(([x, z]) => inside(x, z, r, -2))) { out.push(`${p.name} stojí na cestě ${rd.id}.`); break; }
+    if (samples(river, 3).some(([x, z]) => inside(x, z, r, RIVER_HALF))) out.push(`${p.name} stojí v řece.`);
+    for (const pd of d.ponds) if (inPond(Math.max(r.x0, Math.min(pd.x, r.x1)), Math.max(r.z0, Math.min(pd.z, r.z1)), pd)) out.push(`${p.name} stojí v rybníce.`);
+  });
   return [...new Set(out)];
 }
 
 /* ---------- saving ---------- */
 /** Only the sections that differ from the built-in map go to map.json. */
 function exportData() {
-  const out = {};
-  for (const k of KEYS) if (JSON.stringify(ed.data[k]) !== JSON.stringify(MAP_DEFAULTS[k])) out[k] = ed.data[k];
+  const out = {}, d = ed.data;
+  for (const k of KEYS) if (JSON.stringify(d[k]) !== JSON.stringify(MAP_DEFAULTS[k])) out[k] = d[k];
+  if (JSON.stringify(d.river[0].pts) !== JSON.stringify(MAP_DEFAULTS.river)) out.river = d.river[0].pts;
+  const f = d.ford[0];
+  if (f.x !== MAP_DEFAULTS.ford.x || f.z !== MAP_DEFAULTS.ford.z) out.ford = { x: f.x, z: f.z };
+  const places = Object.fromEntries(d.places.filter(p => p.shift[0] || p.shift[1]).map(p => [p.id, p.shift]));
+  if (Object.keys(places).length) out.places = places;
   return out;
 }
 async function send(data, doneMsg) {
@@ -537,8 +605,13 @@ const ACTS = {
   },
   save: () => send(exportData(), 'Uloženo'),
   discard: () => { load(); draw(); panel(); },
-  defaults: () => { ed.data = Object.fromEntries(KEYS.map(k => [k, clone(MAP_DEFAULTS[k])])); ed.sel = null; changed(); draw(); panel(); status('Výchozí mapa, ulož ji tlačítkem Uložit a obnovit'); },
+  defaults: () => {
+    ed.data = Object.fromEntries(KEYS.map(k => [k, clone(MAP_DEFAULTS[k])]));
+    ed.data.places = PLACE_BASE.map(p => ({ ...p, shift: [0, 0] }));
+    ed.data.river = [{ pts: clone(MAP_DEFAULTS.river) }]; ed.data.ford = [{ ...MAP_DEFAULTS.ford }];
+    ed.sel = null; changed(); draw(); panel(); status('Výchozí mapa, ulož ji tlačítkem Uložit a obnovit'); },
   del,
+  home: () => { ed.data.places[ed.sel.i].shift = [0, 0]; changed(); draw(); panel(); },
   rect: () => { const o = ed.data.fields[ed.sel.i]; delete o.poly; delete o.sign; if (!o.owned) delete o.price; changed(); draw(); panel(); },
   addField: () => addAtCentre('fields'),
   addPond: () => addAtCentre('ponds'),
