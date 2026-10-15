@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { lerp, fmt, plural } from '../core/util.js';
 import { G } from './state.js';
 import {
-  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice,
+  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, S_NONE,
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { IMPL, BALE_CELLS, HARVESTERS, toolLine, tractor, trailer, trailerCenter } from '../vehicles/vehicles.js';
@@ -32,6 +32,7 @@ function applyCell(v, x, z, k, dirBit, res) {
   if (job && !contractAllows(f, v)) { res.notOwned = f; return; }
   res.onField = true;
   const i = Math.floor(x - f.x0) + Math.floor(z - f.z0) * f.w, s = f.state[i];
+  if (s === S_NONE) return; // grass outside a shaped field
   let changed = false, setDir = true;
   if (v.type === 'tractor') {
     switch (v.impl) {
@@ -72,7 +73,7 @@ function applyCell(v, x, z, k, dirBit, res) {
     if (isWet()) { res.blocked = 'wet'; return; }
     if (!job) {
       if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
-      const y = cr.yield * yieldMult(f.bonus[i]);
+      const y = cr.yield * yieldMult(f.bonus[i]) * f.q;
       if (tk.amount + y > tk.cap) { res.blocked = 'full'; return; }
       tk.crop = c; tk.amount += y; stat('harvest', y, c);
     }
@@ -138,12 +139,12 @@ export function work(v, dt) {
   if (res.onField && v.type === 'tractor' && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
     const k = (Math.random() - 0.5) * W, im = IMPL[v.impl];
     const up = v.impl === 'spreader' ? 0.4 : 0.6 + Math.random() * 0.6;
-    emit(cx + rx * k, v.impl === 'spreader' ? 0.6 : 0.3, cz + rz * k, im.dust, v.impl === 'spreader' ? 0.25 : 0.9 + Math.random() * 0.6,
+    emit(cx + rx * k, (v.impl === 'spreader' ? 0.6 : 0.3) + (v.y || 0), cz + rz * k, im.dust, v.impl === 'spreader' ? 0.25 : 0.9 + Math.random() * 0.6,
       (Math.random() - 0.5) * 0.6 - sh * 0.6, up, (Math.random() - 0.5) * 0.6 - ch * 0.6, v.impl === 'spreader' ? 0.7 : 1.4 + Math.random() * 0.6, v.impl === 'spreader' ? 2 : 0);
   }
   if (v.harvester && v.harvestT > 0 && Math.random() < dt * 30) {
     const bx = v.x - sh * 3.6, bz = v.z - ch * 3.6;
-    emit(bx + (Math.random() - 0.5) * 1.5, 1.4, bz + (Math.random() - 0.5) * 1.5, v.chaff, 0.7,
+    emit(bx + (Math.random() - 0.5) * 1.5, 1.4 + (v.y || 0), bz + (Math.random() - 0.5) * 1.5, v.chaff, 0.7,
       -sh * 1.2 + (Math.random() - 0.5), 0.3 + Math.random() * 0.5, -ch * 1.2 + (Math.random() - 0.5), 1.8, 0.2);
   }
 }

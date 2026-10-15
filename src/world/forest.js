@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { M } from '../render/materials.js';
 import { rng, col } from '../core/util.js';
-import { FOREST } from './layout.js';
+import { FOREST_PLOTS } from './layout.js';
+import { groundH } from './terrain.js';
 
 /**
- * Spruce plantation north of the fields. Each tree grows 0..1 over GROW_DAYS game days;
+ * Spruce plantations (north of the fields and two in the western forest). Each tree grows 0..1 over GROW_DAYS game days;
  * from MATURE it can be felled by the harvester, then a sapling is planted in its place.
  * Two instanced meshes (trunks, crowns); standing trees above 0.3 block vehicles.
  */
@@ -13,9 +14,14 @@ const GROW_DAYS = 4;
 export const MATURE = 0.85;
 const R = rng(31);
 export const trees = [];
-for (let x = FOREST.x0 + 4; x < FOREST.x1 - 2; x += 8.5) {
-  for (let z = FOREST.z0 + 4; z < FOREST.z1 - 2; z += 8.5) {
-    trees.push({ x: x + (R() - 0.5) * 3, z: z + (R() - 0.5) * 3, g: 0.6 + R() * 0.4, fall: 0, dir: 0, s: 0.85 + R() * 0.3 });
+// plots in order: the first one is the original plantation, so old saves keep their tree indexes
+for (const P of FOREST_PLOTS) {
+  for (let x = P.x0 + 4; x < P.x1 - 2; x += 8.5) {
+    for (let z = P.z0 + 4; z < P.z1 - 2; z += 8.5) {
+      const t = { x: x + (R() - 0.5) * 3, z: z + (R() - 0.5) * 3, g: 0.6 + R() * 0.4, fall: 0, dir: 0, s: 0.85 + R() * 0.3 };
+      t.y = groundH(t.x, t.z);
+      trees.push(t);
+    }
   }
 }
 /** Wood volume of a tree in m³. */
@@ -31,11 +37,11 @@ const dummy = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0), axis = new 
 /** Redraws one tree: height from growth, tipped over while falling. */
 function draw(i) {
   const t = trees[i], g = Math.max(0.12, t.g), h = 9 * g * t.s;
-  dummy.position.set(t.x, 0, t.z);
+  dummy.position.set(t.x, t.y, t.z);
   if (t.fall > 0) { axis.set(Math.cos(t.dir), 0, -Math.sin(t.dir)); q.setFromAxisAngle(axis, Math.min(1, t.fall) * Math.PI / 2 * 0.98); dummy.quaternion.copy(q); }
   else dummy.quaternion.identity();
   dummy.scale.set(g * t.s, h * 0.45, g * t.s); dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix);
-  dummy.position.y = 0;
+  dummy.position.y = t.y;
   const m = new THREE.Matrix4().compose(dummy.position, dummy.quaternion, new THREE.Vector3(1, 1, 1));
   const local = new THREE.Matrix4().compose(new THREE.Vector3(0, h * 0.25, 0), new THREE.Quaternion(), new THREE.Vector3(2.1 * g * t.s, h * 0.8, 2.1 * g * t.s));
   crowns.setMatrixAt(i, m.multiply(local));
@@ -82,9 +88,14 @@ export function stepFell(i, dt) {
   return true;
 }
 
-/** Collision circles of the standing trees (rebuilt cheaply each call). */
-export function forestColliders(out) {
-  for (const t of trees) if (t.g > 0.3 && !t.fall) out.push({ x: t.x, z: t.z, r: 0.5 + 0.5 * t.g });
+/** Collision circles of the standing trees near (x, z) within r (all of them when x is omitted). */
+export function forestColliders(out, x, z, r = 0) {
+  if (x != null && !FOREST_PLOTS.some(P => x > P.x0 - r && x < P.x1 + r && z > P.z0 - r && z < P.z1 + r)) return out;
+  for (const t of trees) {
+    if (t.g <= 0.3 || t.fall) continue;
+    if (x != null && (Math.abs(t.x - x) > r + 2 || Math.abs(t.z - z) > r + 2)) continue;
+    out.push({ x: t.x, z: t.z, r: 0.5 + 0.5 * t.g });
+  }
   return out;
 }
 

@@ -1,6 +1,7 @@
 import { markTrack, fieldAt } from '../world/fields.js';
 import { emit } from './particles.js';
 import { col } from '../core/util.js';
+import { groundH } from '../world/terrain.js';
 
 /**
  * Wheel ruts in the fields and dust behind the wheels in dry weather.
@@ -31,7 +32,7 @@ export function updTracks(dt, vehicles, trailer, dry) {
     v.dustT = 0.09;
     wheels(v.x, v.z, v.h, ax, (x, z) => {
       const back = -Math.sign(v.speed) * 0.8;
-      emit(x + Math.sin(v.h) * back, 0.35, z + Math.cos(v.h) * back, Math.random() < 0.5 ? DUST_DARK : DUST, 0.5 + Math.random() * 0.3,
+      emit(x + Math.sin(v.h) * back, 0.35 + groundH(x, z), z + Math.cos(v.h) * back, Math.random() < 0.5 ? DUST_DARK : DUST, 0.5 + Math.random() * 0.3,
         (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.4, (Math.random() - 0.5) * 0.6, 1.4 + Math.random() * 0.6);
     });
   }

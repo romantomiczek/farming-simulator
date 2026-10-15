@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { scene } from '../render/core.js';
 import { rng, col, angDiff, clamp } from '../core/util.js';
-import { terrainH } from './terrain.js';
-import { PAD, POND, NO_TREES, FLAT, COW_PEN, HEN_RUN, circles, boxes } from './layout.js';
+import { groundH } from './terrain.js';
+import { PAD, POND, NO_TREES, HOME, BOUNDS, COW_PEN, HEN_RUN, PONDS, nearShapes, inPond, riverDist } from './layout.js';
 import { playAt } from '../audio.js';
 
 /**
@@ -76,10 +76,12 @@ const wing = () => box([0.34, 0.02, 0.16], [0.17, 0, 0], '#25282c');
 
 /* ---------- shared helpers ---------- */
 function blocked(x, z) {
-  if (x < FLAT.x0 - 60 || x > FLAT.x1 + 60 || z < FLAT.z0 - 60 || z > FLAT.z1 + 60) return true;
-  for (const b of boxes) if (x > b.x0 - 0.3 && x < b.x1 + 0.3 && z > b.z0 - 0.3 && z < b.z1 + 0.3) return true;
-  for (const c of circles) { const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz < (c.r + 0.25) ** 2) return true; }
-  return false;
+  if (x < BOUNDS.x0 - 60 || x > BOUNDS.x1 + 60 || z < BOUNDS.z0 - 60 || z > BOUNDS.z1 + 60) return true;
+  if (riverDist(x, z) < 7.5 || PONDS.some(p => inPond(x, z, p, -4))) return true; // water
+  let hit = false;
+  nearShapes(x, z, 1, c => { const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz < (c.r + 0.25) ** 2) hit = true; },
+    b => { if (x > b.x0 - 0.3 && x < b.x1 + 0.3 && z > b.z0 - 0.3 && z < b.z1 + 0.3) hit = true; });
+  return hit;
 }
 const inRect = (x, z, r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1;
 /** Random free point in rect r (tries a few times, falls back to the centre). */
@@ -142,7 +144,7 @@ function species(geo, n, legs) {
     body, legMesh,
     /** Writes agent i: position, heading, bob, pitch; gait phase drives the legs. */
     put(i, a, bob = 0, pitch = 0) {
-      _p.set(a.x, (a.y ?? terrainH(a.x, a.z)) + bob, a.z);
+      _p.set(a.x, (a.y || 0) + groundH(a.x, a.z) + bob, a.z);
       _q.setFromEuler(_e.set(pitch, a.h, 0, 'YXZ'));
       _s.setScalar(a.s || 1);
       body.setMatrixAt(i, _m.compose(_p, _q, _s));
@@ -167,7 +169,7 @@ export function buildWildlife() {
   const R = rng(91);
   const YARD = { x0: -44, x1: 24, z0: -50, z1: -12 };
   const CATS = { x0: -42, x1: -20, z0: -46, z1: -12 };
-  const VALLEY = { x0: FLAT.x0 + 4, x1: FLAT.x1 - 4, z0: FLAT.z0 + 4, z1: FLAT.z1 - 4 };
+  const VALLEY = { x0: HOME.x0 + 4, x1: HOME.x1 - 4, z0: HOME.z0 + 4, z1: HOME.z1 - 4 };
   const FOX_AREAS = [{ x0: -125, x1: -96, z0: -80, z1: 130 }, { x0: -50, x1: 150, z0: 132, z1: 160 }];
   const DEER_DAY = { x0: 70, x1: 250, z0: -125, z1: -98 }, DEER_DUSK = { x0: 70, x1: 250, z0: -96, z1: -55 };
 

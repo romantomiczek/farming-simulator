@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { M } from '../render/materials.js';
 import { baleGeo } from '../vehicles/models.js';
+import { groundH } from './terrain.js';
 
 // Round straw bales lying on the fields: one instanced mesh, positions in `bales`.
 const MAX = 160;
@@ -43,7 +44,7 @@ export function flushBales() {
   if (!dirty) return;
   dirty = false;
   bales.forEach((b, i) => {
-    dummy.position.set(b.x, 0, b.z); dummy.rotation.set(0, b.h, 0); dummy.updateMatrix();
+    dummy.position.set(b.x, groundH(b.x, b.z), b.z); dummy.rotation.set(0, b.h, 0); dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
   });
   mesh.count = bales.length;

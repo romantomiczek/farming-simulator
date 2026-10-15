@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { camera } from './core.js';
 import { clamp, angDiff } from '../core/util.js';
 import { keys } from '../core/input.js';
+import { groundH } from '../world/terrain.js';
 
 /**
  * Orbit camera following the active vehicle. Mouse drag / Q,E rotate, wheel or pinch zooms.
@@ -53,10 +54,12 @@ export function updateCamera(dt, v) {
   } else if (t - cam.manual > 2.5 && v.speed > 0.8) {
     cam.yaw += angDiff(cam.yaw, v.h) * Math.min(1, dt * 1.2);
   }
-  desired.set(v.x + Math.sin(v.h) * 3, 1, v.z + Math.cos(v.h) * 3);
+  desired.set(v.x + Math.sin(v.h) * 3, (v.y || 0) + 1, v.z + Math.cos(v.h) * 3);
   cam.t.lerp(desired, 1 - Math.exp(-dt * 6));
   const cp = Math.cos(cam.pitch) * cam.dist;
   camera.position.set(cam.t.x - Math.sin(cam.yaw) * cp, cam.t.y + Math.sin(cam.pitch) * cam.dist, cam.t.z - Math.cos(cam.yaw) * cp);
+  // never under a hill behind the vehicle
+  camera.position.y = Math.max(camera.position.y, groundH(camera.position.x, camera.position.z) + 2);
   // when the camera is tilted low, aim a little above the vehicle so the horizon comes into view
   look.copy(cam.t); look.y += Math.max(0, 0.4 - cam.pitch) * 8;
   camera.lookAt(look);

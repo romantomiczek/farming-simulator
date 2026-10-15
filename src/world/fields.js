@@ -3,8 +3,9 @@ import { renderer, scene } from '../render/core.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
-import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW } from '../game/crops.js';
-import { FIELD_DEFS, circles } from './layout.js';
+import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW } from '../game/crops.js';
+import { FIELD_DEFS, ROADS, circles, inPoly, polyDist } from './layout.js';
+import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
 import { addWind } from '../render/wind.js';
 
@@ -35,15 +36,32 @@ const cropDetailGeo = (() => {
 const cropMat = addWind(new THREE.MeshLambertMaterial({ color: 0xffffff }), { amp: 0.14, base: 0.2, spatial: 0.16 });
 const _m = new THREE.Matrix4(), _s = new THREE.Matrix4(), _c = new THREE.Color();
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+/** Crops are drawn in square chunks of CHUNK cells; chunks far from the camera are hidden (see updFieldLOD). */
+const CHUNK = 64;
+const PRICE_PER_HA = 1900000;
+
+/** Sale sign for a new field: by the edge nearest to a road, facing it. */
+function autoSign(f) {
+  const cx = f.x0 + f.w / 2, cz = f.z0 + f.h / 2;
+  const edges = [[f.x0 + f.w + 2.5, cz, Math.PI / 2], [f.x0 - 2.5, cz, -Math.PI / 2], [cx, f.z0 + f.h + 2.5, 0], [cx, f.z0 - 2.5, Math.PI]];
+  let best = edges[0], bd = Infinity;
+  for (const e of edges) { const d = Math.min(...ROADS.map(r => polyDist(e[0], e[1], r.pts))); if (d < bd) { bd = d; best = e; } }
+  return best;
+}
 
 /**
  * Each field is a grid of 1 m cells. Per cell we keep state, crop, growth (game hours),
  * visual stage, work direction, bonus bits (fertilised / ploughed) and a straw windrow flag. The soil is a canvas texture (row lines follow the
- * direction the tool drove), the crop is one instanced box per cell.
+ * direction the tool drove, crops paint their colour so far fields look right), the crop is one instanced box per cell,
+ * in chunks. Fields with an outline (poly) have S_NONE cells outside it; f.area counts the real cells.
+ * f.y = the field's terrace height.
  */
+// grass borders of all fields, merged into one mesh after the fields are built
+const borders = new THREE.Group();
 export const FIELDS = FIELD_DEFS.map(def => {
-  const f = { ...def, ownedStart: def.owned };
+  const f = { ...def, ownedStart: def.owned ?? false, q: def.q ?? 1 };
   f.n = f.w * f.h;
+  f.y = levelOf(def);
   f.state = new Uint8Array(f.n); f.crop = new Uint8Array(f.n); f.growth = new Float32Array(f.n);
   f.stage = new Uint8Array(f.n); f.dir = new Uint8Array(f.n); f.jit = new Float32Array(f.n);
   f.bonus = new Uint8Array(f.n); f.straw = new Uint8Array(f.n);
@@ -51,6 +69,14 @@ export const FIELDS = FIELD_DEFS.map(def => {
   // (a rut disappears as soon as a tool works the cell); not saved
   f.track = new Uint8Array(f.n); f.trackS = new Uint8Array(f.n);
   for (let i = 0; i < f.n; i++) f.jit[i] = hash2((i % f.w) + f.id * 1000, ((i / f.w) | 0) * 1.37);
+  f.mask = null; f.area = f.n;
+  if (f.poly) {
+    f.mask = new Uint8Array(f.n);
+    for (let i = 0; i < f.n; i++) f.mask[i] = inPoly(f.x0 + (i % f.w) + 0.5, f.z0 + ((i / f.w) | 0) + 0.5, f.poly) ? 1 : 0;
+    f.area = f.mask.reduce((a, b) => a + b, 0);
+  }
+  f.price = def.price ?? Math.round(((f.area / 10000) * PRICE_PER_HA * f.q) / 10000) * 10000;
+  f.sign = def.sign || autoSign(f);
   f.cnt = [0, 0, 0, 0]; f.prog = 0; f.strawCnt = 0; f.fertShare = 0;
 
   f.canvas = document.createElement('canvas'); f.canvas.width = f.w * CP; f.canvas.height = f.h * CP;
@@ -58,25 +84,54 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.tex = new THREE.CanvasTexture(f.canvas);
   f.tex.colorSpace = THREE.SRGBColorSpace;
   f.tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  f.upT = 0;
 
-  const border = new THREE.Group();
-  flatPlane(f.w + 1.4, f.h + 1.4, '#86a654', f.x0 + f.w / 2, 0.012, f.z0 + f.h / 2, border);
-  scene.add(border);
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1 }));
-  plane.rotation.x = -Math.PI / 2; plane.position.set(f.x0 + f.w / 2, 0.03, f.z0 + f.h / 2); plane.receiveShadow = true;
+  if (!f.poly) flatPlane(f.w + 1.4, f.h + 1.4, '#86a654', f.x0 + f.w / 2, f.y + 0.012, f.z0 + f.h / 2, borders);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 }));
+  plane.rotation.x = -Math.PI / 2; plane.position.set(f.x0 + f.w / 2, f.y + 0.03, f.z0 + f.h / 2); plane.receiveShadow = true;
   scene.add(plane);
 
   f.mini = document.createElement('canvas'); f.mini.width = f.w; f.mini.height = f.h;
   f.miniCtx = f.mini.getContext('2d'); f.miniImg = f.miniCtx.createImageData(f.w, f.h);
 
-  f.crops = new THREE.InstancedMesh(cropGeo, cropMat, f.n);
-  f.crops.castShadow = true; f.crops.receiveShadow = true;
-  // fixed bounds so fields off screen (and outside the shadow area) are skipped entirely
-  f.crops.boundingSphere = new THREE.Sphere(new THREE.Vector3(f.x0 + f.w / 2, 1, f.z0 + f.h / 2), Math.hypot(f.w, f.h) / 2 + 3);
-  for (let i = 0; i < f.n; i++) { f.crops.setMatrixAt(i, ZERO); f.crops.setColorAt(i, _c.set(0xffffff)); }
-  scene.add(f.crops);
+  // crop chunks
+  f.chunks = [];
+  f.cpr = Math.ceil(f.w / CHUNK); // chunks per row
+  for (let cz = 0; cz < f.h; cz += CHUNK) {
+    for (let cx = 0; cx < f.w; cx += CHUNK) {
+      const cw = Math.min(CHUNK, f.w - cx), chh = Math.min(CHUNK, f.h - cz);
+      const mesh = new THREE.InstancedMesh(cropGeo, cropMat, cw * chh);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      // fixed bounds so chunks off screen (and outside the shadow area) are skipped entirely
+      const x0 = f.x0 + cx, z0 = f.z0 + cz;
+      mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(x0 + cw / 2, f.y + 1, z0 + chh / 2), Math.hypot(cw, chh) / 2 + 3);
+      for (let k = 0; k < cw * chh; k++) { mesh.setMatrixAt(k, ZERO); mesh.setColorAt(k, _c.set(0xffffff)); }
+      scene.add(mesh);
+      f.chunks.push({ mesh, cx, cz, cw, x0, z0, x1: x0 + cw, z1: z0 + chh, dirty: false });
+    }
+  }
   return f;
 });
+
+scene.add(bake(borders));
+
+/** Chunk and instance index of cell i. */
+function chunkOf(f, i) {
+  const ix = i % f.w, iz = (i / f.w) | 0;
+  const ch = f.chunks[((iz / CHUNK) | 0) * f.cpr + ((ix / CHUNK) | 0)];
+  return [ch, (iz - ch.cz) * ch.cw + (ix - ch.cx)];
+}
+
+/** Hides crop chunks further than dist metres from (x, z) (the painted ground stands in for them), and far signs. */
+export function updFieldLOD(x, z, dist) {
+  for (const s of signs) s.g.visible = Math.hypot(s.x - x, s.z - z) < 100;
+  for (const f of FIELDS) {
+    for (const ch of f.chunks) {
+      const d = Math.hypot(Math.max(0, ch.x0 - x, x - ch.x1), Math.max(0, ch.z0 - z, z - ch.z1));
+      ch.mesh.visible = d < dist;
+    }
+  }
+}
 
 /** Puts a field into its new-game state from FIELD_DEFS.start. */
 export function applyStart(f) {
@@ -88,7 +143,12 @@ export function applyStart(f) {
     const hours = CROPS[st.crop || 0].hours;
     for (let i = 0; i < f.n; i++) { f.growth[i] = (st.growth || 0) + f.jit[i] * 0.4; f.stage[i] = Math.min(3, Math.floor((f.growth[i] / hours) * 4)); }
   }
+  applyMask(f);
   f.owned = f.ownedStart;
+}
+/** Cells outside the outline are never part of the field. */
+export function applyMask(f) {
+  if (f.mask) for (let i = 0; i < f.n; i++) if (!f.mask[i]) { f.state[i] = S_NONE; f.stage[i] = 0; f.straw[i] = 0; f.bonus[i] = 0; }
 }
 
 export function fieldAt(x, z) {
@@ -96,15 +156,29 @@ export function fieldAt(x, z) {
   return null;
 }
 
+/** CSS colours of the crops' growth stages, darkened, for painting the ground under them. */
+const cropCss = CROPS.map(c => c.colors.map(hex => '#' + _c.set(hex).multiplyScalar(0.72).getHexString()));
+const cropLine = CROPS.map(c => c.colors.map(hex => '#' + _c.set(hex).multiplyScalar(0.55).getHexString()));
+
 export function drawCell(f, i) {
   const ix = i % f.w, iz = (i / f.w) | 0, px = ix * CP, py = iz * CP, s = f.state[i], j = f.jit[i];
   const v = Math.floor(j * 3.999), ctx = f.ctx, along = f.dir[i] === 0;
+  f.texDirty = true;
+  if (s === S_NONE) { ctx.clearRect(px, py, CP, CP); return; }
   if (f.straw[i]) {
     // straw windrow left by the combine
     ctx.fillStyle = STRAW.base; ctx.fillRect(px, py, CP, CP);
     ctx.fillStyle = STRAW.line;
     if (along) ctx.fillRect(px + 1 + (v & 1), py, 1, CP); else ctx.fillRect(px, py + 1 + (v & 1), CP, 1);
-    f.texDirty = true;
+    return;
+  }
+  const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+  if (st >= 2) {
+    // grown crop: the ground takes its colour, so chunks drawn flat in the distance still read as a field
+    const c = f.crop[i];
+    ctx.fillStyle = cropCss[c][st]; ctx.fillRect(px, py, CP, CP);
+    ctx.fillStyle = cropLine[c][st];
+    if (along) ctx.fillRect(px + 2, py, 1, CP); else ctx.fillRect(px, py + 2, CP, 1);
     return;
   }
   const plowed = s === S_CULT && f.bonus[i] & B_PLOW;
@@ -125,7 +199,6 @@ export function drawCell(f, i) {
     const o = (t - 1) & 3;
     if ((t - 1) >> 2) ctx.fillRect(px, py + o, CP, 2); else ctx.fillRect(px + o, py, 2, CP);
   }
-  f.texDirty = true;
 }
 
 /** A wheel at (x, z) heading h leaves a rut in the field cell under it. */
@@ -133,7 +206,7 @@ export function markTrack(x, z, h) {
   const f = fieldAt(x, z);
   if (!f) return;
   const ix = (x - f.x0) | 0, iz = (z - f.z0) | 0, i = iz * f.w + ix;
-  if (f.straw[i]) return;
+  if (f.straw[i] || f.state[i] === S_NONE) return;
   const alongX = Math.abs(Math.sin(h)) > Math.abs(Math.cos(h));
   const frac = alongX ? z - f.z0 - iz : x - f.x0 - ix;
   const t = 1 + (alongX ? 4 : 0) + Math.min(2, (frac * CP) | 0);
@@ -144,98 +217,158 @@ export function markTrack(x, z, h) {
 }
 
 export function drawMini(f, i) {
-  const s = f.state[i];
+  const s = f.state[i], d = f.miniImg.data, o = i * 4;
+  f.miniDirty = true;
+  if (s === S_NONE) { d[o + 3] = 0; return; }
   let rgb;
   if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[4];
   else if (s === S_SOWN && f.stage[i] > 0) rgb = CROPS[f.crop[i]].rgb[f.stage[i]];
   else if (f.straw[i]) rgb = STRAW.rgb;
   else if (s === S_CULT && f.bonus[i] & B_PLOW) rgb = SOIL_PLOW.rgb;
   else rgb = SOIL[s].rgb;
-  const d = f.miniImg.data, o = i * 4;
   d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
-  f.miniDirty = true;
 }
 
 export function updCrop(f, i) {
   const s = f.state[i];
   const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
-  f.cropDirty = true;
-  if (st === 0) { f.crops.setMatrixAt(i, ZERO); return; }
+  const [ch, k] = chunkOf(f, i);
+  ch.dirty = true; f.cropDirty = true;
+  if (st === 0) { ch.mesh.setMatrixAt(k, ZERO); return; }
   const cr = CROPS[f.crop[i]], j = f.jit[i];
   const row = (f.dir[i] === 0 ? i % f.w : (i / f.w) | 0) & 1;
   const hgt = cr.h[st] * (0.95 + j * 0.08 + row * 0.03), fw = cr.fw[st];
   const sx = f.dir[i] === 0 ? fw : 1, sz = f.dir[i] === 0 ? 1 : fw;
   // quarter turns vary the sheaf pattern between cells (a plain block looks the same either way)
   _m.makeRotationY(((j * 4) | 0) * Math.PI / 2).premultiply(_s.makeScale(sx, hgt, sz));
-  _m.setPosition(f.x0 + (i % f.w) + 0.5, 0.03, f.z0 + ((i / f.w) | 0) + 0.5);
-  f.crops.setMatrixAt(i, _m);
+  _m.setPosition(f.x0 + (i % f.w) + 0.5, f.y + 0.03, f.z0 + ((i / f.w) | 0) + 0.5);
+  ch.mesh.setMatrixAt(k, _m);
   _c.copy(cr.cols[st]).multiplyScalar(0.95 + j * 0.06 + row * 0.05);
-  f.crops.setColorAt(i, _c);
+  ch.mesh.setColorAt(k, _c);
 }
 
-export function refreshField(f) { f.track.fill(0); for (let i = 0; i < f.n; i++) { drawCell(f, i); updCrop(f, i); drawMini(f, i); } }
+export function refreshField(f) { f.track.fill(0); applyMask(f); paintAll(f); for (let i = 0; i < f.n; i++) { updCrop(f, i); drawMini(f, i); } f.upT = 0; }
 
-/** Uploads changed textures and instance buffers once per frame. */
+/* Whole-field repaint straight into pixels: the same picture as drawCell for every cell, but one
+   putImageData instead of hundreds of thousands of fillRect calls (matters for the big fields). */
+const rgbCache = new Map();
+const rgb = hex => { let c = rgbCache.get(hex); if (!c) { const n = parseInt(hex.slice(1), 16); c = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; rgbCache.set(hex, c); } return c; };
+function paintAll(f) {
+  const W = f.w * CP, img = f.ctx.createImageData(W, f.h * CP), d = img.data;
+  const px1 = (x, y, c) => { const o = (y * W + x) * 4; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255; };
+  const fill = (px, py, c) => { for (let y = 0; y < CP; y++) for (let x = 0; x < CP; x++) px1(px + x, py + y, c); };
+  const col = (x, py, c) => { for (let y = 0; y < CP; y++) px1(x, py + y, c); };
+  const row = (px, y, c) => { for (let x = 0; x < CP; x++) px1(px + x, y, c); };
+  for (let i = 0; i < f.n; i++) {
+    const s = f.state[i];
+    if (s === S_NONE) continue; // stays transparent
+    const px = (i % f.w) * CP, py = ((i / f.w) | 0) * CP, j = f.jit[i], v = Math.floor(j * 3.999), along = f.dir[i] === 0;
+    if (f.straw[i]) {
+      fill(px, py, rgb(STRAW.base));
+      if (along) col(px + 1 + (v & 1), py, rgb(STRAW.line)); else row(px, py + 1 + (v & 1), rgb(STRAW.line));
+      continue;
+    }
+    const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+    if (st >= 2) {
+      fill(px, py, rgb(cropCss[f.crop[i]][st]));
+      if (along) col(px + 2, py, rgb(cropLine[f.crop[i]][st])); else row(px, py + 2, rgb(cropLine[f.crop[i]][st]));
+      continue;
+    }
+    const plowed = s === S_CULT && f.bonus[i] & B_PLOW, pal = plowed ? SOIL_PLOW : SOIL[s];
+    fill(px, py, rgb(pal.base[v]));
+    const ln = rgb(pal.line[v]);
+    if (plowed) { if (along) { col(px, py, ln); col(px + 2, py, ln); } else { row(px, py, ln); row(px, py + 2, ln); } }
+    else if (along) col(px + 2, py, ln); else row(px, py + 2, ln);
+    if (s === S_STUB && j > 0.45) px1(px + ((j * 13) | 0) % 4, py + ((j * 29) | 0) % 4, rgb('#ecdcab'));
+    if (f.bonus[i] & B_FERT && j < 0.6) px1(px + ((j * 7) | 0) % 4, py + ((j * 17) | 0) % 4, rgb(s === S_STUB ? '#cfc6ad' : '#a58e78'));
+  }
+  f.ctx.putImageData(img, 0, 0);
+  f.texDirty = true;
+}
+
+/**
+ * Uploads changed textures and instance buffers. Big field textures (up to 3 MB) go up at most
+ * about 8 times a second while they change, small ones every frame.
+ */
 export function flushFields() {
+  const now = performance.now();
   for (const f of FIELDS) {
-    if (f.texDirty) { f.tex.needsUpdate = true; f.texDirty = false; }
+    if (f.texDirty && (f.n < 6000 || now - f.upT > 120)) { f.tex.needsUpdate = true; f.texDirty = false; f.upT = now; }
     if (f.cropDirty) {
-      f.crops.instanceMatrix.needsUpdate = true;
-      if (f.crops.instanceColor) f.crops.instanceColor.needsUpdate = true;
+      for (const ch of f.chunks) {
+        if (!ch.dirty) continue;
+        ch.mesh.instanceMatrix.needsUpdate = true;
+        if (ch.mesh.instanceColor) ch.mesh.instanceColor.needsUpdate = true;
+        ch.dirty = false;
+      }
       f.cropDirty = false;
     }
   }
 }
 
-/** Advances growth of every sown cell by dh game hours. */
+/** Advances growth of every sown cell by dh game hours (called twice a second with the time gathered meanwhile). */
 export function growFields(dh) {
   if (dh <= 0) return;
   for (const f of FIELDS) {
+    if (!f.cnt[S_SOWN] && f.counted) continue; // nothing growing here
     const st = f.state, gr = f.growth;
     for (let i = 0; i < f.n; i++) {
       if (st[i] !== S_SOWN) continue;
       const cr = CROPS[f.crop[i]], g = (gr[i] += dh);
-      if (g >= cr.hours) { st[i] = S_RIPE; f.stage[i] = 4; updCrop(f, i); drawMini(f, i); }
+      if (g >= cr.hours) { st[i] = S_RIPE; f.stage[i] = 4; updCrop(f, i); drawMini(f, i); drawCell(f, i); }
       else {
         const s = Math.min(3, Math.floor((g / cr.hours) * 4));
-        if (s !== f.stage[i]) { f.stage[i] = s; updCrop(f, i); drawMini(f, i); }
+        if (s !== f.stage[i]) { f.stage[i] = s; updCrop(f, i); drawMini(f, i); if (s >= 2) drawCell(f, i); }
       }
     }
   }
 }
 
-export function countFields() {
-  for (const f of FIELDS) {
-    const c = [0, 0, 0, 0];
-    let pg = 0, straw = 0, fert = 0, ripeBeet = 0;
-    for (let i = 0; i < f.n; i++) {
-      const s = f.state[i]; c[s]++;
-      if (s === S_SOWN) pg += f.growth[i] / CROPS[f.crop[i]].hours;
-      if (f.straw[i]) straw++;
-      if (f.bonus[i] & B_FERT) fert++;
-      if (s === S_RIPE && CROPS[f.crop[i]].header === 'beet') ripeBeet++;
-    }
-    f.cnt = c; f.prog = c[2] ? pg / c[2] : 0;
-    f.strawCnt = straw; f.fertShare = fert / f.n; f.ripeBeet = ripeBeet;
+const HOURS = CROPS.map(c => c.hours), IS_BEET = CROPS.map(c => c.header === 'beet');
+/** Recounts cell states, growth progress, straw, fertiliser and ripe beet of one field. */
+export function countField(f) {
+  const c = [0, 0, 0, 0], st = f.state, cr = f.crop;
+  let pg = 0, straw = 0, fert = 0, ripeBeet = 0;
+  for (let i = 0; i < f.n; i++) {
+    const s = st[i];
+    if (s === S_NONE) continue;
+    c[s]++;
+    if (s === S_SOWN) pg += f.growth[i] / HOURS[cr[i]];
+    else if (s === S_RIPE && IS_BEET[cr[i]]) ripeBeet++;
+    straw += f.straw[i];
+    fert += f.bonus[i] & B_FERT;
   }
+  f.cnt = c; f.prog = c[2] ? pg / c[2] : 0; f.counted = true;
+  f.strawCnt = straw; f.fertShare = fert / f.area; f.ripeBeet = ripeBeet;
+}
+export function countFields() { for (const f of FIELDS) countField(f); }
+let rr = 0;
+/** Cheap periodic recount: the field under (x, z) plus a few others in turn (all of them every few seconds). */
+export function countSomeFields(x, z) {
+  const here = fieldAt(x, z);
+  if (here) countField(here);
+  for (let k = 0; k < 4; k++) { const f = FIELDS[rr++ % FIELDS.length]; if (f !== here) countField(f); }
 }
 
-export function setCropShadows(on) { for (const f of FIELDS) f.crops.castShadow = on; }
-export function setCropDetail(on) { for (const f of FIELDS) f.crops.geometry = on ? cropDetailGeo : cropGeo; }
+export function setCropShadows(on) { for (const f of FIELDS) for (const ch of f.chunks) ch.mesh.castShadow = on; }
+export function setCropDetail(on) { for (const f of FIELDS) for (const ch of f.chunks) ch.mesh.geometry = on ? cropDetailGeo : cropGeo; }
 
 /* ---------- field signs ---------- */
 export const signs = FIELDS.map(f => {
   const [x, z, ry] = f.sign;
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
+  const g = new THREE.Group(); g.position.set(x, groundH(x, z), z); g.rotation.y = ry; scene.add(g);
   CY(0.07, 0.07, 2.4, 6, '#7a6250', -1.1, 1.2, 0, g); CY(0.07, 0.07, 2.4, 6, '#7a6250', 1.1, 1.2, 0, g);
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }), side = M('#e9dfc8');
-  const board = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.4, 0.12), [side, side, side, side, face, side]);
+  // a plain board plus a separate face with the text: 2 draw calls (a box with 6 material groups costs 6)
+  const board = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.4, 0.12), side);
   board.position.y = 2.0; board.castShadow = true; g.add(board);
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), face);
+  front.position.set(0, 2.0, 0.061); front.userData.noBake = true; g.add(front);
   bake(g);
   circles.push({ x, z, r: 0.6 });
-  return { f, x, z, cv, tex };
+  return { f, x, z, cv, tex, g };
 });
 
 export function drawSign(s) {
@@ -245,7 +378,7 @@ export function drawSign(s) {
   c.fillStyle = '#24312a'; c.font = '800 92px "Bricolage Grotesque", "Trebuchet MS", sans-serif'; c.textBaseline = 'alphabetic';
   c.fillText('Pole ' + f.id, 34, 112);
   c.font = '600 40px Figtree, "Segoe UI", sans-serif';
-  const ha = fmt2((f.w * f.h) / 10000) + ' ha';
+  const ha = fmt2(f.area / 10000) + ' ha';
   c.fillText(f.owned ? 'Tvoje pole · ' + ha : 'Na prodej · ' + ha, 34, 168);
   const job = G.contracts?.active?.field === f.id;
   if (job) { c.fillStyle = '#4d8a5d'; c.font = '700 40px Figtree, "Segoe UI", sans-serif'; c.fillText('Tvoje zakázka', 34, 220); }

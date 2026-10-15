@@ -4,7 +4,7 @@ import { quality, settings, saveSettings } from './core/settings.js';
 import { buildTerrain } from './world/terrain.js';
 import { buildFarm } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
-import { FIELDS, flushFields, growFields, countFields, drawSigns, setCropShadows, setCropDetail } from './world/fields.js';
+import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD } from './world/fields.js';
 import { vehicles, trailer, drive, visual, updateTrailer, attachImpl } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
@@ -32,7 +32,7 @@ import { updTracks } from './fx/tracks.js';
 import { updWind } from './render/wind.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
-import { sizeMinimap, drawMinimap } from './ui/minimap.js';
+import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
 import { toast } from './ui/toast.js';
@@ -64,11 +64,14 @@ wildlife.update(0.001, { vehicles, active: G.active, hour: 12, cows: false, hens
 cam.t.set(G.active.x, 1, G.active.z);
 
 /* ---------- input & menu ---------- */
-const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
+/** Big map: clicking one of your machines puts you in it. */
+const openMap = () => toggleBigMap(undefined, v => { G.active = v; cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
+const ACTIONS = { KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
 bindInput(code => {
   if (code === 'F9' && devEnabled) { toggleDev(); return; }
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
+  if (code === 'Escape' && bigMapOpen()) { toggleBigMap(false); return; }
   if (code === 'Escape') { showMenu(); return; }
   if (/^Digit[1-7]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();
@@ -108,13 +111,13 @@ addEventListener('pagehide', saveLocal);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveLocal(); });
 
 /* ---------- main loop ---------- */
-let slowT = 0, mapT = 0, forestHours = 0;
+let slowT = 0, mapT = 0, forestHours = 0, growHours = 0;
 function tick(dt) {
   if (G.playing) {
     const gm = DEV.freezeTime ? 0 : dt * TIME_SCALES[G.tsIdx] * DEV.timeMult;
     G.gameMin += gm;
     updateWeather(dt);
-    growFields((gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1));
+    growHours += (gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1);
     farmTick(gm / 60);
     forestHours += gm / 60;
     upkeep(dt);
@@ -148,10 +151,17 @@ function tick(dt) {
   updUI();
   updDev(dt);
   updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
-  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
-  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }
-  renderer.render(scene, camera);
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(G.active.x, G.active.z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
+  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5))); }
+  if (shadersReady) renderer.render(scene, camera);
 }
+
+// Compile all shaders in parallel without blocking the page (KHR_parallel_shader_compile); until then
+// the menu is usable and the 3D view stays empty. Compiling them on the first frame instead froze
+// the page for several seconds on Intel graphics.
+let shadersReady = false;
+updateCamera(0, G.active);
+renderer.compileAsync(scene, camera).catch(() => {}).finally(() => { shadersReady = true; });
 
 let last = performance.now();
 function frame(now) {

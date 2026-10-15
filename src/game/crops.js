@@ -3,6 +3,8 @@ import { col, hexRgb } from '../core/util.js';
 
 // Field cell states (one cell = 1 m²).
 export const S_STUB = 0, S_CULT = 1, S_SOWN = 2, S_RIPE = 3;
+/** Cells outside a shaped field's outline (grass, never worked). */
+export const S_NONE = 255;
 export const STATE_NAMES = ['strniště', 'zkultivováno', 'roste', 'zralé'];
 
 // Per-cell bonus bits, reset at harvest.

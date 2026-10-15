@@ -59,7 +59,7 @@ export function generateOffers() {
   const day = dayOf(G.gameMin), offers = [];
   for (const f of FIELDS) {
     if (f.owned || G.contracts.active?.field === f.id) continue;
-    const share = k => f.cnt[k] / f.n;
+    const share = k => f.cnt[k] / f.area;
     if (share(S_RIPE) > 0.5) offers.push(offer('harvest', f, dominantCrop(f, S_RIPE)));
     else if (share(S_STUB) > 0.5) { offers.push(offer('cultivate', f)); offers.push(offer('plough', f)); }
     else if (share(S_CULT) > 0.5 && season().sow) offers.push(offer('sow', f, (day * 7 + f.id * 3) % CROPS.length)); // the neighbour picks the crop

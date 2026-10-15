@@ -12,7 +12,7 @@ import { CATALOG, applyOwnership } from '../game/machines.js';
 import { MARKETS } from '../game/markets.js';
 import { BUILDINGS, waterCap } from '../game/farm.js';
 import { activeGoals, emptyStats } from '../game/goals.js';
-import { S_SOWN, S_RIPE } from '../game/crops.js';
+import { S_SOWN, S_RIPE, S_NONE } from '../game/crops.js';
 import { FIELDS, refreshField, flushFields, countFields, drawSigns } from '../world/fields.js';
 import { SAWMILL, POND } from '../world/layout.js';
 import { saveLocal } from '../game/save.js';
@@ -151,6 +151,7 @@ function ripen(all) {
   for (const f of FIELDS) {
     if (!f.owned) continue;
     for (let i = 0; i < f.n; i++) {
+      if (f.state[i] === S_NONE) continue;
       if (f.state[i] === S_SOWN || all) {
         if (f.state[i] !== S_SOWN && f.state[i] !== S_RIPE) f.crop[i] = 0;
         f.state[i] = S_RIPE; f.stage[i] = 4; f.straw[i] = 0;

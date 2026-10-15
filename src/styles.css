@@ -211,3 +211,11 @@ body.touch .prompt{bottom:calc(196px + env(safe-area-inset-bottom,0px));max-widt
 .devread{margin:0;font-weight:600;}
 .devinfo{margin:0;font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;color:var(--ink);}
 .dev-nohud #hud{display:none;}
+
+/* big map (M) */
+.bigmap{position:fixed;inset:16px;z-index:35;display:grid;grid-template-rows:auto 1fr;gap:8px;background:var(--paper-a);border-radius:14px;box-shadow:0 8px 28px rgba(40,50,35,.22);padding:12px 14px;}
+.bigmap[hidden]{display:none;}
+.bighead{display:flex;align-items:center;gap:10px;}
+.bighead b{font-family:var(--display);font-size:18px;}
+.bighead .muted{flex:1;}
+#bigCanvas{width:100%;height:100%;min-height:0;border-radius:10px;cursor:pointer;display:block;}

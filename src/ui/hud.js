@@ -47,7 +47,7 @@ function taskText() {
   const fullH = HARVESTERS.find(h => full(h.tank));
   const waitingH = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
   const loadedH = HARVESTERS.find(h => h.tank.amount > 0);
-  const unfert = owned.filter(f => f.cnt[S_SOWN] > f.n * 0.3 && f.fertShare < 0.5).map(f => f.id);
+  const unfert = owned.filter(f => f.cnt[S_SOWN] > f.area * 0.3 && f.fertShare < 0.5).map(f => f.id);
   let t;
   if (fullH) {
     t = hasTrailer()
@@ -181,7 +181,7 @@ export function updUI() {
     parts.sort((a, b) => b[0] - a[0]);
     const job = G.contracts.active?.field === f.id;
     let line = '<b>Pole ' + f.id + '</b>' + (f.owned ? '' : job ? ' · zakázka' : ' · cizí') + ' · ' +
-      parts.slice(0, 2).map(p => Math.max(1, Math.round((p[0] / f.n) * 100)) + ' % ' + p[1]).join(', ');
+      parts.slice(0, 2).map(p => Math.max(1, Math.round((p[0] / f.area) * 100)) + ' % ' + p[1]).join(', ');
     if (f.fertShare > 0.01) line += ' · hnojeno ' + pct(f.fertShare);
     if (f.strawCnt > 0) line += ' · sláma ' + fmt(f.strawCnt) + ' m²';
     setHTML(ui.vField, 'fl', line);

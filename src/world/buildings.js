@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col } from '../core/util.js';
-import { terrainH } from './terrain.js';
-import { ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, circles, addBox } from './layout.js';
+import { groundH, WATER_Y, POND_Y } from './terrain.js';
+import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, circles, addBox } from './layout.js';
 import { MARKETS } from '../game/markets.js';
 
 /** House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. */
@@ -23,11 +23,94 @@ function gable(w, d, h, wall, roof, parent) {
   }
 }
 
+/**
+ * A strip along polyline pts, from offset a to offset b across it (negative = left), draped over
+ * the ground (lift metres above it). Samples every ~2.5 m so it follows the terrain triangles.
+ */
+function strip(pts, a, b, lift, hex, parent, yFn = groundH) {
+  const pos = [];
+  const pt = (x, z, nx, nz, o) => { const px = x + nx * o, pz = z + nz * o; return [px, yFn(px, pz) + lift, pz]; };
+  for (let k = 1; k < pts.length; k++) {
+    const [x0, z0] = pts[k - 1], [x1, z1] = pts[k], L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(L / 2.5));
+    const nx = (z1 - z0) / L, nz = -(x1 - x0) / L; // left normal (looking along the road)
+    // extend each segment a little so joints have no gaps
+    const ex = ((x1 - x0) / L) * Math.max(Math.abs(a), Math.abs(b)) * 0.5, ez = ((z1 - z0) / L) * Math.max(Math.abs(a), Math.abs(b)) * 0.5;
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n;
+      const sx0 = x0 + (x1 - x0) * t0 - (i === 0 && k > 1 ? ex : 0), sz0 = z0 + (z1 - z0) * t0 - (i === 0 && k > 1 ? ez : 0);
+      const sx1 = x0 + (x1 - x0) * t1, sz1 = z0 + (z1 - z0) * t1;
+      const p0a = pt(sx0, sz0, nx, nz, a), p0b = pt(sx0, sz0, nx, nz, b), p1a = pt(sx1, sz1, nx, nz, a), p1b = pt(sx1, sz1, nx, nz, b);
+      pos.push(...p0a, ...p0b, ...p1b, ...p0a, ...p1b, ...p1a);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  // keep faces pointing up whichever way the strip was wound
+  const nrm = g.attributes.normal;
+  if (nrm.count && nrm.getY(0) < 0) { for (let i = 0; i < pos.length; i += 9) { for (let c = 0; c < 3; c++) { const t = pos[i + 3 + c]; pos[i + 3 + c] = pos[i + 6 + c]; pos[i + 6 + c] = t; } } g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); }
+  const m = new THREE.Mesh(g, M(hex, { flatShading: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+/** Gravel roads with two wheel ruts, field tracks with grass in the middle. */
 function road(r, parent) {
-  const w = r.x1 - r.x0, d = r.z1 - r.z0, cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
-  flatPlane(w, d, '#d8c59f', cx, 0.02, cz, parent);
-  if (d > w) { flatPlane(1.1, d, '#c7b186', cx - 1.6, 0.025, cz, parent); flatPlane(1.1, d, '#c7b186', cx + 1.6, 0.025, cz, parent); }
-  else { flatPlane(w, 1.1, '#c7b186', cx, 0.025, cz - 1.6, parent); flatPlane(w, 1.1, '#c7b186', cx, 0.025, cz + 1.6, parent); }
+  const h = r.w / 2;
+  if (r.kind === 'road') {
+    strip(r.pts, -h, h, 0.07, '#d8c59f', parent);
+    strip(r.pts, -h * 0.55, -h * 0.25, 0.09, '#c7b186', parent);
+    strip(r.pts, h * 0.25, h * 0.55, 0.09, '#c7b186', parent);
+  } else {
+    strip(r.pts, -h, h, 0.07, '#cbb48a', parent);
+    strip(r.pts, -0.45, 0.45, 0.09, '#98b25e', parent);
+  }
+}
+
+/** River water, the ponds, bridges and the collision shapes that keep vehicles out of the water. */
+function buildWater(st) {
+  const water = { flatShading: false, roughness: 0.25, metalness: 0.1 };
+  strip(RIVER, -(RIVER_HALF - 0.6), RIVER_HALF - 0.6, 0, '#7fb0bf', st, () => WATER_Y);
+  for (const p of PONDS) {
+    const w = mk(new THREE.CircleGeometry(1, 40), M('#86b8c6', water), p.x, POND_Y, p.z, st, false);
+    w.rotation.x = -Math.PI / 2; w.scale.set(p.rx * 0.88, p.rz * 0.88, 1);
+    // collision: circles filling the ellipse, shrunk so the shore stays drivable
+    const n = Math.ceil((p.rx * 2) / 8);
+    for (let k = 0; k <= n; k++) {
+      const x = p.x - p.rx * 0.75 + (k / n) * p.rx * 1.5, rz = p.rz * Math.sqrt(Math.max(0, 1 - ((x - p.x) / p.rx) ** 2)) * 0.75;
+      if (rz > 2) circles.push({ x, z: p.z, r: rz });
+    }
+    // reeds along the shore
+    for (let a = 0; a < 6.28; a += 0.35) {
+      const x = p.x + Math.cos(a) * p.rx * 0.86, z = p.z + Math.sin(a) * p.rz * 0.86;
+      const reed = CY(0.5, 0.7, 1.6, 5, '#7f9a52', x, POND_Y + 0.6, z, st); reed.castShadow = false;
+    }
+  }
+  for (const b of BRIDGES) {
+    const g = new THREE.Group(); g.position.set(b.x, 0, b.z); g.rotation.y = b.along === 'x' ? 0 : Math.PI / 2; st.add(g);
+    B(b.len, 0.5, b.w, '#a9a59a', 0, 0.1, 0, g);
+    for (const s of [-1, 1]) {
+      B(b.len, 0.12, 0.15, '#7b6150', 0, 1.15, s * (b.w / 2 - 0.1), g);
+      for (let k = -b.len / 2 + 1; k <= b.len / 2 - 1; k += 2.5) B(0.15, 1.0, 0.15, '#7b6150', k, 0.6, s * (b.w / 2 - 0.1), g);
+    }
+    for (const s of [-1, 1]) CY(0.6, 0.7, 3, 8, '#9d988c', s * 3, -1.2, 0, g);
+    // railings block the sides
+    for (const s of [-1, 1]) {
+      if (b.along === 'x') addBox(b.x - b.len / 2, b.x + b.len / 2, b.z + s * (b.w / 2) - 0.2, b.z + s * (b.w / 2) + 0.2);
+      else addBox(b.x + s * (b.w / 2) - 0.2, b.x + s * (b.w / 2) + 0.2, b.z - b.len / 2, b.z + b.len / 2);
+    }
+  }
+  // the river blocks vehicles except on the bridges and at the ford
+  for (let k = 1; k < RIVER.length; k++) {
+    const [x0, z0] = RIVER[k - 1], [x1, z1] = RIVER[k], L = Math.hypot(x1 - x0, z1 - z0);
+    for (let d = 0; d < L; d += 4) {
+      const x = x0 + ((x1 - x0) * d) / L, z = z0 + ((z1 - z0) * d) / L;
+      if (BRIDGES.some(b => Math.hypot(x - b.x, z - b.z) < b.len / 2 + 2)) continue;
+      if (Math.hypot(x - FORD.x, z - FORD.z) < FORD.r) continue;
+      circles.push({ x, z, r: RIVER_HALF - 2.5 });
+    }
+  }
 }
 
 /** Builds the farmyard, roads, pond and wind turbines. Returns the turbine rotors to animate. */
@@ -36,6 +119,7 @@ export function buildFarm(scene) {
 
   // ground decals
   ROADS.forEach(r => road(r, st));
+  buildWater(st);
   flatPlane(PAD.x1 - PAD.x0, PAD.z1 - PAD.z0, '#d3cec3', (PAD.x0 + PAD.x1) / 2, 0.03, (PAD.z0 + PAD.z1) / 2, st);
   const rim = mk(new THREE.CircleGeometry(POND.r + 1.5, 28), M('#d8cfa6', { flatShading: false, roughness: 1 }), POND.x, 0.03, POND.z, st, false);
   rim.rotation.x = -Math.PI / 2;
@@ -102,8 +186,9 @@ export function buildFarm(scene) {
 
   // wind turbine towers
   const rotors = [];
-  for (const [x, z] of [[-150, 40], [305, 110], [300, -70], [-120, 190]]) {
-    const y0 = terrainH(x, z) - 0.5;
+  for (const [x, z] of TURBINES) {
+    const y0 = groundH(x, z) - 0.5;
+    circles.push({ x, z, r: 1.6 });
     CY(0.7, 1.4, 46, 10, '#f2f1ec', x, y0 + 23, z, st);
     B(1.8, 1.8, 4.2, '#f2f1ec', x, y0 + 46.5, z, st);
     const r = new THREE.Group(); r.position.set(x, y0 + 46.5, z + 2.3); scene.add(r);

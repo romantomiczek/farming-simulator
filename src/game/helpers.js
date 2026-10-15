@@ -1,6 +1,6 @@
 import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
-import { CROPS, S_STUB, S_CULT, S_RIPE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
+import { CROPS, S_STUB, S_CULT, S_RIPE, S_NONE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
 import { fieldAt, FIELDS } from '../world/fields.js';
 import { vehicles, IMPL, toolLine, blockedAt } from '../vehicles/vehicles.js';
 import { pushBales } from '../world/bales.js';
@@ -27,6 +27,7 @@ export const jobName = v => WHAT[v.harvester ? 'harvest' : v.impl];
 /** Does cell i of field f still need the vehicle's tool? */
 function needs(f, v, i) {
   const s = f.state[i];
+  if (s === S_NONE) return false;
   if (v.harvester) return s === S_RIPE && CROPS[f.crop[i]].header === v.header;
   switch (v.impl) {
     case 'cultivator': return s === S_STUB;

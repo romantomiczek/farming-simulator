@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
-import { circles, boxes, BOUNDS } from '../world/layout.js';
+import { nearShapes, BOUNDS } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank } from './models.js';
 import { forestColliders } from '../world/forest.js';
 import { pushBales } from '../world/bales.js';
+import { groundH } from '../world/terrain.js';
 
 /**
  * Tractor attachments. Field tools ride rigidly on the hitch: width = working width,
@@ -74,7 +75,8 @@ function makeVehicle(type) {
       home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: 18, cutting: null,
     }, buildForester());
   }
-  v.x = v.home[0]; v.z = v.home[1]; v.fuel = v.fuelCap;
+  v.x = v.home[0]; v.z = v.home[1]; v.fuel = v.fuelCap; v.y = 0;
+  v.group.rotation.order = 'YXZ'; // heading, then pitch and roll on slopes
   scene.add(v.group);
   return v;
 }
@@ -147,16 +149,16 @@ export function trailerCircles(out = []) {
 function penetration(x, z, r, skip) {
   let p = 0;
   const circ = c => { const d = Math.hypot(x - c.x, z - c.z), m = c.r + r; if (d < m) p += m - d; };
-  for (const c of circles) circ(c);
-  treeBuf.length = 0;
-  for (const c of forestColliders(treeBuf)) circ(c);
-  for (const o of vehicles) if (o.available && !skip.includes(o)) circ(o);
-  if (!skip.includes(trailer)) for (const c of trailerCircles([])) circ(c);
-  for (const b of boxes) {
-    if (b.off) continue;
+  const box = b => {
+    if (b.off) return;
     const d = Math.hypot(x - clamp(x, b.x0, b.x1), z - clamp(z, b.z0, b.z1));
     if (d < r) p += r - d;
-  }
+  };
+  nearShapes(x, z, r + 1, circ, box);
+  treeBuf.length = 0;
+  for (const c of forestColliders(treeBuf, x, z, r + 2)) circ(c);
+  for (const o of vehicles) if (o.available && !skip.includes(o)) circ(o);
+  if (!skip.includes(trailer)) for (const c of trailerCircles([])) circ(c);
   return p;
 }
 /** True if a circle would sit noticeably inside a fixed obstacle or another vehicle. */
@@ -189,8 +191,7 @@ export function updateTrailer(dt, cropColor) {
     for (const w of trailer.wheels) w.userData.spin.rotation.x += ds / w.userData.r;
     for (const c of trailerNow()) pushBales(c.x, c.z, c.r);
   }
-  trailer.group.position.set(trailer.x, 0, trailer.z);
-  trailer.group.rotation.y = trailer.h;
+  sitOnGround(trailer.group, trailer.x, trailer.z, trailer.h, 3.2, 2.3, 0.8);
   trailer.tip.rotation.x += ((trailer.tipping ? -0.6 : 0) - trailer.tip.rotation.x) * Math.min(1, dt * 1.5);
   const fill = trailer.tank.amount / trailer.tank.cap;
   trailer.grain.visible = fill > 0;
@@ -206,16 +207,10 @@ function collide(v) {
     const dx = v.x - c.x, dz = v.z - c.z, d = Math.hypot(dx, dz), min = c.r + v.r;
     if (d < min && d > 1e-4) { v.x += (dx / d) * (min - d); v.z += (dz / d) * (min - d); hit = true; }
   };
-  for (const c of circles) push(c);
-  treeBuf.length = 0;
-  for (const c of forestColliders(treeBuf)) push(c);
-  for (const o of vehicles) if (o !== v && o.available) push(o);
-  // a parked trailer, or the trailer of another vehicle, is an obstacle too (not for the tractor towing it)
-  if (!(v === tractor && tractor.impl === 'trailer')) for (const c of trailerNow()) push(c);
-  for (const b of boxes) {
-    if (b.off) continue;
+  const box = b => {
+    if (b.off) return;
     const cx = clamp(v.x, b.x0, b.x1), cz = clamp(v.z, b.z0, b.z1), dx = v.x - cx, dz = v.z - cz, d = Math.hypot(dx, dz);
-    if (d >= v.r) continue;
+    if (d >= v.r) return;
     if (d > 1e-4) { v.x += (dx / d) * (v.r - d); v.z += (dz / d) * (v.r - d); }
     else {
       const opts = [[b.x0 - v.r - v.x, 0], [b.x1 + v.r - v.x, 0], [0, b.z0 - v.r - v.z], [0, b.z1 + v.r - v.z]];
@@ -223,7 +218,13 @@ function collide(v) {
       v.x += opts[0][0]; v.z += opts[0][1];
     }
     hit = true;
-  }
+  };
+  nearShapes(v.x, v.z, v.r + 1, push, box);
+  treeBuf.length = 0;
+  for (const c of forestColliders(treeBuf, v.x, v.z, v.r + 2)) push(c);
+  for (const o of vehicles) if (o !== v && o.available) push(o);
+  // a parked trailer, or the trailer of another vehicle, is an obstacle too (not for the tractor towing it)
+  if (!(v === tractor && tractor.impl === 'trailer')) for (const c of trailerNow()) push(c);
   const x = clamp(v.x, BOUNDS.x0, BOUNDS.x1), z = clamp(v.z, BOUNDS.z0, BOUNDS.z1);
   if (x !== v.x || z !== v.z) hit = true;
   v.x = x; v.z = z;
@@ -255,11 +256,26 @@ export function drive(v, dt, input) {
   v.thr = thr;
 }
 
+/**
+ * Places a vehicle body on the ground: height under its centre, pitch from the ground in front of
+ * and behind it (len apart), roll from both sides (wid apart). off = centre offset along the body.
+ * Returns the ground height.
+ */
+export function sitOnGround(group, x, z, h, len, wid, off) {
+  const s = Math.sin(h), c = Math.cos(h), cx = x + s * off, cz = z + c * off;
+  const hf = groundH(cx + (s * len) / 2, cz + (c * len) / 2), hb = groundH(cx - (s * len) / 2, cz - (c * len) / 2);
+  const hl = groundH(cx + (c * wid) / 2, cz - (s * wid) / 2), hr = groundH(cx - (c * wid) / 2, cz + (s * wid) / 2);
+  const y = Math.max(groundH(x, z), (hf + hb) / 2 - 0.05);
+  group.rotation.order = 'YXZ';
+  group.position.set(x, y, z);
+  group.rotation.set(-Math.atan2(hf - hb, len), h, Math.atan2(hl - hr, wid));
+  return y;
+}
+
 const _v = new THREE.Vector3();
 /** Moves meshes to match the simulation: wheels, steering, lifts, reel, discs, pipe, grain heap, exhaust. */
 export function visual(v, dt, tankCropColor) {
-  v.group.position.set(v.x, 0, v.z);
-  v.group.rotation.y = v.h;
+  v.y = sitOnGround(v.group, v.x, v.z, v.h, v.wb, v.r * 1.1, 0);
   for (const w of v.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
   for (const p of v.front) p.rotation.y = v.steer;
   for (const p of v.rear) p.rotation.y = -v.steer;

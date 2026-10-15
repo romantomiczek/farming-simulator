@@ -1,7 +1,7 @@
 import { G, dayOf } from './state.js';
 import { CATALOG, resetMachines, applyOwnership } from './machines.js';
 import { generateOffers } from './contracts.js';
-import { CROPS, S_STUB, S_SOWN, S_RIPE } from './crops.js';
+import { CROPS, S_STUB, S_SOWN, S_RIPE, S_NONE } from './crops.js';
 import { FIELDS, refreshField, flushFields, drawSigns, countFields, applyStart } from '../world/fields.js';
 import { vehicles, combine, trailer, attachImpl, setHeader, sendHome, IMPL } from '../vehicles/vehicles.js';
 import { bales, setBales, flushBales } from '../world/bales.js';
@@ -85,7 +85,7 @@ export function applySave(d) {
     };
     for (const key of ['state', 'crop', 'dir', 'bonus', 'straw']) if (out[key].length !== f.n) throw new Error('bad field size');
     if (out.growth.length !== f.n * 4) throw new Error('bad field size');
-    for (let i = 0; i < f.n; i++) if (out.state[i] > S_RIPE || out.crop[i] >= CROPS.length) throw new Error('bad cell');
+    for (let i = 0; i < f.n; i++) if ((out.state[i] > S_RIPE && out.state[i] !== S_NONE) || out.crop[i] >= CROPS.length) throw new Error('bad cell');
     return out;
   });
   G.money = +d.money || 0; G.gameMin = +d.gameMin || 480; G.tsIdx = d.tsIdx | 0;

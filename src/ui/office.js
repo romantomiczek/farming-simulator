@@ -164,10 +164,10 @@ function fieldsHTML() {
   let out = '<h3 class="grp">Pozemky</h3>';
   for (const f of FIELDS) {
     const parts = [[S_RIPE, 'zralé'], [S_SOWN, 'oseto'], [S_CULT, 'připraveno'], [S_STUB, 'strniště']]
-      .filter(([k]) => f.cnt[k] / f.n >= 0.05).map(([k, name]) => name + ' ' + pct(f.cnt[k] / f.n));
+      .filter(([k]) => f.cnt[k] / f.area >= 0.05).map(([k, name]) => name + ' ' + pct(f.cnt[k] / f.area));
     const state = f.owned ? '<span class="chip on">Tvoje</span>' : '<span class="chip">Soused</span>';
     const buyBtn = f.owned ? '' : `<div class="ract">${btn('field', f.id, 'Koupit · ' + fmt(f.price) + ' Kč', G.money < f.price)}</div>`;
-    out += `<div class="row"><div class="rmain"><b>Pole ${f.id} · ${ha(f.n)}</b><span>${parts.join(' · ') || '—'}</span></div><div class="rstate">${state}</div>${buyBtn}</div>`;
+    out += `<div class="row"><div class="rmain"><b>Pole ${f.id} · ${ha(f.area)}</b><span>${parts.join(' · ') || '—'}</span></div><div class="rstate">${state}</div>${buyBtn}</div>`;
   }
   return out;
 }

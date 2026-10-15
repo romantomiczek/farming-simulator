@@ -5,19 +5,19 @@ const KEY = 'zlate-lany-settings-v1';
 
 export const PRESETS = {
   low: {
-    label: 'Nízká', scale: 0.7, pixelCap: 1.5, shadowMap: 1024, cropShadows: false, trees: 0.4, view: 320, antialias: false,
+    label: 'Nízká', scale: 0.7, pixelCap: 1.5, shadowMap: 1024, cropShadows: false, trees: 0.4, view: 320, cropLod: 110, antialias: false,
     desc: 'Vykresluje v 70 % rozlišení, plodiny nevrhají stíny, na kopcích je méně stromů a dohled je kratší. Pro integrovanou grafiku Intel.',
   },
   medium: {
-    label: 'Střední', scale: 0.85, pixelCap: 1.5, shadowMap: 1024, cropShadows: true, trees: 0.7, view: 460, antialias: true,
+    label: 'Střední', scale: 0.85, pixelCap: 1.5, shadowMap: 1024, cropShadows: true, trees: 0.7, view: 460, cropLod: 160, antialias: true,
     desc: 'Vykresluje v 85 % rozlišení s vyhlazováním hran a stíny všech objektů. Pro slabší samostatné karty, třeba GeForce 840M.',
   },
   high: {
-    label: 'Vysoká', scale: 1, pixelCap: 2, shadowMap: 2048, cropShadows: true, trees: 1, view: 620, antialias: true,
+    label: 'Vysoká', scale: 1, pixelCap: 2, shadowMap: 2048, cropShadows: true, trees: 1, view: 620, cropLod: 240, antialias: true,
     desc: 'Plné rozlišení i na displejích s jemnými pixely, ostřejší stíny, všechny stromy a nejdelší dohled.',
   },
   ultra: {
-    label: 'Ultra', scale: 1, pixelCap: 2, shadowMap: 4096, cropShadows: true, cropDetail: true, trees: 2, view: 620, antialias: true,
+    label: 'Ultra', scale: 1, pixelCap: 2, shadowMap: 4096, cropShadows: true, cropDetail: true, trees: 2, view: 620, cropLod: 400, antialias: true,
     desc: 'Jako Vysoká, navíc nejostřejší stíny, plastické plodiny ze snopků místo kvádrů a dvakrát hustší les na kopcích. Pro výkonné grafické karty.',
   },
 };

@@ -1,16 +1,21 @@
-// Map layout in metres. +z is north, the farmyard sits south of the first fields,
-// the village and the buyers lie east along the main road.
+// Map layout in metres. +z is north, +x is east. The farmyard sits in the home valley in the
+// middle of the map; the village and the first buyers lie east along the main road.
+// Around it: forest in the west, rolling hills with big fields in the north, fish ponds in the
+// south, the river with its meadows in the east and the town with the railway beyond it.
 
-/** Area vehicles may drive in (the flat valley floor minus a margin). */
-export const BOUNDS = { x0: -100, x1: 255, z0: -90, z1: 140 };
-/** Flat valley floor; hills rise outside it. */
-export const FLAT = { x0: -108, x1: 262, z0: -98, z1: 148 };
+/** Area vehicles may drive in. */
+export const BOUNDS = { x0: -430, x1: 770, z0: -430, z1: 570 };
+/** The original flat valley floor around the farm (height 0). */
+export const HOME = { x0: -108, x1: 262, z0: -98, z1: 148 };
 
 /**
- * Fields. sign = [x, z, rotationY] of the sale sign; start = state in a new game
- * (also used for fields missing from an old save).
+ * Fields. sign = [x, z, rotationY] of the sale sign (fields 1–8 keep their old places; newer
+ * fields get one placed automatically by the road); start = state in a new game (also used for
+ * fields missing from an old save).
  * start.s: 'stub' | 'cult' | 'sown' | 'ripe'; crop = crop index; growth = game hours grown.
  * lanes: direction helpers drive in ('z' by default, 'x' where a building stands at the field end).
+ * q = soil quality (yield multiplier); poly = outline when the field is not a rectangle
+ * (cells outside it are grass); price is per field, computed from area and quality when missing.
  */
 export const FIELD_DEFS = [
   { id: 1, x0: -70, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-17.5, -3, Math.PI / 2], start: { s: 'ripe', crop: 0 } },
@@ -21,14 +26,69 @@ export const FIELD_DEFS = [
   { id: 6, x0: 80, z0: 56, w: 50, h: 44, owned: false, price: 450000, sign: [77.5, 53.8, Math.PI], start: { s: 'stub' } },
   { id: 7, x0: 175, z0: -40, w: 60, h: 60, owned: false, price: 820000, sign: [177, 22, 0], start: { s: 'sown', crop: 3, growth: 4 }, lanes: 'x' },
   { id: 8, x0: 195, z0: 80, w: 50, h: 50, owned: false, price: 560000, sign: [197, 77.8, Math.PI], start: { s: 'cult' }, lanes: 'x' },
+  // north: rolling hills
+  { id: 9, x0: -120, z0: 170, w: 80, h: 90, q: 0.95, start: { s: 'ripe', crop: 1 } },
+  { id: 10, x0: 20, z0: 160, w: 120, h: 90, q: 1.05, start: { s: 'sown', crop: 0, growth: 3 } },
+  { id: 11, x0: 190, z0: 160, w: 85, h: 110, q: 1.0, start: { s: 'stub' } },
+  { id: 12, x0: -100, z0: 320, w: 140, h: 120, q: 0.9, start: { s: 'ripe', crop: 2 }, poly: [[-100, 320], [40, 320], [40, 395], [-5, 440], [-100, 440]] },
+  { id: 13, x0: 190, z0: 330, w: 110, h: 130, q: 1.0, start: { s: 'cult' } },
+  { id: 14, x0: 380, z0: 200, w: 160, h: 85, q: 1.1, start: { s: 'ripe', crop: 3 } },
+  { id: 15, x0: 390, z0: 330, w: 150, h: 150, q: 1.0, start: { s: 'sown', crop: 4, growth: 2 }, poly: [[430, 330], [540, 330], [540, 480], [390, 480], [390, 370]] },
+  { id: 16, x0: 570, z0: 350, w: 120, h: 170, q: 0.9, start: { s: 'stub' } },
+  { id: 17, x0: 600, z0: 185, w: 90, h: 100, q: 1.05, start: { s: 'ripe', crop: 0 } },
+  { id: 23, x0: 50, z0: 330, w: 100, h: 140, q: 0.95, start: { s: 'sown', crop: 1, growth: 1 } },
+  // east lowland south of the town
+  { id: 18, x0: 420, z0: -160, w: 90, h: 110, q: 1.15, start: { s: 'sown', crop: 5, growth: 4 } },
+  { id: 19, x0: 580, z0: -180, w: 115, h: 120, q: 1.1, start: { s: 'stub' }, poly: [[580, -180], [695, -180], [695, -60], [640, -60], [580, -110]] },
+  // south, towards the ponds
+  { id: 20, x0: -100, z0: -190, w: 70, h: 60, q: 0.95, start: { s: 'cult' } },
+  { id: 21, x0: 30, z0: -175, w: 150, h: 55, q: 1.0, start: { s: 'ripe', crop: 0, dir: 1 }, lanes: 'x' },
+  { id: 22, x0: 200, z0: -200, w: 80, h: 85, q: 1.05, start: { s: 'sown', crop: 3, growth: 2 } },
 ];
 
+/**
+ * Roads as centre lines with a width. kind: 'road' (gravel road) or 'dirt' (field and forest tracks).
+ * Fields, buildings and trees keep clear of them; they are draped over the terrain.
+ */
 export const ROADS = [
-  { x0: -14, x1: -6, z0: -50, z1: 124 }, // farm road north, up to the sawmill
-  { x0: -6, x1: 140, z0: 104, z1: 108 }, // forest track along the northern fields
-  { x0: -74, x1: 250, z0: 44, z1: 52 }, // main road east to the village
-  { x0: 164, x1: 172, z0: -44, z1: 132 }, // village street
+  { id: 'main', w: 8, kind: 'road', pts: [[-74, 48], [262, 48], [338, 48], [420, 48], [640, 48], [700, 48]] },
+  { id: 'farmN', w: 8, kind: 'road', pts: [[-10, -50], [-10, 124]] },
+  { id: 'forestTrack', w: 4, kind: 'dirt', pts: [[-6, 106], [140, 106]] },
+  { id: 'village', w: 8, kind: 'road', pts: [[168, -44], [168, 132]] },
+  { id: 'farmN2', w: 6, kind: 'dirt', pts: [[-10, 124], [-10, 150], [-14, 200], [-16, 300]] },
+  { id: 'villageN', w: 6, kind: 'dirt', pts: [[168, 132], [172, 160], [175, 230], [170, 300], [162, 420], [150, 520]] },
+  { id: 'north', w: 6, kind: 'dirt', pts: [[-140, 305], [-16, 300], [170, 300], [338, 300], [450, 300], [620, 310], [750, 330]] },
+  { id: 'west', w: 5, kind: 'dirt', pts: [[-74, 48], [-110, 48], [-160, 55], [-230, 35], [-300, 60], [-390, 45]] },
+  { id: 'south', w: 6, kind: 'dirt', pts: [[-10, -52], [-10, -110], [5, -200], [0, -300], [-30, -400]] },
+  { id: 'forestLoop', w: 5, kind: 'dirt', pts: [[5, -200], [-130, -215], [-210, -170], [-245, -60], [-230, 35]] },
+  { id: 'ford', w: 5, kind: 'dirt', pts: [[5, -200], [150, -235], [300, -250], [336, -250], [380, -255], [470, -275], [560, -275]] },
+  { id: 'townS', w: 6, kind: 'road', pts: [[520, 48], [520, -100], [560, -200], [560, -275]] },
+  { id: 'townN', w: 6, kind: 'road', pts: [[480, 48], [480, 160]] },
+  { id: 'townE', w: 6, kind: 'road', pts: [[600, 48], [600, 140]] },
 ];
+
+/** The river: centre line from north to south. Water is 14 m wide in a 16 m channel. */
+export const RIVER = [[300, 575], [320, 480], [350, 400], [338, 300], [310, 220], [320, 150], [340, 60], [330, -20], [305, -110], [320, -200], [336, -250], [350, -330], [345, -390], [330, -440]];
+export const RIVER_HALF = 8;
+/** Bridges where roads cross the river (deck height above 0), and the ford (shallow, no bridge). */
+export const BRIDGES = [{ x: 338, z: 48, along: 'x', len: 26, w: 9 }, { x: 338, z: 300, along: 'x', len: 26, w: 7 }];
+export const FORD = { x: 336, z: -250, r: 12 };
+/** Fish ponds in the south: ellipses (rx, rz) with a dam on the downstream side. */
+export const PONDS = [
+  { x: 72, z: -290, rx: 50, rz: 30 },
+  { x: -90, z: -320, rx: 40, rz: 28 },
+  { x: 170, z: -330, rx: 45, rz: 30 },
+];
+/** The gravel pit south of the town. */
+export const PIT = { x0: 500, x1: 640, z0: -400, z1: -285, depth: 7 };
+/** Town east of the river (flat ground), the railway and the station. */
+export const TOWN = { x0: 395, x1: 650, z0: -40, z1: 175 };
+export const RAIL = { x: 705, z0: -440, z1: 580 };
+export const STATION = { x: 680, z: 90 };
+/** Chapel on the northern hill and the wind turbines along the ridge. */
+export const CHAPEL = { x: 140, z: 540 };
+export const TURBINES = [[-120, 545], [20, 556], [270, 552], [430, 556], [580, 560], [-380, 300], [-390, -250], [760, -380]];
+
 export const PAD = { x0: -46, x1: 26, z0: -52, z1: -12 };
 export const POND = { x: 64, z: -42, r: 13 };
 /** Village houses: [x, z, width, depth, wall, roof, rotationY]. */
@@ -40,12 +100,18 @@ export const HOUSES = [
   [181, 126, 8, 6, '#e9d7b5', '#9a4f3e', -Math.PI / 2],
 ];
 export const CHURCH = { x: 184, z: 64 };
-/** Rectangles kept free of trees (village, buyers). */
+/** Meadows along the river and by the ponds (hay). */
+export const MEADOW_AREAS = [{ x0: 215, x1: 295, z0: -335, z1: -260 }, { x0: 360, x1: 415, z0: -235, z1: -55 }, { x0: 110, x1: 220, z0: -300, z1: -248 }];
+/** Rectangles kept free of trees (village, buyers, town, meadows). */
 export const NO_TREES = [
   { x0: 143, x1: 192, z0: 52, z1: 136 }, { x0: 128, x1: 150, z0: 52, z1: 78 },
   { x0: 192, x1: 220, z0: 22, z1: 46 }, { x0: 226, x1: 256, z0: 50, z1: 80 },
   { x0: -100, x1: -48, z0: -54, z1: -14 }, { x0: 27, x1: 49, z0: -50, z1: -20 },
   { x0: 6, x1: 142, z0: 106, z1: 140 }, { x0: -48, x1: -12, z0: 108, z1: 134 },
+  { x0: 395, x1: 720, z0: -40, z1: 175 }, // town and station
+  { x0: 495, x1: 645, z0: -405, z1: -280 }, // gravel pit
+  ...MEADOW_AREAS,
+  { x0: 120, x1: 160, z0: 525, z1: 555 }, // chapel
 ];
 
 /** Animal pens south-west of the farm. feed = ring where you unload fodder with F. */
@@ -56,8 +122,9 @@ export const GREENHOUSES = [{ key: 'greenhouse1', x: 33, z: -40 }, { key: 'green
 export const GREENHOUSE_WATER = { x: 37.5, z: -27, r: 4.5 };
 /** Fill the water tank anywhere this close to the pond centre. */
 export const POND_FILL = { x: 64, z: -42, r: 18 };
-/** Forest plot north of the fields, and the sawmill at the end of the farm road. */
+/** Forest plots for the harvester: the old plantation north of the fields and two in the western forest. */
 export const FOREST = { x0: 12, x1: 138, z0: 110, z1: 137 };
+export const FOREST_PLOTS = [FOREST, { x0: -262, x1: -200, z0: 78, z1: 132 }, { x0: -335, x1: -272, z0: -62, z1: -8 }];
 export const SAWMILL = { x: -20, z: 116, r: 7 };
 
 /** Diesel pump next to the end of the road: refuel here with F. */
@@ -67,7 +134,78 @@ export const baleZone = { x: -19, z: -36, r: 6 };
 /** Machine shed: swap tractor implements and combine headers here (F or keys 1–6). */
 export const shedZone = { x0: 4, x1: 20, z0: -46, z1: -31 };
 
-// Static collision shapes, filled while the world is built.
+/* ---------- geometry helpers ---------- */
+
+/** Distance from (x, z) to segment a–b. */
+export function segDist(x, z, ax, az, bx, bz) {
+  const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz;
+  const t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L)) : 0;
+  return Math.hypot(x - ax - dx * t, z - az - dz * t);
+}
+/** Distance from (x, z) to a polyline [[x, z], ...]. */
+export function polyDist(x, z, pts) {
+  let d = Infinity;
+  for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(x, z, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+  return d;
+}
+/** The road under (x, z) widened by pad metres, or null. */
+export function roadAt(x, z, pad = 0) {
+  for (const r of ROADS) if (polyDist(x, z, r.pts) < r.w / 2 + pad) return r;
+  return null;
+}
+/** Is (x, z) inside polygon pts? */
+export function inPoly(x, z, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i], [xj, zj] = pts[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+export const inRect = (x, z, r, m = 0) => x > r.x0 - m && x < r.x1 + m && z > r.z0 - m && z < r.z1 + m;
+export const inPond = (x, z, p, m = 0) => ((x - p.x) / (p.rx + m)) ** 2 + ((z - p.z) / (p.rz + m)) ** 2 < 1;
+export const riverDist = (x, z) => polyDist(x, z, RIVER);
+
+/* ---------- static collision shapes, filled while the world is built ---------- */
 export const circles = [];
 export const boxes = [];
 export const addBox = (x0, x1, z0, z1) => boxes.push({ x0, x1, z0, z1 });
+
+/**
+ * Spatial index over circles and boxes (cells of CELL metres), rebuilt whenever shapes were added.
+ * Vehicles, helpers and animals ask it for the shapes near them instead of testing thousands of trees.
+ */
+const CELL = 16;
+const grid = new Map();
+let indexed = -1;
+const key = (cx, cz) => cx * 100003 + cz;
+function rebuild() {
+  grid.clear();
+  const put = (o, x0, x1, z0, z1) => {
+    for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
+      for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) {
+        const k = key(cx, cz);
+        let cell = grid.get(k);
+        if (!cell) grid.set(k, (cell = { c: [], b: [] }));
+        (o.r != null ? cell.c : cell.b).push(o);
+      }
+    }
+  };
+  for (const c of circles) put(c, c.x - c.r, c.x + c.r, c.z - c.r, c.z + c.r);
+  for (const b of boxes) put(b, b.x0, b.x1, b.z0, b.z1);
+  indexed = circles.length * 7919 + boxes.length;
+}
+const seen = new Set();
+/** Calls onCircle / onBox for every static shape that may touch the circle (x, z, r). Each shape once. */
+export function nearShapes(x, z, r, onCircle, onBox) {
+  if (indexed !== circles.length * 7919 + boxes.length) rebuild();
+  seen.clear();
+  for (let cx = Math.floor((x - r) / CELL); cx <= Math.floor((x + r) / CELL); cx++) {
+    for (let cz = Math.floor((z - r) / CELL); cz <= Math.floor((z + r) / CELL); cz++) {
+      const cell = grid.get(key(cx, cz));
+      if (!cell) continue;
+      for (const c of cell.c) if (!seen.has(c)) { seen.add(c); onCircle(c); }
+      if (onBox) for (const b of cell.b) if (!seen.has(b)) { seen.add(b); onBox(b); }
+    }
+  }
+}

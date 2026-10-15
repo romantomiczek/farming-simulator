@@ -12,11 +12,18 @@ export const lerp = (a, b, t) => a + (b - a) * t;
 export const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 export const hash2 = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
 
+/** Fast integer hash of a lattice point → 0..1 (for the value noise; hash2 stays for game logic). */
+function ihash(ix, iz) {
+  let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 export function vnoise(x, z) {
   const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
-  const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
+  const a = ihash(ix, iz), b = ihash(ix + 1, iz), c = ihash(ix, iz + 1), d = ihash(ix + 1, iz + 1);
   const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
-  return lerp(lerp(a, b, ux), lerp(c, d, ux), uz);
+  const top = a + (b - a) * ux, bot = c + (d - c) * ux;
+  return top + (bot - top) * uz;
 }
 export const fbm = (x, z) => vnoise(x, z) * 0.55 + vnoise(x * 2.1 + 9, z * 2.1) * 0.3 + vnoise(x * 4.3, z * 4.3 + 5) * 0.15;
 
