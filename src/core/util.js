@@ -4,6 +4,8 @@ export const fmtInt = new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 0 
 export const fmtDec = new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const fmt = n => fmtInt.format(n);
 export const fmt2 = n => fmtDec.format(n);
+/** Czech plural: plural(1, 'balík', 'balíky', 'balíků') → '1 balík'. */
+export const plural = (n, one, few, many) => n + ' ' + (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
 
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const lerp = (a, b, t) => a + (b - a) * t;

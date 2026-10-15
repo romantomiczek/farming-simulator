@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { renderer, scene } from '../render/core.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
-import { CROPS, SOIL, S_STUB, S_SOWN, S_RIPE } from '../game/crops.js';
+import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW } from '../game/crops.js';
 import { FIELD_DEFS, circles } from './layout.js';
 
 const CP = 4; // canvas pixels per field cell
@@ -13,7 +13,7 @@ export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /**
  * Each field is a grid of 1 m cells. Per cell we keep state, crop, growth (game hours),
- * visual stage and work direction. The soil is a canvas texture (row lines follow the
+ * visual stage, work direction, bonus bits (fertilised / ploughed) and a straw windrow flag. The soil is a canvas texture (row lines follow the
  * direction the tool drove), the crop is one instanced box per cell.
  */
 export const FIELDS = FIELD_DEFS.map(def => {
@@ -21,8 +21,9 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.n = f.w * f.h;
   f.state = new Uint8Array(f.n); f.crop = new Uint8Array(f.n); f.growth = new Float32Array(f.n);
   f.stage = new Uint8Array(f.n); f.dir = new Uint8Array(f.n); f.jit = new Float32Array(f.n);
+  f.bonus = new Uint8Array(f.n); f.straw = new Uint8Array(f.n);
   for (let i = 0; i < f.n; i++) f.jit[i] = hash2((i % f.w) + f.id * 1000, ((i / f.w) | 0) * 1.37);
-  f.cnt = [0, 0, 0, 0]; f.prog = 0;
+  f.cnt = [0, 0, 0, 0]; f.prog = 0; f.strawCnt = 0; f.fertShare = 0;
 
   f.canvas = document.createElement('canvas'); f.canvas.width = f.w * CP; f.canvas.height = f.h * CP;
   f.ctx = f.canvas.getContext('2d');
@@ -54,11 +55,27 @@ export function fieldAt(x, z) {
 
 export function drawCell(f, i) {
   const ix = i % f.w, iz = (i / f.w) | 0, px = ix * CP, py = iz * CP, s = f.state[i], j = f.jit[i];
-  const pal = SOIL[s], v = Math.floor(j * 3.999), ctx = f.ctx;
+  const v = Math.floor(j * 3.999), ctx = f.ctx, along = f.dir[i] === 0;
+  if (f.straw[i]) {
+    // straw windrow left by the combine
+    ctx.fillStyle = STRAW.base; ctx.fillRect(px, py, CP, CP);
+    ctx.fillStyle = STRAW.line;
+    if (along) ctx.fillRect(px + 1 + (v & 1), py, 1, CP); else ctx.fillRect(px, py + 1 + (v & 1), CP, 1);
+    f.texDirty = true;
+    return;
+  }
+  const plowed = s === S_CULT && f.bonus[i] & B_PLOW;
+  const pal = plowed ? SOIL_PLOW : SOIL[s];
   ctx.fillStyle = pal.base[v]; ctx.fillRect(px, py, CP, CP);
   ctx.fillStyle = pal.line[v];
-  if (f.dir[i] === 0) ctx.fillRect(px + 2, py, 1, CP); else ctx.fillRect(px, py + 2, CP, 1);
+  if (plowed) { // deep double furrows
+    if (along) { ctx.fillRect(px, py, 1, CP); ctx.fillRect(px + 2, py, 1, CP); } else { ctx.fillRect(px, py, CP, 1); ctx.fillRect(px, py + 2, CP, 1); }
+  } else if (along) ctx.fillRect(px + 2, py, 1, CP); else ctx.fillRect(px, py + 2, CP, 1);
   if (s === S_STUB && j > 0.45) { ctx.fillStyle = '#ecdcab'; ctx.fillRect(px + ((j * 13) | 0) % 4, py + ((j * 29) | 0) % 4, 1, 1); }
+  if (f.bonus[i] & B_FERT && j < 0.6) { // a few fertiliser granules
+    ctx.fillStyle = s === S_STUB ? '#cfc6ad' : '#a58e78';
+    ctx.fillRect(px + ((j * 7) | 0) % 4, py + ((j * 17) | 0) % 4, 1, 1);
+  }
   f.texDirty = true;
 }
 
@@ -67,6 +84,8 @@ export function drawMini(f, i) {
   let rgb;
   if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[4];
   else if (s === S_SOWN && f.stage[i] > 0) rgb = CROPS[f.crop[i]].rgb[f.stage[i]];
+  else if (f.straw[i]) rgb = STRAW.rgb;
+  else if (s === S_CULT && f.bonus[i] & B_PLOW) rgb = SOIL_PLOW.rgb;
   else rgb = SOIL[s].rgb;
   const d = f.miniImg.data, o = i * 4;
   d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
@@ -123,12 +142,15 @@ export function growFields(dh) {
 export function countFields() {
   for (const f of FIELDS) {
     const c = [0, 0, 0, 0];
-    let pg = 0;
+    let pg = 0, straw = 0, fert = 0;
     for (let i = 0; i < f.n; i++) {
       const s = f.state[i]; c[s]++;
       if (s === S_SOWN) pg += f.growth[i] / CROPS[f.crop[i]].hours;
+      if (f.straw[i]) straw++;
+      if (f.bonus[i] & B_FERT) fert++;
     }
     f.cnt = c; f.prog = c[2] ? pg / c[2] : 0;
+    f.strawCnt = straw; f.fertShare = fert / f.n;
   }
 }
 

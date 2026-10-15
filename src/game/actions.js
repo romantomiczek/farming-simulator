@@ -1,9 +1,11 @@
 import { fmt } from '../core/util.js';
 import { G, TIME_SCALES } from './state.js';
-import { CROPS } from './crops.js';
-import { inSell, hasTrailer, trailerInReach, startCombineUnload, stopCombineUnload, startTipping, stopTipping } from './work.js';
+import { CROPS, HEADERS } from './crops.js';
+import {
+  inSell, inBaleZone, hasTrailer, trailerInReach, startCombineUnload, stopCombineUnload, startTipping, stopTipping, sellBales,
+} from './work.js';
 import { saveLocal } from './save.js';
-import { tractor, combine, trailer, trailerCenter, IMPL, IMPL_ORDER, attachImpl } from '../vehicles/vehicles.js';
+import { tractor, combine, trailer, trailerCenter, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
 import { cam } from '../render/camera.js';
@@ -13,6 +15,7 @@ export const inShed = v => v.x > shedZone.x0 && v.x < shedZone.x1 && v.z > shedZ
 export const nearSign = v => signs.find(s => !s.f.owned && Math.hypot(v.x - s.x, v.z - s.z) < 10);
 /** Next attachment in the shed's swap order. */
 export const otherImpl = () => IMPL_ORDER[(IMPL_ORDER.indexOf(tractor.impl) + 1) % IMPL_ORDER.length];
+export const otherHeader = () => (combine.header === 'grain' ? 'corn' : 'grain');
 
 /** What F would do right now for the active vehicle, or null. Shared by doF() and the HUD prompts. */
 export function fAction() {
@@ -21,9 +24,11 @@ export function fAction() {
     if (combine.unloading) return { kind: 'stopCombine' };
     if (combine.tank.amount > 0 && inSell(combine)) return { kind: 'sellCombine' };
     if (combine.tank.amount > 0 && trailerInReach()) return { kind: 'overload' };
+    if (inShed(v)) return { kind: 'header', header: otherHeader() };
   } else {
     if (trailer.tipping) return { kind: 'stopTip' };
     if (hasTrailer() && trailer.tank.amount > 0 && inSell(trailerCenter())) return { kind: 'tip' };
+    if (hasTrailer() && trailer.bales > 0 && inBaleZone(trailerCenter())) return { kind: 'sellBales' };
     if (combine.unloading && trailerInReach()) return { kind: 'stopCombine' };
     if (combine.tank.amount > 0 && trailerInReach()) return { kind: 'overload' };
     if (inShed(v)) return { kind: 'swap', impl: otherImpl() };
@@ -36,7 +41,7 @@ export function fAction() {
 export function toggleTool() {
   const v = G.active;
   if (v.type === 'tractor' && v.impl === 'trailer') {
-    toast('Přívěs nemá co spouštět. Vysypeš ho klávesou F ve žlutém kruhu u sil.');
+    toast('Přívěs nemá co spouštět. Zrno vysypeš klávesou F u sil, balíky prodáš F u stodoly.');
     return;
   }
   v.lowered = !v.lowered;
@@ -49,7 +54,7 @@ export function toggleTool() {
 
 export function switchVehicle() {
   // a running combine unload keeps going, so you can hop into the tractor and drive under the pipe
-  G.active =G.active === tractor ? combine : tractor;
+  G.active = G.active === tractor ? combine : tractor;
   cam.manual = -99; // swing the camera behind the new vehicle
   toast('Sedíš v: ' + G.active.name);
 }
@@ -57,12 +62,32 @@ export function switchVehicle() {
 export function cycleSeed() {
   tractor.seedCrop = (tractor.seedCrop + 1) % CROPS.length;
   const c = CROPS[tractor.seedCrop];
-  toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h');
+  const hdr = c.header === 'corn' ? ' · sklízí se řádkovým adaptérem' : '';
+  toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h' + hdr);
 }
 
 export function cycleTime() { G.tsIdx = (G.tsIdx + 1) % TIME_SCALES.length; }
 
-/** The context action on F: sell, overload, swap implement or buy a field, whichever applies. */
+function swapImpl(key) {
+  if (tractor.impl === key) return;
+  attachImpl(key);
+  toast('Připojeno: ' + IMPL[key].name, 'good');
+}
+function swapHeader(key) {
+  if (combine.header === key) return;
+  setHeader(key);
+  toast('Na kombajnu je ' + HEADERS[key].name.toLowerCase(), 'good');
+}
+
+/** Number key n (1-based) in the shed: pick that implement or header directly. */
+export function pickInShed(n) {
+  const v = G.active;
+  if (!inShed(v)) return;
+  if (v.type === 'tractor' && IMPL_ORDER[n - 1]) swapImpl(IMPL_ORDER[n - 1]);
+  if (v.type === 'combine' && n <= 2) swapHeader(n === 1 ? 'grain' : 'corn');
+}
+
+/** The context action on F: sell, overload, swap implement or header, or buy a field. */
 export function doF() {
   const a = fAction();
   if (!a) return;
@@ -71,10 +96,9 @@ export function doF() {
     case 'sellCombine': case 'overload': startCombineUnload(); return;
     case 'tip': startTipping(); return;
     case 'stopTip': stopTipping(saveLocal); return;
-    case 'swap':
-      attachImpl(a.impl);
-      toast('Připojeno: ' + IMPL[a.impl].name, 'good');
-      return;
+    case 'sellBales': sellBales(saveLocal); return;
+    case 'swap': swapImpl(a.impl); return;
+    case 'header': swapHeader(a.header); return;
   }
   const s = a.sign;
   if (G.money >= s.f.price) {

@@ -10,7 +10,8 @@ import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed } from './game/actions.js';
+import { flushBales } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
 import { cam, bindCamera, updateCamera } from './render/camera.js';
 import { updEnv } from './render/environment.js';
@@ -45,6 +46,7 @@ const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleS
 bindInput(code => {
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (code === 'Escape' || code === 'KeyH') { showMenu(); return; }
+  if (/^Digit[1-6]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();
 });
 bindCamera(canvas);
@@ -89,6 +91,7 @@ function tick(dt) {
   updateTrailer(dt, trailer.tank.crop >= 0 ? CROPS[trailer.tank.crop].cols[4] : null);
   updateLogistics(dt, saveLocal);
   flushFields();
+  flushBales();
   updParticles(dt);
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
@@ -119,7 +122,7 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, trailer, renderer, attach: attachImpl,
+    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
   };
 }

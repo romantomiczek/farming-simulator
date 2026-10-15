@@ -1,7 +1,8 @@
 import { FIELDS } from '../world/fields.js';
 import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
-import { BOUNDS, ROADS, PAD, POND, sellZone } from '../world/layout.js';
+import { BOUNDS, ROADS, PAD, POND, sellZone, baleZone } from '../world/layout.js';
+import { bales } from '../world/bales.js';
 
 // North-up map of the valley. World +x is drawn to the left so the map matches the
 // default camera view (looking north, +x on the left).
@@ -27,6 +28,7 @@ export function sizeMinimap() {
   for (const x of [15, 21.5]) { c.beginPath(); c.arc(mapX(x), mapY(-19), 3 * sx, 0, 7); c.fill(); }
   c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(mapX(POND.x), mapY(POND.z), POND.r * sx, 0, 7); c.fill();
   c.strokeStyle = '#e0a83a'; c.lineWidth = 1.5 * sx; c.beginPath(); c.arc(mapX(sellZone.x), mapY(sellZone.z), sellZone.r * sx, 0, 7); c.stroke();
+  c.strokeStyle = '#b07a4a'; c.beginPath(); c.arc(mapX(baleZone.x), mapY(baleZone.z), baleZone.r * sx, 0, 7); c.stroke();
 }
 
 export function drawMinimap() {
@@ -51,6 +53,8 @@ export function drawMinimap() {
     ctx.fillStyle = 'rgba(36,49,42,.75)'; ctx.fillText(String(f.id), x + w / 2 + 0.8, y + h / 2 + 0.8);
     ctx.fillStyle = '#fff'; ctx.fillText(String(f.id), x + w / 2, y + h / 2);
   }
+  ctx.fillStyle = '#f2dc8c'; ctx.strokeStyle = 'rgba(36,49,42,.6)'; ctx.lineWidth = 1;
+  for (const b of bales) { ctx.beginPath(); ctx.arc(mapX(b.x), mapY(b.z), Math.max(1.5, 0.9 * sx), 0, 7); ctx.fill(); ctx.stroke(); }
   // trailer: a small box along its heading
   ctx.save();
   ctx.translate(mapX(trailer.x + Math.sin(trailer.h) * 0.8), mapY(trailer.z + Math.cos(trailer.h) * 0.8));

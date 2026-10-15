@@ -118,8 +118,17 @@ export function buildTrailer() {
   const gg = new THREE.BoxGeometry(2.25, 1, 5.4); gg.translate(0, 0.5, 0);
   const grain = mk(gg, grainMat, 0, 0.12, 2.8, tip);
   grain.userData.noBake = true; grain.visible = false;
+  // up to 8 round bales, lying lengthwise in two layers; shown by count
+  const baleMeshes = [];
+  for (let layer = 0; layer < 2; layer++) {
+    for (let j = 0; j < 4; j++) {
+      const m = mk(baleGeo(), M('#e2c77d'), 0, 0.87 + layer * 1.45, 2.8 + (j - 1.5) * 1.3, tip);
+      m.rotation.x = Math.PI / 2; m.userData.noBake = true; m.visible = false;
+      baleMeshes.push(m);
+    }
+  }
   bake(g);
-  return { group: g, tip, grain, grainMat, wheels };
+  return { group: g, tip, grain, grainMat, wheels, baleMeshes };
 }
 
 export function buildCombine() {
@@ -148,26 +157,104 @@ export function buildCombine() {
     const p = new THREE.Group(); p.position.set(sx * 1.2, 0.62, -2.75); g.add(p);
     const w = wheel(0.62, 0.45, light); p.add(w); wheels.push(w); rear.push(p);
   }
-  // header with a spinning reel
+  // headers: the grain header (with a spinning reel) and the row header for corn and sunflower.
+  // Both are built here; the unused one is parked in the yard by setHeader() in vehicles.js.
   const header = new THREE.Group(); header.position.set(0, 0, 3.75); g.add(header);
   const hl = new THREE.Group(); header.add(hl);
-  B(5.8, 0.35, 1.4, red, 0, 0.55, 0.3, hl);
-  B(5.8, 1.1, 0.15, red, 0, 1.0, -0.35, hl);
+  const grainHdr = new THREE.Group(); hl.add(grainHdr);
+  B(5.8, 0.35, 1.4, red, 0, 0.55, 0.3, grainHdr);
+  B(5.8, 1.1, 0.15, red, 0, 1.0, -0.35, grainHdr);
   for (const sx of [-1, 1]) {
-    B(0.12, 0.9, 1.5, red, sx * 2.9, 0.85, 0.3, hl);
-    const d = mk(new THREE.ConeGeometry(0.22, 0.9, 4), light, sx * 2.9, 0.55, 1.25, hl); d.rotation.x = Math.PI / 2;
+    B(0.12, 0.9, 1.5, red, sx * 2.9, 0.85, 0.3, grainHdr);
+    const d = mk(new THREE.ConeGeometry(0.22, 0.9, 4), light, sx * 2.9, 0.55, 1.25, grainHdr); d.rotation.x = Math.PI / 2;
   }
-  B(5.6, 0.08, 0.2, '#56595b', 0, 0.42, 1.0, hl);
-  const reel = new THREE.Group(); reel.position.set(0, 1.62, 0.45); hl.add(reel);
+  B(5.6, 0.08, 0.2, '#56595b', 0, 0.42, 1.0, grainHdr);
+  const reel = new THREE.Group(); reel.position.set(0, 1.62, 0.45); grainHdr.add(reel);
   const ax = mk(new THREE.CylinderGeometry(0.07, 0.07, 5.5, 6), dark, 0, 0, 0, reel); ax.rotation.z = Math.PI / 2;
   for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; B(5.3, 0.08, 0.08, light, 0, Math.cos(a) * 0.55, Math.sin(a) * 0.55, reel); }
   for (const sx of [-2.7, 0, 2.7]) for (let k = 0; k < 3; k++) { const s = B(0.05, 1.1, 0.05, dark, sx, 0, 0, reel); s.rotation.x = (k * Math.PI) / 3; }
-  for (const sx of [-1, 1]) { const arm = B(0.1, 0.1, 1.4, red, sx * 2.75, 1.45, 0.0, hl); arm.rotation.x = -0.2; }
+  for (const sx of [-1, 1]) { const arm = B(0.1, 0.1, 1.4, red, sx * 2.75, 1.45, 0.0, grainHdr); arm.rotation.x = -0.2; }
+  const cornHdr = buildRowHeader(red, dark, light);
+  hl.add(cornHdr);
   // unloading pipe, folded backwards; swings out to the left (+x) when unloading
   const pipe = new THREE.Group(); pipe.position.set(1.05, 4.05, -1.9); g.add(pipe);
   const pc = mk(new THREE.CylinderGeometry(0.17, 0.17, 4.6, 8), red, 0, 0, -2.3, pipe); pc.rotation.x = Math.PI / 2;
   B(0.36, 0.5, 0.36, dark, 0, -0.2, -4.6, pipe);
   const spot = addLights(g, 4.75, 2.3, [-0.6, 0.6]);
   bake(g);
-  return { group: g, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot, exhaust: new THREE.Vector3(-0.8, 5.5, -2.7) };
+  return { group: g, wheels, front: [], rear, headerLift: hl, grainHdr, cornHdr, reel, pipe, grain, grainMat, spot, exhaust: new THREE.Vector3(-0.8, 5.5, -2.7) };
 }
+
+/** Round straw bale, axis along x, sitting on the ground at y = 0. */
+export function baleGeo() { return new THREE.CylinderGeometry(0.75, 0.75, 1.2, 14).rotateZ(Math.PI / 2); }
+
+/** Row header for corn and sunflower: pointed snouts between the rows. */
+function buildRowHeader(red, dark, light) {
+  const g = new THREE.Group();
+  B(5.8, 0.5, 1.0, red, 0, 0.6, -0.1, g);
+  B(5.8, 0.9, 0.15, red, 0, 1.0, -0.55, g);
+  for (let i = 0; i < 8; i++) {
+    const x = -2.6 + i * (5.2 / 7);
+    const sn = mk(new THREE.ConeGeometry(0.26, 1.5, 4), i % 2 ? light : red, x, 0.6, 1.1, g);
+    sn.rotation.x = Math.PI / 2; sn.rotation.y = Math.PI / 4; sn.scale.set(1, 1, 0.7);
+  }
+  B(5.6, 0.12, 0.3, dark, 0, 0.32, 0.3, g);
+  return g;
+}
+
+/** Mouldboard plough with five bottoms on a diagonal beam. */
+export function buildPlough() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const red = '#bf4a3f', dark = '#3a3f42', steel = '#b9bfc2';
+  B(0.9, 0.5, 0.4, red, 0, 0.8, -0.25, lift);
+  const beam = B(0.22, 0.22, 4.2, red, 0, 0.85, -2.1, lift); beam.rotation.y = 0.32;
+  for (let i = 0; i < 5; i++) {
+    const t = i / 4, x = -0.55 + t * 1.25, z = -0.6 - t * 3.0;
+    B(0.1, 0.65, 0.12, dark, x, 0.5, z, lift);
+    const mb = B(0.75, 0.5, 0.08, steel, x + 0.2, 0.22, z - 0.1, lift); mb.rotation.y = 0.75; mb.rotation.z = 0.35;
+  }
+  const w = wheel(0.4, 0.25, '#d7dde2'); w.position.set(1.15, 0.4, -3.9); lift.add(w);
+  bake(g);
+  return { group: g, lift, wheels: [w], up: 0.5, down: -0.25 };
+}
+
+/** Twin-disc fertiliser spreader. */
+export function buildSpreader() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const orange = '#e08a3a', white = '#ecebe6', dark = '#3a3f42';
+  B(0.24, 0.24, 1.0, dark, 0, 0.72, -0.4, lift);
+  B(1.6, 0.15, 1.2, orange, 0, 0.75, -1.1, lift);
+  B(2.0, 0.85, 1.5, white, 0, 1.55, -1.1, lift);
+  B(2.06, 0.1, 1.56, orange, 0, 2.0, -1.1, lift);
+  const fun = mk(new THREE.ConeGeometry(0.95, 0.7, 4), white, 0, 0.8, -1.1, lift); fun.rotation.x = Math.PI; fun.rotation.y = Math.PI / 4;
+  const discs = [];
+  for (const sx of [-0.4, 0.4]) {
+    const d = new THREE.Group(); d.position.set(sx, 0.48, -1.75); lift.add(d);
+    CY(0.38, 0.38, 0.04, 12, dark, 0, 0, 0, d);
+    for (let k = 0; k < 4; k++) { const v = B(0.7, 0.08, 0.04, orange, 0, 0.05, 0, d); v.rotation.y = (k * Math.PI) / 4; }
+    discs.push(d);
+  }
+  bake(g);
+  return { group: g, lift, discs, up: 0.05, down: 0 };
+}
+
+/** Round baler: pickup in front, bale chamber behind, single axle. */
+export function buildBaler() {
+  const g = new THREE.Group();
+  const cream = '#e7dfcf', orange = '#e08a3a', dark = '#3a3f42';
+  B(0.22, 0.22, 1.6, dark, 0, 0.72, -0.8, g);
+  const ch = mk(new THREE.CylinderGeometry(0.95, 0.95, 1.7, 16), cream, 0, 1.25, -2.7, g); ch.rotation.z = Math.PI / 2;
+  for (const sx of [-1, 1]) {
+    B(0.08, 1.9, 2.1, cream, sx * 0.9, 1.25, -2.65, g);
+    B(0.1, 0.2, 2.1, orange, sx * 0.95, 2.1, -2.65, g);
+  }
+  B(1.9, 0.12, 0.3, orange, 0, 2.2, -2.65, g);
+  const wheels = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.42, 0.28, '#d7dde2'); w.position.set(sx * 1.15, 0.42, -2.4); g.add(w); wheels.push(w); }
+  const lift = new THREE.Group(); lift.position.set(0, 0, -1.5); g.add(lift);
+  B(2.0, 0.22, 0.55, dark, 0, 0.3, 0, lift);
+  for (let i = 0; i < 9; i++) { const t = B(0.04, 0.3, 0.04, steelHex, -0.9 + i * 0.225, 0.18, 0.25, lift); t.rotation.x = 0.5; }
+  bake(g);
+  return { group: g, lift, wheels, up: 0.25, down: 0 };
+}
+const steelHex = '#b9bfc2';

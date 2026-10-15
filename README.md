@@ -1,6 +1,6 @@
 # Zlaté lány
 
-Low-poly farmářská hra v prohlížeči. Herní smyčka je jako ve Farming Simulatoru (sklizeň, prodej, kultivace, setí, růst, nákup polí), vzhled je inspirovaný hrou The Headlands.
+Low-poly farmářská hra v prohlížeči. Herní smyčka je jako ve Farming Simulatoru (sklizeň, prodej, orba a kultivace, hnojení, setí, růst, sláma a balíky, nákup polí), vzhled je inspirovaný hrou The Headlands.
 
 ## Spuštění
 
@@ -24,12 +24,28 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | A / D | zatáčení |
 | Mezerník | spustit / zvednout nářadí |
 | Tab | přesednout do druhého stroje |
-| F | prodej zrna u sil, překládka z kombajnu do přívěsu, vysypání přívěsu, výměna nářadí v kůlně, koupě pole u cedule |
+| F | prodej zrna u sil, překládka z kombajnu do přívěsu, vysypání přívěsu, prodej balíků u stodoly, výměna nářadí v kůlně, koupě pole u cedule |
+| 1–6 | v kůlně: přímý výběr nářadí traktoru (1–6) nebo adaptéru kombajnu (1–2) |
 | C | změnit osivo |
 | T | rychlost času 1× / 5× / 20× |
 | Q / E, tažení myší | otočení kamery |
 | kolečko | přiblížení |
 | Esc | menu, nastavení grafiky, uložení do souboru |
+
+## Stroje a plodiny
+
+| Nářadí traktoru | Šířka | Co dělá |
+| --- | --- | --- |
+| 1 Kultivátor | 4,2 m | strniště → zkultivovaná půda |
+| 2 Pluh | 3,2 m | totéž, pomaleji, ale +15 % výnosu |
+| 3 Secí stroj | 4 m | zasívá zvolenou plodinu (C) |
+| 4 Rozmetadlo | 12 m | hnojivo za 2 Kč/m², +25 % výnosu (i na rostoucí plodiny) |
+| 5 Lis na balíky | 2 m | sbírá řádky slámy, každých 60 m² vyhodí balík |
+| 6 Přívěs | 14 000 l / 8 balíků | odvoz zrna nebo balíků |
+
+Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **řádkový adaptér** na kukuřici a slunečnici. Vyměníš je v kůlně (F nebo 1–2).
+
+Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou.
 
 ## Přívěs na zrno
 
@@ -74,7 +90,7 @@ prototyp/              původní jednosouborový prototyp
 
 1. **Základ:** projekt s moduly, nastavení grafiky, měřič FPS, ukládání do souboru (hotovo).
 2. **Logistika:** přívěs na zrno, překládka z kombajnu a vysypání ve výkupu (hotovo).
-3. **Polní práce:** orba, hnojení, sláma a balíky, další plodiny.
+3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem (hotovo). Cukrovka se sklízečem zbývá.
 4. **Ekonomika:** obchod se stroji, palivo a opotřebení, zakázky, úvěr.
 5. **Svět:** větší mapa, více výkupů, roční období a počasí.
 6. **Pomocníci:** najatí řidiči.

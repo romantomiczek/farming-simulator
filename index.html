@@ -33,7 +33,7 @@
       <div class="panel perf" id="perf" hidden></div>
       <div class="panel mapwrap"><canvas id="minimap" aria-label="Mapa farmy"></canvas></div>
       <div class="panel prices">
-        <h3>Výkup u sil · Kč/l</h3>
+        <h3>Výkup · Kč/l a Kč/balík</h3>
         <ul id="priceList"></ul>
       </div>
     </section>
@@ -47,6 +47,11 @@
         <div class="bar"><i id="vTankBar"></i></div>
       </div>
       <div class="fieldline" id="vField" hidden></div>
+    </section>
+
+    <section class="panel shed" id="shedPanel" hidden aria-label="Kůlna">
+      <span class="eyebrow">Kůlna · vyber klávesou</span>
+      <ul id="shedList"></ul>
     </section>
 
     <div class="prompt" id="prompt"></div>
@@ -68,7 +73,7 @@
     <div class="card" role="dialog" aria-labelledby="menuTitle">
       <section id="menuMain" class="cardsec">
         <h1 id="menuTitle">Zlaté lány</h1>
-        <p class="lede">Malé hospodářství v údolí. Pole 1 je zralé a kombajn stojí na cestě. Skliď, prodej zrno ve výkupu, zkultivuj strniště, zasej a za výdělek kupuj další pole.</p>
+        <p class="lede">Malé hospodářství v údolí. Pole 1 je zralé a kombajn stojí na cestě. Skliď, prodej zrno ve výkupu, slisuj slámu, zoráš, pohnojíš, zaseješ a za výdělek kupuješ další pole.</p>
         <div class="cycle" aria-label="Cyklus pole">
           <div class="c1">Sklizeň</div><div class="c2">Kultivace</div><div class="c3">Setí</div><div class="c4">Růst</div>
         </div>
@@ -78,6 +83,7 @@
           <div><span class="k"><kbd>Mezerník</kbd></span>spustit / zvednout nářadí</div>
           <div><span class="k"><kbd>Tab</kbd></span>přesednout do druhého stroje</div>
           <div><span class="k"><kbd>F</kbd></span>prodej, překládka do přívěsu, výměna nářadí, koupě pole</div>
+          <div><span class="k"><kbd>1</kbd>–<kbd>6</kbd></span>výběr nářadí v kůlně</div>
           <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
           <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>
           <div><span class="k"><kbd>Q</kbd><kbd>E</kbd></span>otočit kameru (nebo táhni myší)</div>

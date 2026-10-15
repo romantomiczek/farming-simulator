@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { terrainH } from './terrain.js';
-import { ROADS, PAD, POND, sellZone, circles, addBox } from './layout.js';
+import { ROADS, PAD, POND, sellZone, baleZone, circles, addBox } from './layout.js';
 
 /** House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. */
 function gable(w, d, h, wall, roof, parent) {
@@ -117,6 +117,9 @@ function addZoneMarkers(scene) {
   const ring = new THREE.Mesh(new THREE.RingGeometry(sellZone.r - 0.5, sellZone.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#e8b84a'), transparent: true, opacity: 0.75 }));
   ring.rotation.x = -Math.PI / 2; ring.position.set(sellZone.x, 0.06, sellZone.z); scene.add(ring);
+  const baleRing = new THREE.Mesh(new THREE.RingGeometry(baleZone.r - 0.5, baleZone.r, 40),
+    new THREE.MeshBasicMaterial({ color: col('#b07a4a'), transparent: true, opacity: 0.75 }));
+  baleRing.rotation.x = -Math.PI / 2; baleRing.position.set(baleZone.x, 0.06, baleZone.z); scene.add(baleRing);
   const sq = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.0, 4, 1),
     new THREE.MeshBasicMaterial({ color: col('#7fb2a4'), transparent: true, opacity: 0.7 }));
   sq.rotation.x = -Math.PI / 2; sq.rotation.z = Math.PI / 4; sq.position.set(12, 0.06, -34.5); sq.scale.set(1.35, 0.55, 1); scene.add(sq);

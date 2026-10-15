@@ -19,7 +19,9 @@ export const POND = { x: 64, z: -42, r: 13 };
 
 /** Grain intake next to the silos: unload the combine here with F. */
 export const sellZone = { x: 5, z: -24, r: 7.5 };
-/** Machine shed: swap tractor implements here with F. */
+/** In front of the barn door: sell straw bales from the trailer here with F. */
+export const baleZone = { x: -19, z: -36, r: 6 };
+/** Machine shed: swap tractor implements and combine headers here (F or keys 1–6). */
 export const shedZone = { x0: 4, x1: 20, z0: -46, z1: -31 };
 
 // Static collision shapes, filled while the world is built.

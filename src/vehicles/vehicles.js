@@ -4,26 +4,32 @@ import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { circles, boxes, BOUNDS } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G } from '../game/state.js';
-import { buildTractor, buildCombine, buildCultivator, buildSeeder, buildTrailer } from './models.js';
+import { buildTractor, buildCombine, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler } from './models.js';
 
 /**
- * Tractor attachments. Field tools ride rigidly on the hitch (workZ = working line behind it).
+ * Tractor attachments. Field tools ride rigidly on the hitch: width = working width,
+ * workZ = working line behind the hitch, speed = max working speed (m/s).
  * The trailer is articulated: it stays in the scene and follows the hitch, see updateTrailer().
- * ORDER is the swap order in the shed.
+ * IMPL_ORDER is the order in the shed (keys 1–6, F cycles).
  */
 export const IMPL = {
-  cultivator: Object.assign(buildCultivator(), { key: 'cultivator', name: 'Kultivátor', width: 4.2, workZ: -1.7, park: [8.5, -38.5], dust: col('#b48d68') }),
-  seeder: Object.assign(buildSeeder(), { key: 'seeder', name: 'Secí stroj', width: 4.0, workZ: -1.5, park: [15.5, -38.5], dust: col('#c7a984') }),
+  cultivator: Object.assign(buildCultivator(), { key: 'cultivator', name: 'Kultivátor', width: 4.2, workZ: -1.7, speed: 4.2, park: [8.5, -38.5], dust: col('#b48d68') }),
+  plough: Object.assign(buildPlough(), { key: 'plough', name: 'Pluh', width: 3.2, workZ: -2.2, speed: 3.1, park: [-12, -47.5], dust: col('#9b7656') }),
+  seeder: Object.assign(buildSeeder(), { key: 'seeder', name: 'Secí stroj', width: 4.0, workZ: -1.5, speed: 4.2, park: [15.5, -38.5], dust: col('#c7a984') }),
+  spreader: Object.assign(buildSpreader(), { key: 'spreader', name: 'Rozmetadlo', width: 12, workZ: -1.8, speed: 5.0, park: [-6.5, -47.5], dust: col('#f1eee6') }),
+  baler: Object.assign(buildBaler(), { key: 'baler', name: 'Lis na balíky', width: 2.0, workZ: -1.6, speed: 3.6, park: [-1, -47.5], dust: col('#eadba6') }),
   trailer: Object.assign(buildTrailer(), {
-    key: 'trailer', name: 'Přívěs', park: [23.5, -37], x: 0, z: 0, h: 0,
-    tank: { crop: -1, amount: 0, cap: 14000 }, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0,
+    key: 'trailer', name: 'Přívěs', park: [23.5, -37], x: 0, z: 0, h: 0, speed: 4.2,
+    tank: { crop: -1, amount: 0, cap: 14000 }, bales: 0, baleCap: 8, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0,
   }),
 };
-export const IMPL_ORDER = ['cultivator', 'seeder', 'trailer'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer'];
 export const trailer = IMPL.trailer;
 const HITCH_Z = -1.75;
 /** Distance from the trailer axle to its drawbar eye. */
 export const TRAILER_L = 4.2;
+/** Straw cells the baler needs for one bale. */
+export const BALE_CELLS = 60;
 
 export function parkImpl(im) {
   if (im === trailer) {
@@ -44,11 +50,12 @@ function makeVehicle(type) {
   const v = {
     type, x: 0, z: 0, h: 0, speed: 0, steer: 0, thr: 0, lowered: false, prevTool: null, harvestT: 0, puffT: 0,
     tank: { crop: -1, amount: 0, cap: 9000 }, seedCrop: 0, unloading: false, sold: 0, soldMoney: 0, soldCrop: 0,
+    moved: 0, movedCrop: 0, waiting: null, baleAcc: 0,
   };
   if (type === 'tractor') {
     Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c' }, buildTractor());
   } else {
-    Object.assign(v, { name: 'Kombajn Klas 7', r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4, toolW: 5.4, toolZ: 4.4, mapCol: '#cf5a4a' }, buildCombine());
+    Object.assign(v, { name: 'Kombajn Klas 7', r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4, toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a' }, buildCombine());
   }
   scene.add(v.group);
   return v;
@@ -57,11 +64,26 @@ export const tractor = makeVehicle('tractor');
 export const combine = makeVehicle('combine');
 export const vehicles = [tractor, combine];
 
+/* ---------- combine headers ---------- */
+const HEADER_PARK = [-17, -27];
+/** Mounts the grain or row header on the combine; the other one waits in the yard. */
+export function setHeader(key) {
+  const on = key === 'corn' ? combine.cornHdr : combine.grainHdr;
+  const off = key === 'corn' ? combine.grainHdr : combine.cornHdr;
+  combine.header = key === 'corn' ? 'corn' : 'grain';
+  combine.lowered = false;
+  combine.headerLift.add(on); on.position.set(0, 0, 0); on.rotation.set(0, 0, 0);
+  scene.add(off); off.position.set(HEADER_PARK[0], 0, HEADER_PARK[1]); off.rotation.set(0, 0, 0);
+}
+setHeader('grain');
+
+/* ---------- tractor attachments ---------- */
 export function attachImpl(key) {
   for (const k in IMPL) if (k !== key) parkImpl(IMPL[k]);
   const im = IMPL[key];
   tractor.impl = key;
   tractor.lowered = false;
+  tractor.vwork = im.speed;
   if (im === trailer) {
     // put the trailer straight behind the tractor
     trailer.h = tractor.h;
@@ -73,6 +95,13 @@ export function attachImpl(key) {
   tractor.group.add(im.group);
   im.group.position.set(0, 0, HITCH_Z);
   im.group.rotation.y = 0;
+}
+
+/** Working width and offset of the working line from the vehicle origin. */
+export function toolLine(v) {
+  return v.type === 'tractor'
+    ? { W: IMPL[v.impl].width, Z: HITCH_Z + IMPL[v.impl].workZ }
+    : { W: v.toolW, Z: v.toolZ };
 }
 
 const hitchPos = () => [tractor.x + Math.sin(tractor.h) * HITCH_Z, tractor.z + Math.cos(tractor.h) * HITCH_Z];
@@ -101,18 +130,13 @@ export function updateTrailer(dt, cropColor) {
   trailer.grain.visible = fill > 0;
   trailer.grain.scale.y = Math.max(0.02, fill * 1.15);
   if (cropColor) trailer.grainMat.color.copy(cropColor);
+  trailer.baleMeshes.forEach((m, i) => (m.visible = i < trailer.bales));
 }
 
-/** Working width and offset of the working line from the vehicle origin. */
-export function toolLine(v) {
-  return v.type === 'tractor'
-    ? { W: IMPL[v.impl].width, Z: HITCH_Z + IMPL[v.impl].workZ }
-    : { W: v.toolW, Z: v.toolZ };
-}
-
+/* ---------- driving ---------- */
 function collide(v) {
   let hit = false;
-  const push = (c) => {
+  const push = c => {
     const dx = v.x - c.x, dz = v.z - c.z, d = Math.hypot(dx, dz), min = c.r + v.r;
     if (d < min && d > 1e-4) { v.x += (dx / d) * (min - d); v.z += (dz / d) * (min - d); hit = true; }
   };
@@ -154,7 +178,7 @@ export function drive(v, dt, input) {
 }
 
 const _v = new THREE.Vector3();
-/** Moves meshes to match the simulation: wheels, steering, lifts, reel, pipe, grain heap, exhaust. */
+/** Moves meshes to match the simulation: wheels, steering, lifts, reel, discs, pipe, grain heap, exhaust. */
 export function visual(v, dt, tankCropColor) {
   v.group.position.set(v.x, 0, v.z);
   v.group.rotation.y = v.h;
@@ -167,11 +191,12 @@ export function visual(v, dt, tankCropColor) {
     if (im.lift) {
       im.lift.position.y += ((v.lowered ? im.down : im.up) - im.lift.position.y) * k;
       if (im.roller && v.lowered) im.roller.rotation.x += (v.speed * dt) / 0.3;
-      if (im.wheels && v.lowered) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
+      if (im.wheels && (v.lowered || im === IMPL.baler)) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
+      if (im.discs && v.lowered) im.discs.forEach((d, i) => (d.rotation.y += (i ? 1 : -1) * dt * 18));
     }
   } else {
     v.headerLift.position.y += ((v.lowered ? 0 : 0.6) - v.headerLift.position.y) * k;
-    if (v.lowered) v.reel.rotation.x += dt * 2.6;
+    if (v.lowered && v.header === 'grain') v.reel.rotation.x += dt * 2.6;
     v.pipe.rotation.y += ((v.unloading ? -Math.PI / 2 : 0) - v.pipe.rotation.y) * Math.min(1, dt * 2.5);
     v.grain.visible = v.tank.amount > 0;
     v.grain.scale.y = Math.max(0.02, (v.tank.amount / v.tank.cap) * 0.7);
