@@ -8,6 +8,8 @@ import { keys } from '../core/input.js';
  * After 2.5 s without manual input it swings back behind the vehicle while driving.
  * manual = -99 means "snap behind the vehicle now" (after switching vehicles).
  */
+/** Lowest camera tilt: almost level, so the player can look at the horizon and the sky. */
+const PITCH_MIN = 0.12;
 export const cam = { yaw: 0, pitch: 0.66, dist: 52, manual: -99, t: new THREE.Vector3(-10, 1, -4) };
 
 export function bindCamera(canvas) {
@@ -23,7 +25,7 @@ export function bindCamera(canvas) {
     if (!p) return;
     if (ptrs.size === 1) {
       cam.yaw -= (e.clientX - p.x) * 0.006;
-      cam.pitch = clamp(cam.pitch + (e.clientY - p.y) * 0.004, 0.32, 1.4);
+      cam.pitch = clamp(cam.pitch + (e.clientY - p.y) * 0.004, PITCH_MIN, 1.4);
       cam.manual = performance.now() / 1000;
     }
     p.x = e.clientX; p.y = e.clientY;
@@ -39,7 +41,7 @@ export function bindCamera(canvas) {
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-const desired = new THREE.Vector3();
+const desired = new THREE.Vector3(), look = new THREE.Vector3();
 export function updateCamera(dt, v) {
   const t = performance.now() / 1000;
   if (keys.KeyQ) { cam.yaw += 1.7 * dt; cam.manual = t; }
@@ -55,5 +57,7 @@ export function updateCamera(dt, v) {
   cam.t.lerp(desired, 1 - Math.exp(-dt * 6));
   const cp = Math.cos(cam.pitch) * cam.dist;
   camera.position.set(cam.t.x - Math.sin(cam.yaw) * cp, cam.t.y + Math.sin(cam.pitch) * cam.dist, cam.t.z - Math.cos(cam.yaw) * cp);
-  camera.lookAt(cam.t);
+  // when the camera is tilted low, aim a little above the vehicle so the horizon comes into view
+  look.copy(cam.t); look.y += Math.max(0, 0.4 - cam.pitch) * 8;
+  camera.lookAt(look);
 }

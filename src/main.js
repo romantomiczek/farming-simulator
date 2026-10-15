@@ -1,6 +1,6 @@
 import './styles.css';
 import { renderer, scene, camera, canvas, resize, applyRenderQuality, setShadowSize } from './render/core.js';
-import { quality } from './core/settings.js';
+import { quality, settings, saveSettings } from './core/settings.js';
 import { buildTerrain } from './world/terrain.js';
 import { buildFarm } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
@@ -32,7 +32,7 @@ import { sizeMinimap, drawMinimap } from './ui/minimap.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
 import { toast } from './ui/toast.js';
-import { toggleSound, updAudio } from './audio.js';
+import { toggleSound, updAudio, sound } from './audio.js';
 
 /* ---------- world ---------- */
 const terrain = buildTerrain(scene);
@@ -68,7 +68,7 @@ bindInput(code => {
 bindCamera(canvas);
 initMenu({
   hasProgress: () => hasSave,
-  onPlay: () => { G.playing = true; releaseAll(); },
+  onPlay: () => { G.playing = true; releaseAll(); if (settings.sound && !sound.on) setSound(toggleSound()); },
   onPause: () => { G.playing = false; saveLocal(); },
   onNew: () => { newGame(); saveLocal(); cam.manual = -99; toast('Nová sezóna začíná. Pole 1 je zralé.'); },
   onQuality: applyQuality,
@@ -83,7 +83,9 @@ initOffice({
 document.getElementById('officeBtn').onclick = () => openOffice();
 document.getElementById('speedBtn').onclick = cycleTime;
 document.getElementById('menuBtn').onclick = showMenu;
-document.getElementById('soundBtn').onclick = e => { e.currentTarget.textContent = toggleSound() ? 'Zvuk: zap.' : 'Zvuk: vyp.'; };
+// sound starts with the first click on "Hrát" (browsers only allow audio after a click) unless turned off
+function setSound(on) { document.getElementById('soundBtn').textContent = on ? 'Zvuk: zap.' : 'Zvuk: vyp.'; }
+document.getElementById('soundBtn').onclick = () => { const on = toggleSound(); setSound(on); settings.sound = on; saveSettings(); };
 
 addEventListener('resize', () => { resize(); sizeMinimap(); });
 applyQuality();
@@ -132,7 +134,7 @@ function tick(dt) {
   updRain(dt, cam.t, WX.rain, isWinter());
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
-  updAudio(G.active, G.playing);
+  updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }
   renderer.render(scene, camera);

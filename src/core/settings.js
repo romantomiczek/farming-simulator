@@ -41,7 +41,7 @@ function detectGPU() {
 export const gpuName = detectGPU();
 export const isIntegrated = /intel|uhd|hd graphics|iris|swiftshader|llvmpipe/i.test(gpuName) && !/\barc\b|nvidia|radeon|geforce/i.test(gpuName);
 
-export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true };
+export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, sound: true };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage unavailable */ }
 if (!PRESETS[settings.preset]) settings.preset = 'medium';
 
