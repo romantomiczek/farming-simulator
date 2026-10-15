@@ -1,4 +1,7 @@
 import { CROPS } from './crops.js';
+import { has } from './machines.js';
+import { BUILDINGS } from './farm.js';
+import { COW_PEN, HEN_RUN } from '../world/layout.js';
 
 /**
  * Buyers. Each takes some crops (mult per crop index, or all) and drifts with its own phase,
@@ -11,8 +14,15 @@ export const MARKETS = [
   { id: 'sugar', name: 'Cukrovar a bioplynka', short: 'Cukrovar', x: 240, z: 58, r: 8, mult: { 5: 1.15, 3: 1.1 }, phase: 4.4, color: '#b79ec8' },
 ];
 
-export const accepts = (m, crop) => m.mult.all != null || m.mult[crop] != null;
-export const marketAt = p => MARKETS.find(m => Math.hypot(p.x - m.x, p.z - m.z) < m.r) || null;
+/** Feed troughs of the animal buildings: unloading there fills the fodder store instead of selling. */
+export const FEEDERS = [
+  { id: 'cowsFeed', name: 'Krmelec u kravína', short: 'Kravín', ...COW_PEN.feed, feed: 'cows' },
+  { id: 'hensFeed', name: 'Krmelec u kurníku', short: 'Kurník', ...HEN_RUN.feed, feed: 'hens' },
+];
+
+export const accepts = (m, crop) => (m.feed ? BUILDINGS[m.feed].eats.includes(crop) : m.mult.all != null || m.mult[crop] != null);
+const near = p => m => Math.hypot(p.x - m.x, p.z - m.z) < m.r;
+export const marketAt = p => MARKETS.find(near(p)) || FEEDERS.find(m => has(m.feed) && near(p)(m)) || null;
 
 /** Price in Kč/l at buyer m for crop at game minute t: multi-day swing plus a faster wobble. */
 export function marketPrice(m, crop, t) {
@@ -29,3 +39,5 @@ export function bestMarket(crop, t) {
 
 /** Names of the buyers that take crop, for hints. */
 export const buyersOf = crop => MARKETS.filter(m => accepts(m, crop)).map(m => m.name);
+/** Animals that eat crop (owned buildings only). */
+export const eatersOf = crop => FEEDERS.filter(m => has(m.feed) && accepts(m, crop)).map(m => m.short);

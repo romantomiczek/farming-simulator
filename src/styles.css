@@ -124,7 +124,7 @@ kbd{font-family:var(--body);font-weight:700;font-size:12px;background:var(--pape
 .link{font:inherit;font-weight:600;font-size:14px;background:none;border:0;padding:4px 0;color:var(--leaf);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;}
 .link:hover{color:var(--ink);}
 .note{margin:0;font-size:12.5px;color:var(--muted);}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;}
+.seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;}
 .seg button{font:inherit;font-weight:700;font-size:15px;border:0;border-radius:9px;padding:11px 8px;background:transparent;color:var(--ink);cursor:pointer;}
 .seg button[aria-checked="true"]{background:var(--ink);color:var(--paper);}
 .seg button:hover:not([aria-checked="true"]){background:rgba(36,49,42,.06);}

@@ -8,6 +8,7 @@ import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { IMPL, BALE_CELLS, HARVESTERS, toolLine, tractor, trailer, trailerCenter } from '../vehicles/vehicles.js';
 import { baleZone } from '../world/layout.js';
 import { marketAt, accepts, marketPrice } from './markets.js';
+import { BUILDINGS, space } from './farm.js';
 import { bales, addBale, removeBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
 import { toast, warn } from '../ui/toast.js';
@@ -172,7 +173,22 @@ export function trailerInReach(h) {
 /** Same crop (or empty), and no bales on board. */
 const trailerAccepts = crop => trailer.bales === 0 && (trailer.tank.amount <= 0 || trailer.tank.crop === crop);
 
+/** Hands amt litres of crop to buyer or feed trough m; returns how much was taken. */
+function deliver(m, crop, amt, who) {
+  if (m.feed) {
+    const b = BUILDINGS[m.feed], take = Math.min(amt, space(m.feed));
+    G.farm[b.store] += take; who.fed = (who.fed || 0) + take; who.fedAt = b.name; who.fedCrop = crop;
+    if (take <= 0) warn('feedFull', 'Krmelec (' + b.name + ') je plný.');
+    return take;
+  }
+  const pr = marketPrice(m, crop, G.gameMin);
+  who.soldAt = m.name; who.sold += amt; who.soldMoney += amt * pr; G.money += amt * pr; G.flashT = 0.4;
+  return amt;
+}
+
 function sellToast(who, onDone) {
+  if (who.fed > 0) { toast('Vyloženo ' + fmt(who.fed) + ' l ' + CROPS[who.fedCrop].gen + ' do krmelce · ' + who.fedAt, 'good'); onDone?.(); }
+  who.fed = 0;
   if (who.sold > 0) {
     toast('Prodáno ' + fmt(who.sold) + ' l ' + CROPS[who.soldCrop].gen + ' za ' + fmt(who.soldMoney) + ' Kč · ' + who.soldAt, 'good');
     onDone?.();
@@ -188,7 +204,7 @@ export function stopUnload(h, onDone) {
 }
 
 export function startUnload(h) {
-  h.unloading = true; h.sold = 0; h.soldMoney = 0; h.soldCrop = h.tank.crop; h.moved = 0; h.movedCrop = h.tank.crop; h.waiting = null;
+  h.unloading = true; h.fed = 0; h.sold = 0; h.soldMoney = 0; h.soldCrop = h.tank.crop; h.moved = 0; h.movedCrop = h.tank.crop; h.waiting = null;
 }
 
 function pour(x, y, z, crop, dt, spread = 0.4) {
@@ -214,9 +230,8 @@ function unloadHarvester(h, dt, onDone) {
       amt = Math.min(amt, trailer.tank.cap - trailer.tank.amount);
       trailer.tank.crop = crop; trailer.tank.amount += amt; h.moved += amt;
     } else {
-      const pr = marketPrice(m, crop, G.gameMin);
-      h.soldAt = m.name;
-      h.sold += amt; h.soldMoney += amt * pr; G.money += amt * pr; G.flashT = 0.4;
+      amt = deliver(m, crop, amt, h);
+      if (amt <= 0) { stopUnload(h, onDone); return; }
     }
     h.tank.amount -= amt;
     _v.copy(h.pipeTip); h.pipe.localToWorld(_v);
@@ -237,9 +252,9 @@ export function updateLogistics(dt, onDone) {
     const m = hasTrailer() && sellPoint(trailerCenter(), t.tank.crop);
     if (!m || t.tank.amount <= 0) stopTipping(onDone);
     else if (t.tip.rotation.x < -0.5) { // body is up
-      const crop = t.tank.crop, amt = Math.min(t.tank.amount, TIP_RATE * dt), pr = marketPrice(m, crop, G.gameMin);
-      t.soldAt = m.name;
-      t.tank.amount -= amt; t.sold += amt; t.soldMoney += amt * pr; G.money += amt * pr; G.flashT = 0.4;
+      const crop = t.tank.crop, amt = deliver(m, crop, Math.min(t.tank.amount, TIP_RATE * dt), t);
+      if (amt <= 0) { stopTipping(onDone); return; }
+      t.tank.amount -= amt;
       _v.set((Math.random() - 0.5) * 1.8, 0.2, 0); t.tip.localToWorld(_v);
       pour(_v.x, _v.y, _v.z, crop, dt, 0.8);
     }
@@ -260,7 +275,7 @@ export function updateLogistics(dt, onDone) {
 }
 
 export function startTipping() {
-  trailer.tipping = true; trailer.sold = 0; trailer.soldMoney = 0; trailer.soldCrop = trailer.tank.crop;
+  trailer.tipping = true; trailer.fed = 0; trailer.sold = 0; trailer.soldMoney = 0; trailer.soldCrop = trailer.tank.crop;
 }
 export function stopTipping(onDone) {
   sellToast(trailer, onDone);

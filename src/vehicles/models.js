@@ -320,3 +320,57 @@ export function buildBeetHarvester() {
     pipeReach: { lx: 1.3 + 5.0, lz: -0.5 },
   };
 }
+
+/** Water tank on a single axle, for the greenhouses. */
+export function buildWaterTank() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const blue = '#7a9fb4', dark = '#3a3f42';
+  B(0.22, 0.22, 1.4, dark, 0, 0.7, -0.6, lift);
+  B(1.2, 0.2, 3.4, dark, 0, 0.75, -2.4, lift);
+  const t = mk(new THREE.CylinderGeometry(0.95, 0.95, 3.6, 14), blue, 0, 1.75, -2.4, lift); t.rotation.x = Math.PI / 2;
+  for (const dz of [-1.3, 0, 1.3]) { const b = mk(new THREE.CylinderGeometry(0.98, 0.98, 0.12, 14), '#5f8396', 0, 1.75, -2.4 + dz, lift); b.rotation.x = Math.PI / 2; }
+  B(0.5, 0.25, 0.5, '#5f8396', 0, 2.75, -2.4, lift);
+  const wheels = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.5, 0.3, '#d7dde2'); w.position.set(sx * 1.05, 0.5, -2.6); lift.add(w); wheels.push(w); }
+  bake(g);
+  return { group: g, lift, wheels, up: 0, down: 0 };
+}
+
+/** Forestry harvester with a crane and a log bunk at the back. */
+export function buildForester() {
+  const g = new THREE.Group(), yel = '#e0b13a', dark = '#3a3f42', light = '#e8e4da';
+  B(2.2, 0.9, 6.6, dark, 0, 1.15, -0.6, g);
+  B(2.3, 1.2, 2.2, yel, 0, 2.0, 1.6, g);
+  mk(new THREE.BoxGeometry(2.0, 1.4, 1.6), glassMat, 0, 3.3, 1.6, g, false);
+  B(2.2, 0.15, 1.8, yel, 0, 4.08, 1.6, g);
+  for (const sx of [-0.95, 0.95]) for (const sz of [0.85, 2.35]) B(0.09, 1.4, 0.09, dark, sx, 3.3, sz, g);
+  B(2.2, 1.0, 1.4, yel, 0, 2.0, -0.6, g);
+  CY(0.08, 0.08, 1.2, 6, dark, 0.7, 3.0, -0.9, g);
+  B(0.16, 0.16, 0.16, beaconMat, 0.85, 4.25, 1.2, g);
+  // log bunk with stanchions
+  B(2.3, 0.2, 3.4, dark, 0, 1.7, -3.0, g);
+  for (const sx of [-1.1, 1.1]) for (const sz of [-4.4, -1.7]) B(0.14, 1.6, 0.14, yel, sx, 2.5, sz, g);
+  const logs = [];
+  for (let k = 0; k < 12; k++) {
+    const row = k % 4, layer = Math.floor(k / 4);
+    const l = mk(new THREE.CylinderGeometry(0.24, 0.24, 3.6, 7), '#a5784f', -0.75 + row * 0.5, 2.05 + layer * 0.45, -3.0, g);
+    l.rotation.x = Math.PI / 2; l.userData.noBake = true; l.visible = false; logs.push(l);
+  }
+  const wheels = [], rear = [];
+  for (const sz of [1.4, -1.3, -3.6]) for (const sx of [-1, 1]) {
+    const w = wheel(0.75, 0.6, light);
+    if (sz === 1.4) { const p = new THREE.Group(); p.position.set(sx * 1.25, 0.75, sz); g.add(p); p.add(w); rear.push(p); }
+    else { w.position.set(sx * 1.25, 0.75, sz); g.add(w); }
+    wheels.push(w);
+  }
+  // crane: turret, boom and head (rotates toward the tree while cutting)
+  const crane = new THREE.Group(); crane.position.set(0, 2.6, 0.1); g.add(crane);
+  CY(0.45, 0.55, 0.6, 10, yel, 0, 0.3, 0, crane);
+  const boom = new THREE.Group(); boom.position.set(0, 0.6, 0); crane.add(boom);
+  const b1 = B(0.3, 0.3, 4.2, yel, 0, 0.8, 1.8, boom); b1.rotation.x = -0.35;
+  const b2 = B(0.24, 0.24, 3.2, yel, 0, 1.0, 5.2, boom); b2.rotation.x = 0.5;
+  B(0.6, 0.7, 0.5, dark, 0, 0.2, 6.6, boom);
+  const spot = addLights(g, 2.5, 2.75, [-0.6, 0.6]);
+  bake(g);
+  return { group: g, wheels, front: rear, rear: [], crane, boom, logMeshes: logs, spot, exhaust: new THREE.Vector3(0.7, 3.7, -0.9) };
+}

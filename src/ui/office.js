@@ -1,9 +1,12 @@
 import { fmt } from '../core/util.js';
 import { G } from '../game/state.js';
-import { CATALOG, sellValue, leaseUpfront, leaseDaily, blockReason, buy, lease, release, dailyLeaseCost } from '../game/machines.js';
+import { has, hasCondition, CATALOG, sellValue, leaseUpfront, leaseDaily, blockReason, buy, lease, release, dailyLeaseCost } from '../game/machines.js';
 import { takeLoan, repayLoan, dailyInterest, emergencyFuel, LOAN_MAX, LOAN_STEP, INTEREST_DAILY, EMERGENCY } from '../game/economy.js';
 import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../game/contracts.js';
 import { CROPS } from '../game/crops.js';
+import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap } from '../game/farm.js';
+import { trees, matureCount } from '../world/forest.js';
+import { forester } from '../vehicles/vehicles.js';
 import { toast } from './toast.js';
 
 // The farm office (K): machine shop, neighbour contracts and finances. Time stops while it is open.
@@ -65,7 +68,7 @@ function act(a, key) {
 function render() {
   for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   $('officeMoney').textContent = fmt(G.money) + ' Kč';
-  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'jobs' ? jobsHTML() : finHTML();
+  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'jobs' ? jobsHTML() : tab === 'farm' ? farmHTML() : finHTML();
 }
 
 function shopHTML() {
@@ -80,14 +83,14 @@ function shopHTML() {
       let actions = '', note = '';
       if (!st) {
         actions = btn('buy', c.key, 'Koupit · ' + fmt(c.price) + ' Kč', G.money < c.price) +
-          btn('lease', c.key, 'Pronajmout · ' + fmt(leaseUpfront(c.key)) + ' Kč + ' + fmt(leaseDaily(c.key)) + ' Kč/den', G.money < leaseUpfront(c.key), 'ghost');
+          (c.noLease ? '' : btn('lease', c.key, 'Pronajmout · ' + fmt(leaseUpfront(c.key)) + ' Kč + ' + fmt(leaseDaily(c.key)) + ' Kč/den', G.money < leaseUpfront(c.key), 'ghost'));
       } else if (!c.fixed) {
         const why = blockReason(c.key);
         actions = st === 'own' ? btn('sell', c.key, 'Prodat · ' + fmt(sellValue(c.key)) + ' Kč', !!why, 'ghost') : btn('return', c.key, 'Vrátit', !!why, 'ghost');
         if (why) note = `<p class="why">${why}</p>`;
       }
       out += `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span>${note}</div>
-        <div class="rstate">${chip}${st ? `<span class="muted">stav ${pct(G.cond[c.key] ?? 1)}</span>` : ''}</div>
+        <div class="rstate">${chip}${st && hasCondition(c) ? `<span class="muted">stav ${pct(G.cond[c.key] ?? 1)}</span>` : ''}</div>
         <div class="ract">${actions}</div></div>`;
     }
   }
@@ -118,6 +121,31 @@ function jobsHTML() {
       <div class="rstate"><b>${fmt(o.reward)} Kč</b></div>
       <div class="ract">${btn('accept', o.id, 'Přijmout', !!a || !can)}</div></div>`;
   }
+  return out;
+}
+
+const days = d => (d === Infinity ? '—' : d >= 10 ? 'víc než 10 dní' : String(d.toFixed(1)).replace('.', ',') + ' dne');
+
+function farmHTML() {
+  const F = G.farm, row = (title, sub, state, extra = '') =>
+    `<div class="row"><div class="rmain"><b>${title}</b><span>${sub}</span>${extra}</div><div class="rstate">${state}</div></div>`;
+  let out = '<p class="lede small">Mléko, vejce a rajčata se odvážejí a platí o půlnoci. Krmivo vyložíš klávesou F ve sklízeči nebo přívěsem v kruhu u budovy, vodu přivezeš cisternou z rybníka.</p>';
+  for (const key of ['cows', 'hens']) {
+    const b = BUILDINGS[key];
+    if (!has(key)) { out += row(b.name, 'Koupíš v Obchodě.', '<span class="chip">Nevlastníš</span>'); continue; }
+    const eats = b.eats.map(i => CROPS[i].name.toLowerCase()).join(', ');
+    out += row(b.name, 'Krmivo ' + fmt(F[b.store]) + ' / ' + fmt(b.cap) + ' l (' + eats + ') · vystačí ' + days(daysLeft(key)),
+      F.hungry[key] ? '<span class="chip warn">Hladoví</span>' : '<span class="chip on">V pořádku</span>',
+      '<span class="muted">Na odvoz: ' + fmt(F[b.out]) + ' ' + b.unit + ' · ' + fmt(b.make * 24) + ' ' + b.unit + ' denně po ' + b.price + ' Kč</span>');
+  }
+  const n = greenhouses();
+  out += n
+    ? row('Skleníky (' + n + ')', 'Voda ' + fmt(F.water) + ' / ' + fmt(waterCap()) + ' l · vystačí ' + days(daysLeft('water')),
+      F.dry ? '<span class="chip warn">Bez vody</span>' : '<span class="chip on">V pořádku</span>',
+      '<span class="muted">Na odvoz: ' + fmt(F.tomatoes) + ' kg rajčat · ' + fmt(GREENHOUSE.make * 24 * n) + ' kg denně po ' + GREENHOUSE.price + ' Kč</span>')
+    : row('Skleníky', 'Koupíš v Obchodě.', '<span class="chip">Nevlastníš</span>');
+  out += row('Les na severu', matureCount() + ' z ' + trees.length + ' stromů je vzrostlých' + (has('forest') ? ' · v harvestoru ' + String(forester.logs.toFixed(1)).replace('.', ',') + ' m³' : ''),
+    has('forest') ? '<span class="chip on">Harvestor</span>' : '<span class="chip">Bez harvestoru</span>');
   return out;
 }
 

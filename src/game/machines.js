@@ -1,9 +1,10 @@
 import { G } from './state.js';
-import { vehicles, IMPL, IMPL_ORDER, tractor, combine, attachImpl, setHeader } from '../vehicles/vehicles.js';
+import { vehicles, IMPL, IMPL_ORDER, tractor, combine, trailer, attachImpl, setHeader, applyUpgrades } from '../vehicles/vehicles.js';
 
 /**
  * Everything the player can own. key matches the vehicle type or implement key;
- * cornHeader is the combine's row header. Prices in Kč.
+ * cornHeader is the combine's row header. Buildings and upgrades (noLease) can only be bought.
+ * Prices in Kč.
  */
 export const CATALOG = [
   { key: 'tractor', name: 'Traktor Brázda 140', kind: 'Traktory', price: 1450000, desc: '140 koní, tahá všechno nářadí a přívěs.', fixed: true },
@@ -16,7 +17,21 @@ export const CATALOG = [
   { key: 'spreader', name: 'Rozmetadlo', kind: 'Nářadí', price: 90000, desc: 'Záběr 12 m, hnojivo +25 % výnosu.' },
   { key: 'baler', name: 'Lis na balíky', kind: 'Nářadí', price: 480000, desc: 'Lisuje slámu za kombajnem do kulatých balíků.' },
   { key: 'trailer', name: 'Sklápěcí přívěs', kind: 'Nářadí', price: 150000, desc: '14 000 l zrna nebo 8 balíků.' },
+  { key: 'watertank', name: 'Cisterna na vodu', kind: 'Nářadí', price: 70000, desc: '8 000 l vody z rybníka pro skleníky. V kůlně klávesa 7.' },
+  { key: 'forest', name: 'Harvestor Les 8', kind: 'Lesnictví', price: 2400000, desc: 'Kácí vzrostlé stromy v lese na severu a veze až 18 m³ dřeva na pilu.' },
+  { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: 650000, noLease: true, desc: 'Krávy žerou kukuřici, ječmen nebo cukrovku a dávají mléko. Mléko se prodá samo o půlnoci.' },
+  { key: 'hens', name: 'Kurník se 40 slepicemi', kind: 'Budovy', price: 140000, noLease: true, desc: 'Slepice žerou pšenici nebo ječmen a snášejí vejce. Vejce se prodají o půlnoci.' },
+  { key: 'greenhouse1', name: 'Skleník s rajčaty', kind: 'Budovy', price: 180000, noLease: true, desc: 'Pěstuje rajčata, potřebuje vodu z cisterny. Rajčata se prodají o půlnoci.' },
+  { key: 'greenhouse2', name: 'Druhý skleník', kind: 'Budovy', price: 180000, noLease: true, desc: 'Zdvojnásobí sklizeň rajčat i spotřebu vody.' },
+  { key: 'upTractor', name: 'Výkonnější motor traktoru', kind: 'Vylepšení', price: 260000, noLease: true, desc: 'Traktor jede až 50 km/h a pracuje o 10 % rychleji.' },
+  { key: 'upCultivator', name: 'Široký kultivátor', kind: 'Vylepšení', price: 140000, noLease: true, desc: 'Záběr kultivátoru 6,3 m místo 4,2 m.' },
+  { key: 'upCombine', name: 'Větší zásobník kombajnu', kind: 'Vylepšení', price: 220000, noLease: true, desc: '13 000 l místo 9 000 l.' },
+  { key: 'upTrailer', name: 'Nástavba přívěsu', kind: 'Vylepšení', price: 90000, noLease: true, desc: '22 000 l místo 14 000 l.' },
 ];
+/** Buildings and upgrades have no wear. */
+export const hasCondition = c => !c.noLease;
+/** Called after every ownership change (the farmstead uses it to show its buildings). */
+export const ownershipHooks = [];
 export const byKey = Object.fromEntries(CATALOG.map(c => [c.key, c]));
 export const START_OWNED = ['tractor', 'combine', 'cultivator', 'seeder', 'trailer'];
 
@@ -46,6 +61,8 @@ export function applyOwnership() {
   if (!has('cornHeader') && combine.header === 'corn') setHeader('grain');
   if (!has(tractor.impl)) { const k = IMPL_ORDER.find(has); if (k) attachImpl(k); }
   if (!G.active?.available) G.active = vehicles.find(v => v.available);
+  applyUpgrades({ tractor: has('upTractor'), cultivator: has('upCultivator'), combine: has('upCombine'), trailer: has('upTrailer') });
+  ownershipHooks.forEach(f => f());
 }
 
 /** Why a machine cannot be sold or returned right now, or null. */
@@ -58,6 +75,9 @@ export function blockReason(key) {
   if (key === 'cornHeader' && combine.header === 'corn') return 'Je nasazený na kombajnu. V kůlně nasaď žací lištu.';
   const v = vehicles.find(x => x.type === key);
   if (v && (v.tank.amount > 0 || v.unloading)) return 'Nejdřív vyprázdni zásobník.';
+  if (v?.logs > 0) return 'Nejdřív prodej dřevo na pile.';
+  if (key === 'upCombine' && combine.tank.amount > 9000) return 'Zásobník kombajnu je plnější než 9 000 l.';
+  if (key === 'upTrailer' && trailer.tank.amount > 14000) return 'Přívěs je plnější než 14 000 l.';
   if (G.contracts.active && key === contractNeeds(G.contracts.active)) return 'Potřebuješ ho na rozpracovanou zakázku.';
   return null;
 }
@@ -77,7 +97,7 @@ export function buy(key) {
   return true;
 }
 export function lease(key) {
-  if (has(key) || !pay(leaseUpfront(key))) return false;
+  if (has(key) || byKey[key].noLease || !pay(leaseUpfront(key))) return false;
   G.machines[key] = 'lease'; G.cond[key] = 1;
   applyOwnership();
   return true;

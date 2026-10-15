@@ -4,13 +4,14 @@ import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { circles, boxes, BOUNDS } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank } from './models.js';
+import { forestColliders } from '../world/forest.js';
 
 /**
  * Tractor attachments. Field tools ride rigidly on the hitch: width = working width,
  * workZ = working line behind the hitch, speed = max working speed (m/s).
  * The trailer is articulated: it stays in the scene and follows the hitch, see updateTrailer().
- * IMPL_ORDER is the order in the shed (keys 1–6, F cycles).
+ * IMPL_ORDER is the order in the shed (keys 1–7, F cycles).
  */
 export const IMPL = {
   cultivator: Object.assign(buildCultivator(), { key: 'cultivator', name: 'Kultivátor', width: 4.2, workZ: -1.7, speed: 4.2, park: [8.5, -38.5], dust: col('#b48d68') }),
@@ -22,8 +23,9 @@ export const IMPL = {
     key: 'trailer', name: 'Přívěs', park: [23.5, -37], x: 0, z: 0, h: 0, speed: 4.2,
     tank: { crop: -1, amount: 0, cap: 14000 }, bales: 0, baleCap: 8, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0,
   }),
+  watertank: Object.assign(buildWaterTank(), { key: 'watertank', name: 'Cisterna na vodu', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5], water: 0, waterCap: 8000 }),
 };
-export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank'];
 export const trailer = IMPL.trailer;
 const HITCH_Z = -1.75;
 /** Distance from the trailer axle to its drawbar eye. */
@@ -59,12 +61,17 @@ function makeVehicle(type) {
       name: 'Kombajn Klas 7', gen: 'kombajnu', harvester: true, r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4,
       toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a', home: [-10, -8], chaff: col('#eadba6'), fuelCap: 500, fuelDrive: 0.08, fuelWork: 0.16,
     }, buildCombine());
-  } else {
+  } else if (type === 'beet') {
     Object.assign(v, {
       name: 'Sklízeč cukrovky Bulva 6', gen: 'sklízeče', harvester: true, r: 3.2, wb: 4.6, vmax: 6.4, vwork: 2.5, acc: 1.6, brk: 5, vrev: 2.2,
       toolW: 4.5, toolZ: 4.6, header: 'beet', mapCol: '#4d7c9e', home: [18, -27], chaff: col('#a98a66'), fuelCap: 600, fuelDrive: 0.09, fuelWork: 0.18,
     }, buildBeetHarvester());
     v.tank.cap = 20000;
+  } else if (type === 'forest') {
+    Object.assign(v, {
+      name: 'Harvestor Les 8', gen: 'harvestoru', r: 2.6, wb: 3.8, vmax: 8.3, vwork: 3, acc: 2.2, brk: 6, vrev: 3, mapCol: '#e0b13a',
+      home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: 18, cutting: null,
+    }, buildForester());
   }
   v.x = v.home[0]; v.z = v.home[1]; v.fuel = v.fuelCap;
   scene.add(v.group);
@@ -73,7 +80,8 @@ function makeVehicle(type) {
 export const tractor = makeVehicle('tractor');
 export const combine = makeVehicle('combine');
 export const beeter = makeVehicle('beet');
-export const vehicles = [tractor, combine, beeter];
+export const forester = makeVehicle('forest');
+export const vehicles = [tractor, combine, beeter, forester];
 export const HARVESTERS = [combine, beeter];
 
 /** Puts a vehicle back at its start position (new game, or missing in an old save). */
@@ -101,7 +109,7 @@ export function attachImpl(key) {
   const im = IMPL[key];
   tractor.impl = key;
   tractor.lowered = false;
-  tractor.vwork = im.speed;
+  tractor.vwork = im.speed * (G.upgrades?.tractor ? 1.1 : 1);
   if (im === trailer) {
     // put the trailer straight behind the tractor
     trailer.h = tractor.h;
@@ -159,8 +167,11 @@ function collide(v) {
     if (d < min && d > 1e-4) { v.x += (dx / d) * (min - d); v.z += (dz / d) * (min - d); hit = true; }
   };
   for (const c of circles) push(c);
+  treeBuf.length = 0;
+  for (const c of forestColliders(treeBuf)) push(c);
   for (const o of vehicles) if (o !== v && o.available) push(o);
   for (const b of boxes) {
+    if (b.off) continue;
     const cx = clamp(v.x, b.x0, b.x1), cz = clamp(v.z, b.z0, b.z1), dx = v.x - cx, dz = v.z - cz, d = Math.hypot(dx, dz);
     if (d >= v.r) continue;
     if (d > 1e-4) { v.x += (dx / d) * (v.r - d); v.z += (dz / d) * (v.r - d); }
@@ -176,6 +187,8 @@ function collide(v) {
   v.x = x; v.z = z;
   if (hit) v.speed *= 0.6;
 }
+
+const treeBuf = [];
 
 /** Bicycle-model driving. input = { thr: -1..1, st: -1..1 } (st > 0 turns left). */
 export function drive(v, dt, input) {
@@ -212,9 +225,16 @@ export function visual(v, dt, tankCropColor) {
     if (im.lift) {
       im.lift.position.y += ((v.lowered ? im.down : im.up) - im.lift.position.y) * k;
       if (im.roller && v.lowered) im.roller.rotation.x += (v.speed * dt) / 0.3;
-      if (im.wheels && (v.lowered || im === IMPL.baler)) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
+      if (im.wheels && (v.lowered || im === IMPL.baler || im === IMPL.watertank)) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
       if (im.discs && v.lowered) im.discs.forEach((d, i) => (d.rotation.y += (i ? 1 : -1) * dt * 18));
     }
+  } else if (v.type === 'forest') {
+    // crane turns toward the tree being cut, then swings back over the bunk
+    const target = v.cutting ? v.cutting.ang : 0;
+    v.crane.rotation.y += (target - v.crane.rotation.y) * Math.min(1, dt * 3);
+    v.boom.rotation.x += ((v.cutting ? 0.25 : 0) - v.boom.rotation.x) * Math.min(1, dt * 3);
+    const n = Math.ceil((v.logs / v.logCap) * v.logMeshes.length);
+    v.logMeshes.forEach((m, i) => (m.visible = i < n));
   } else {
     v.headerLift.position.y += ((v.lowered ? 0 : 0.6) - v.headerLift.position.y) * k;
     if (v.lowered && v.header !== 'corn') v.reel.rotation.x += dt * (v.header === 'beet' ? 6 : 2.6);
@@ -230,4 +250,16 @@ export function visual(v, dt, tankCropColor) {
     _v.copy(v.exhaust); v.group.localToWorld(_v);
     emit(_v.x, _v.y, _v.z, SMOKE, 0.35, (Math.random() - 0.5) * 0.3, 1.4, (Math.random() - 0.5) * 0.3, 1.3);
   }
+}
+
+/** Applies bought upgrades to the machines (called whenever ownership changes). */
+export function applyUpgrades(up) {
+  G.upgrades = up;
+  tractor.vmax = up.tractor ? 13.9 : 11.1;
+  tractor.vwork = IMPL[tractor.impl].speed * (up.tractor ? 1.1 : 1);
+  IMPL.cultivator.width = up.cultivator ? 6.3 : 4.2;
+  IMPL.cultivator.group.scale.x = up.cultivator ? 1.5 : 1;
+  combine.tank.cap = up.combine ? 13000 : 9000;
+  trailer.tank.cap = up.trailer ? 22000 : 14000;
+  trailer.tip.scale.y = up.trailer ? 1.35 : 1;
 }

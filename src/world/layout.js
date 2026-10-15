@@ -24,7 +24,8 @@ export const FIELD_DEFS = [
 ];
 
 export const ROADS = [
-  { x0: -14, x1: -6, z0: -50, z1: 106 }, // farm road north
+  { x0: -14, x1: -6, z0: -50, z1: 124 }, // farm road north, up to the sawmill
+  { x0: -6, x1: 140, z0: 104, z1: 108 }, // forest track along the northern fields
   { x0: -74, x1: 250, z0: 44, z1: 52 }, // main road east to the village
   { x0: 164, x1: 172, z0: -44, z1: 132 }, // village street
 ];
@@ -43,7 +44,21 @@ export const CHURCH = { x: 184, z: 64 };
 export const NO_TREES = [
   { x0: 143, x1: 192, z0: 52, z1: 136 }, { x0: 128, x1: 150, z0: 52, z1: 78 },
   { x0: 192, x1: 220, z0: 22, z1: 46 }, { x0: 226, x1: 256, z0: 50, z1: 80 },
+  { x0: -100, x1: -48, z0: -54, z1: -14 }, { x0: 27, x1: 49, z0: -50, z1: -20 },
+  { x0: 6, x1: 142, z0: 106, z1: 140 }, { x0: -48, x1: -12, z0: 108, z1: 134 },
 ];
+
+/** Animal pens south-west of the farm. feed = ring where you unload fodder with F. */
+export const COW_PEN = { x0: -96, x1: -74, z0: -50, z1: -26, feed: { x: -70, z: -21, r: 5 } };
+export const HEN_RUN = { x0: -66, x1: -52, z0: -50, z1: -38, feed: { x: -59, z: -33, r: 4.2 } };
+/** Two greenhouses between the farmyard and the pond; water = ring for the water tank. */
+export const GREENHOUSES = [{ key: 'greenhouse1', x: 33, z: -40 }, { key: 'greenhouse2', x: 42, z: -40 }];
+export const GREENHOUSE_WATER = { x: 37.5, z: -27, r: 4.5 };
+/** Fill the water tank anywhere this close to the pond centre. */
+export const POND_FILL = { x: 64, z: -42, r: 18 };
+/** Forest plot north of the fields, and the sawmill at the end of the farm road. */
+export const FOREST = { x0: 12, x1: 138, z0: 110, z1: 137 };
+export const SAWMILL = { x: -20, z: 116, r: 7 };
 
 /** Diesel pump next to the end of the road: refuel here with F. */
 export const fuelZone = { x: -4.5, z: -38, r: 4.5 };

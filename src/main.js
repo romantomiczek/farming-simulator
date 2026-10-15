@@ -12,6 +12,11 @@ import { G, TIME_SCALES } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
 import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper } from './game/actions.js';
 import { helperTick } from './game/helpers.js';
+import { buildFarmstead } from './world/farmstead.js';
+import { growForest, trees as forestTrees } from './world/forest.js';
+import { farmTick, sellProducts } from './game/farm.js';
+import { forestryTick } from './game/forestry.js';
+import { has, ownershipHooks } from './game/machines.js';
 import { upkeep, chargeDays } from './game/economy.js';
 import { generateOffers, checkContract } from './game/contracts.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
@@ -33,6 +38,8 @@ import { toggleSound, updAudio } from './audio.js';
 const terrain = buildTerrain(scene);
 const { rotors } = buildFarm(scene);
 const vegetation = buildVegetation(scene);
+const farmstead = buildFarmstead();
+ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
   const q = quality();
@@ -54,7 +61,7 @@ bindInput(code => {
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
   if (code === 'Escape') { showMenu(); return; }
-  if (/^Digit[1-6]$/.test(code)) { pickInShed(+code.slice(5)); return; }
+  if (/^Digit[1-7]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();
 });
 bindCamera(canvas);
@@ -89,20 +96,22 @@ addEventListener('pagehide', saveLocal);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveLocal(); });
 
 /* ---------- main loop ---------- */
-let slowT = 0, mapT = 0;
+let slowT = 0, mapT = 0, forestHours = 0;
 function tick(dt) {
   if (G.playing) {
     const gm = dt * TIME_SCALES[G.tsIdx];
     G.gameMin += gm;
     updateWeather(dt);
     growFields((gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1));
+    farmTick(gm / 60);
+    forestHours += gm / 60;
     upkeep(dt);
-    if (chargeDays()) { generateOffers(); saveLocal(); }
+    if (chargeDays()) { sellProducts(); generateOffers(); saveLocal(); }
   }
   const input = G.playing ? driveInput() : null;
   for (const v of vehicles) {
     if (v.helper && G.playing) helperTick(v, dt);
-    else if (!v.helper) drive(v, dt, v === G.active ? input : null);
+    else if (!v.helper) drive(v, dt, v === G.active && !v.cutting ? input : null);
     work(v, dt);
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
@@ -110,6 +119,8 @@ function tick(dt) {
   updateLogistics(dt, saveLocal);
   flushFields();
   flushBales();
+  forestryTick(dt);
+  farmstead.update(dt);
   updParticles(dt);
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
@@ -121,7 +132,7 @@ function tick(dt) {
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
   updAudio(G.active, G.playing);
-  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); updSlowUI(); }
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }
   renderer.render(scene, camera);
 }
@@ -142,7 +153,7 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed, fields: FIELDS,
+    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed, fields: FIELDS, forest: forestTrees,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
   };
 }

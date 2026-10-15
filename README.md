@@ -1,6 +1,6 @@
 # Zlaté lány
 
-Low-poly farmářská hra v prohlížeči. Herní smyčka je jako ve Farming Simulatoru: sklizeň a prodej ve výkupech, orba, kultivace, hnojení, setí, sláma a balíky, nákup polí a strojů, zakázky, úvěr, roční období a počasí a najatí pomocníci. Vzhled je inspirovaný hrou The Headlands.
+Low-poly farmářská hra v prohlížeči. Herní smyčka je jako ve Farming Simulatoru: sklizeň a prodej ve výkupech, orba, kultivace, hnojení, setí, sláma a balíky, nákup polí a strojů, zakázky, úvěr, roční období a počasí, najatí pomocníci, zvířata, skleníky a les. Vzhled je inspirovaný hrou The Headlands.
 
 ## Spuštění
 
@@ -23,9 +23,9 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | W / S | plyn, brzda, couvání |
 | A / D | zatáčení |
 | Mezerník | spustit / zvednout nářadí |
-| Tab | přesednout do dalšího stroje (traktor → kombajn → sklízeč cukrovky) |
-| F | prodej úrody ve výkupu, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, výměna nářadí v kůlně, koupě pole u cedule |
-| 1–6 | v kůlně: přímý výběr nářadí traktoru (1–6) nebo adaptéru kombajnu (1–2) |
+| Tab | přesednout do dalšího stroje, který vlastníš (traktor, kombajn, sklízeč cukrovky, harvestor) |
+| F | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
+| 1–7 | v kůlně: přímý výběr nářadí traktoru (1–7) nebo adaptéru kombajnu (1–2) |
 | R | v kůlně: oprava stroje a připojeného nářadí |
 | K | kancelář: obchod se stroji, zakázky, finance (čas se zastaví) |
 | H | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit |
@@ -44,7 +44,8 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | 3 Secí stroj | 4 m | zasívá zvolenou plodinu (C) |
 | 4 Rozmetadlo | 12 m | hnojivo za 2 Kč/m², +25 % výnosu (i na rostoucí plodiny) |
 | 5 Lis na balíky | 2 m | sbírá řádky slámy, každých 60 m² vyhodí balík |
-| 6 Přívěs | 14 000 l / 8 balíků | odvoz zrna nebo balíků |
+| 6 Přívěs | 14 000 l / 8 balíků | odvoz úrody nebo balíků |
+| 7 Cisterna na vodu | 8 000 l | voda z rybníka pro skleníky |
 
 Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **řádkový adaptér** na kukuřici a slunečnici. Vyměníš je v kůlně (F nebo 1–2).
 
@@ -68,6 +69,23 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 **Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu.
 
 **Počasí** se mění po čtyřech hodinách: jasno, oblačno, déšť, v zimě sněžení. Za deště a hodinu po něm se nesklízí. Déšť trochu urychlí růst. Předpověď je pod hodinami.
+
+## Zvířata, skleníky a les
+
+Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce a rajčata se odvážejí a platí o půlnoci.
+
+| Budova | Kde | Co potřebuje | Co dává |
+| --- | --- | --- | --- |
+| Kravín s 10 kravami | jihozápadně od farmy | ječmen, kukuřice nebo cukrovka (480 l denně) | 1 440 l mléka denně po 9 Kč |
+| Kurník se 40 slepicemi | vedle kravína | pšenice nebo ječmen (240 l denně) | 96 vajec denně po 15 Kč |
+| Skleník s rajčaty (2×) | mezi farmou a rybníkem | voda (960 l denně na skleník) | 240 kg rajčat denně po 24 Kč |
+
+- **Krmení:** zajeď sklízečem nebo traktorem s přívěsem do kruhu u budovy (zelený u kravína, žlutý u kurníku) a stiskni F. Úroda se vyloží do krmelce místo prodeje. Hladová zvířata nic nedají.
+- **Voda:** cisternou (kůlna, klávesa 7) naber vodu klávesou F u rybníka a vylij ji v modrém kruhu u skleníků.
+- **Les:** na severu je smrková plantáž. Harvestor kácí stromy, které dorostly aspoň na 85 % (F u stromu), a pojme 18 m³ dřeva. Dřevo prodáš na pile na konci polní cesty (F, kolem 950 Kč/m³). Místo pokáceného stromu vyroste za čtyři dny nový, v zimě roste pomaleji.
+- **Vylepšení:** výkonnější motor traktoru (50 km/h, o 10 % rychlejší práce), široký kultivátor 6,3 m, větší zásobník kombajnu (13 000 l) a nástavba přívěsu (22 000 l).
+
+Budovy a vylepšení se nedají pronajmout, jen koupit.
 
 ## Pomocníci
 
@@ -127,10 +145,12 @@ src/
   main.js              start hry a hlavní smyčka
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc
-  world/               rozvržení mapy, terén, budovy a vesnice, vegetace, pole, balíky
+  world/               rozvržení mapy, terén, budovy a vesnice, vegetace, pole, balíky,
+                       kravín, kurník a skleníky (farmstead.js), les (forest.js)
   vehicles/            modely a jízda strojů, nářadí, přívěs
   game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
-                       stroje a ekonomika, zakázky, počasí a roční období, pomocníci
+                       stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
+                       zvířata a skleníky (farm.js), lesnictví (forestry.js)
   fx/                  částice (prach, plevy, kouř), déšť a sníh
   ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky
 prototyp/              původní jednosouborový prototyp
@@ -144,10 +164,12 @@ prototyp/              původní jednosouborový prototyp
 4. **Ekonomika:** obchod se stroji (nákup, pronájem, prodej), nafta a opotřebení, zakázky u souseda, úvěr.
 5. **Svět:** větší mapa s vesnicí a osmi poli, čtyři výkupy s různými cenami, roční období a počasí.
 6. **Pomocníci:** najatí řidiči, kteří sami obdělají pole.
+7. **Obsah:** zvířata, skleníky, lesnictví a další stroje a vylepšení v obchodě.
 
 ## Známá omezení a nápady
 
 - Přívěs a balíky nemají kolize, stroje jimi projedou. Pomocník může na konci pole s živým plotem plot lehce „projet“.
 - Zima je zatím jen bledší, bez sněhu na zemi.
 - Pomocníci se neukládají, po načtení hry je stačí najmout znovu.
-- Nápady na další obsah: zvířata, skleníky, lesnictví, více strojů v obchodě.
+- Harvestor a lesní stromy pomocník neobsluhuje, kácí se jen ručně.
+- Nápady na další obsah: prasata nebo ovce, výroba krmné směsi, prodej mléka do mlékárny, více lesních parcel.

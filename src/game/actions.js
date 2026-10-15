@@ -9,6 +9,9 @@ import { has } from './machines.js';
 import { inFuel, refuel, repair } from './economy.js';
 import { marketAt, buyersOf } from './markets.js';
 import { hire, dismiss } from './helpers.js';
+import { greenhouses, waterCap } from './farm.js';
+import { inSawmill, treeInReach, fell, sellLogs } from './forestry.js';
+import { POND_FILL, GREENHOUSE_WATER } from '../world/layout.js';
 import { tractor, combine, trailer, trailerCenter, vehicles, HARVESTERS, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
@@ -29,6 +32,18 @@ export const otherHeader = () => (combine.header === 'grain' ? (has('cornHeader'
 export function fAction() {
   const v = G.active;
   if (inFuel(v) && v.fuel < v.fuelCap - 1) return { kind: 'refuel', v };
+  if (v.type === 'forest') {
+    if (v.cutting) return null;
+    if (v.logs > 0 && inSawmill(v)) return { kind: 'sellLogs' };
+    const i = treeInReach(v);
+    if (i >= 0) return { kind: 'fell', i };
+    return null;
+  }
+  if (v.type === 'tractor' && v.impl === 'watertank') {
+    const w = IMPL.watertank, near = z => Math.hypot(v.x - z.x, v.z - z.z) < z.r;
+    if (near(POND_FILL) && w.water < w.waterCap - 1) return { kind: 'fillWater' };
+    if (near(GREENHOUSE_WATER) && w.water > 0 && greenhouses() && G.farm.water < waterCap() - 1) return { kind: 'giveWater' };
+  }
   if (v.harvester) {
     if (v.unloading) return { kind: 'stopUnload', h: v };
     if (v.tank.amount > 0 && sellPoint(v, v.tank.crop)) return { kind: 'sell', h: v, m: sellPoint(v, v.tank.crop) };
@@ -62,9 +77,11 @@ export function toggleTool() {
   const v = G.active;
   if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
   if (v.type === 'tractor' && v.impl === 'trailer') {
-    toast('Přívěs nemá co spouštět. Zrno vysypeš klávesou F u sil, balíky prodáš F u stodoly.');
+    toast('Přívěs nemá co spouštět. Úrodu vysypeš klávesou F ve výkupu, balíky prodáš F u stodoly.');
     return;
   }
+  if (v.type === 'tractor' && v.impl === 'watertank') { toast('Cisternu naplníš klávesou F u rybníka a vodu vyleješ F u skleníků.'); return; }
+  if (v.type === 'forest') { toast('Strom pokácíš klávesou F, když stojíš u vzrostlého stromu.'); return; }
   v.lowered = !v.lowered;
   v.prevTool = null;
   if (v.lowered && v.type === 'tractor' && v.impl === 'seeder' && G.money < CROPS[v.seedCrop].seed && !G.contracts.active) {
@@ -128,6 +145,14 @@ export function doF() {
   if (!a) return;
   switch (a.kind) {
     case 'refuel': refuel(a.v); return;
+    case 'fell': fell(G.active, a.i); return;
+    case 'sellLogs': sellLogs(G.active, saveLocal); return;
+    case 'fillWater': { const w = IMPL.watertank, l = w.waterCap - w.water; w.water = w.waterCap; toast('Nabráno ' + fmt(l) + ' l vody z rybníka.', 'good'); return; }
+    case 'giveWater': {
+      const w = IMPL.watertank, l = Math.min(w.water, waterCap() - G.farm.water);
+      w.water -= l; G.farm.water += l;
+      toast('Skleníky dostaly ' + fmt(l) + ' l vody.', 'good'); saveLocal(); return;
+    }
     case 'stopUnload': stopUnload(a.h, saveLocal); return;
     case 'sell': case 'overload': startUnload(a.h); return;
     case 'tip': startTipping(); return;

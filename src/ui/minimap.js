@@ -1,7 +1,7 @@
 import { FIELDS } from '../world/fields.js';
 import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
-import { BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone } from '../world/layout.js';
+import { BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES } from '../world/layout.js';
 import { MARKETS } from '../game/markets.js';
 import { bales } from '../world/bales.js';
 
@@ -24,7 +24,11 @@ export function sizeMinimap() {
   const rect = (x0, x1, z0, z1, fill) => { c.fillStyle = fill; c.fillRect(bx(x1), by(z1), (x1 - x0) * s, (z1 - z0) * s); };
   const ring = (z, color) => { c.strokeStyle = color; c.lineWidth = 1.5 * s; c.beginPath(); c.arc(bx(z.x), by(z.z), z.r * s, 0, 7); c.stroke(); };
   c.fillStyle = '#9fbe66'; c.fillRect(0, 0, bg.width, bg.height);
+  rect(FOREST.x0, FOREST.x1, FOREST.z0, FOREST.z1, '#5f8a4f');
   ROADS.forEach(r => rect(r.x0, r.x1, r.z0, r.z1, '#e3d3b0'));
+  rect(COW_PEN.x0, COW_PEN.x1, COW_PEN.z0, COW_PEN.z1, '#b2a372'); rect(HEN_RUN.x0, HEN_RUN.x1, HEN_RUN.z0, HEN_RUN.z1, '#c4b487');
+  for (const g of GREENHOUSES) rect(g.x - 3.5, g.x + 3.5, g.z - 8, g.z + 8, '#d7ece8');
+  rect(-44, -28, 119, 129, '#b9a07c');
   rect(PAD.x0, PAD.x1, PAD.z0, PAD.z1, '#ddd8ce');
   rect(-39, -25, -41, -31, '#c4614e'); rect(-38.5, -29.5, -22.5, -15.5, '#efe6d6'); rect(4, 20, -45, -35, '#a7afb0');
   for (const [x, z, w, d] of HOUSES) rect(x - d / 2, x + d / 2, z - w / 2, z + w / 2, '#e9ddc8');
@@ -34,10 +38,11 @@ export function sizeMinimap() {
   for (const x of [15, 21.5]) { c.beginPath(); c.arc(bx(x), by(-19), 3 * s, 0, 7); c.fill(); }
   c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(bx(POND.x), by(POND.z), POND.r * s, 0, 7); c.fill();
   MARKETS.forEach(m => ring(m, m.color));
-  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f');
+  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); ring(SAWMILL, '#8a6a4a');
   c.font = '700 ' + Math.round(9 * s) + 'px Figtree, sans-serif'; c.textAlign = 'center';
   c.fillStyle = 'rgba(36,49,42,.8)';
   for (const m of MARKETS) c.fillText(m.short, bx(m.x), by(m.z) - m.r * s - 3 * s);
+  c.fillText('Pila', bx(SAWMILL.x), by(SAWMILL.z) - SAWMILL.r * s - 3 * s);
 }
 
 export function drawMinimap() {

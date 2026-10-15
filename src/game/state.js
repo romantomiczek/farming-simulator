@@ -13,6 +13,8 @@ export const G = {
   cond: {}, // catalog key → condition 0..1 (1 = new)
   lastDay: 0, // last day the daily costs were charged for
   contracts: { offers: [], active: null },
+  farm: { cowFeed: 0, henFeed: 0, water: 0, milk: 0, eggs: 0, tomatoes: 0, hungry: {} },
+  upgrades: {},
 };
 
 /** Speed multiplier from wear: full speed down to 50 % condition, then down to 70 % at 0. */
