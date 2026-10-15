@@ -1,0 +1,1241 @@
+<title>Zlaté lány</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: full-bleed 3D field, HUD pinned to the four corners, contextual prompt bottom-centre */
+:root{
+  --paper:#fbf7ee;
+  --paper-a:rgba(251,247,238,.9);
+  --ink:#24312a;
+  --muted:#66756a;
+  --wheat:#dfa93a;
+  --leaf:#4d8a5d;
+  --soil:#7a5640;
+  --line:rgba(36,49,42,.14);
+  --night:rgba(36,49,42,.84);
+  --display:'Bricolage Grotesque','Trebuchet MS',system-ui,sans-serif;
+  --body:'Figtree','Segoe UI',system-ui,sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%;overflow:hidden;background:#cfe0d8;}
+body{font-family:var(--body);color:var(--ink);-webkit-font-smoothing:antialiased;}
+#app{position:fixed;inset:0;}
+#c{display:block;width:100%;height:100%;touch-action:none;cursor:grab;filter:saturate(1.06);}
+#c:active{cursor:grabbing;}
+.vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(52,40,24,.22) 100%);}
+#hud{position:absolute;inset:0;pointer-events:none;}
+#hud .panel,#hud button{pointer-events:auto;}
+.panel{background:var(--paper-a);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:14px;box-shadow:0 8px 28px rgba(40,50,35,.16),inset 0 1px 0 rgba(255,255,255,.7);}
+
+.hud-tl{position:absolute;left:16px;top:calc(14px + env(safe-area-inset-top,0px));padding:12px 16px;display:grid;gap:8px;}
+.money{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;white-space:nowrap;}
+.money small{font-size:15px;margin-left:6px;color:var(--muted);font-weight:600;letter-spacing:0;}
+.money.flash{color:var(--leaf);}
+.clock{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:13px;flex-wrap:wrap;}
+.clock b{color:var(--ink);font-weight:700;}
+.chipbtn{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 10px;color:var(--ink);cursor:pointer;}
+.chipbtn:hover{border-color:var(--ink);}
+button:focus-visible{outline:2px solid var(--wheat);outline-offset:2px;}
+
+.task{position:absolute;left:16px;top:calc(112px + env(safe-area-inset-top,0px));width:min(300px,calc(100vw - 32px - 150px));padding:10px 14px 12px;}
+.eyebrow{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--leaf);}
+.task p{margin:4px 0 0;font-size:14px;line-height:1.4;text-wrap:pretty;}
+
+.hud-tr{position:absolute;right:16px;top:calc(14px + env(safe-area-inset-top,0px));display:grid;gap:10px;justify-items:end;}
+.mapwrap{padding:6px;}
+#minimap{display:block;width:180px;height:207px;border-radius:9px;}
+.prices{padding:10px 14px 12px;width:192px;}
+.prices h3{margin:0 0 6px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+.prices ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;}
+.prices li{display:grid;grid-template-columns:1fr auto 14px;gap:8px;font-size:13.5px;font-variant-numeric:tabular-nums;align-items:center;}
+.prices li span:nth-child(2){font-weight:700;}
+.up{color:var(--leaf);} .down{color:#b4553f;}
+
+.vehicle{position:absolute;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(290px,calc(100vw - 32px));padding:14px 16px;display:grid;gap:10px;}
+.vhead{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.vname{font-weight:700;font-size:14px;}
+.chip{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:rgba(36,49,42,.08);color:var(--muted);white-space:nowrap;}
+.chip.on{background:var(--leaf);color:#fff;}
+.chip.warn{background:var(--wheat);color:var(--ink);}
+.speedrow{display:flex;align-items:baseline;gap:6px;}
+.speed{font-family:var(--display);font-size:42px;font-weight:800;line-height:.85;font-variant-numeric:tabular-nums;letter-spacing:-.03em;}
+.speedrow small{color:var(--muted);font-weight:600;}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;}
+.kv dt{color:var(--muted);}
+.kv dd{margin:0;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;min-width:0;}
+.bar{height:8px;border-radius:99px;background:rgba(36,49,42,.1);overflow:hidden;margin-top:4px;}
+.bar i{display:block;height:100%;width:0;background:var(--wheat);border-radius:99px;transition:width .2s;}
+.fieldline{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;}
+.fieldline b{color:var(--ink);}
+
+.prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;max-width:calc(100vw - 340px);}
+.prompt div{background:var(--night);color:var(--paper);padding:8px 14px;border-radius:999px;font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center;white-space:nowrap;}
+kbd{font-family:var(--body);font-weight:700;font-size:12px;background:var(--paper);color:var(--ink);border-radius:6px;padding:2px 7px;box-shadow:0 2px 0 rgba(0,0,0,.28);white-space:nowrap;}
+
+#toasts{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:grid;gap:8px;justify-items:center;pointer-events:none;width:min(440px,calc(100vw - 32px));}
+.toast{background:var(--paper);color:var(--ink);padding:9px 16px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(40,50,35,.2);animation:tin .25s ease-out;text-align:center;}
+.toast.good{background:var(--leaf);color:#fff;}
+.toast.bad{background:#b4553f;color:#fff;}
+.toast.out{opacity:0;transform:translateY(-6px);transition:all .3s;}
+@keyframes tin{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
+
+/* intro */
+.overlay{position:absolute;inset:0;display:grid;place-items:center;padding:16px;background:linear-gradient(rgba(36,49,42,.18),rgba(36,49,42,.5));z-index:5;}
+.card{width:min(580px,100%);max-height:100%;overflow:auto;background:var(--paper);border-radius:20px;padding:28px 28px 24px;box-shadow:0 24px 60px rgba(20,30,20,.35);display:grid;gap:18px;}
+.card h1{font-family:var(--display);font-size:clamp(44px,9vw,68px);font-weight:800;letter-spacing:-.04em;margin:0;line-height:.9;text-wrap:balance;}
+.card .lede{margin:0;font-size:16px;line-height:1.5;color:var(--muted);max-width:52ch;text-wrap:pretty;}
+.cycle{display:grid;grid-template-columns:repeat(4,1fr);border-radius:10px;overflow:hidden;}
+.cycle div{padding:26px 8px 7px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3);}
+.cycle .c1{background:repeating-linear-gradient(90deg,#e3b94f 0 5px,#d6a843 5px 7px);}
+.cycle .c2{background:repeating-linear-gradient(90deg,#d9c48e 0 5px,#c3aa74 5px 7px);color:var(--ink);text-shadow:none;}
+.cycle .c3{background:repeating-linear-gradient(90deg,#82593f 0 5px,#694531 5px 7px);}
+.cycle .c4{background:repeating-linear-gradient(90deg,#6e4934 0 4px,#8fbf5a 4px 7px);}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:7px 18px;font-size:13.5px;}
+.controls div{display:flex;gap:8px;align-items:baseline;}
+.controls span.k{display:flex;gap:4px;flex:none;min-width:92px;}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.btn{font:inherit;font-weight:700;font-size:15px;border-radius:12px;padding:12px 22px;border:0;cursor:pointer;background:var(--ink);color:var(--paper);}
+.btn:hover{background:#34463b;}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+.btn.ghost:hover{border-color:var(--ink);}
+.note{font-size:12px;color:var(--muted);}
+
+/* touch controls */
+#touch{position:absolute;inset:auto 0 0 0;padding:0 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;}
+#touch button{pointer-events:auto;font:inherit;font-weight:700;border:0;border-radius:16px;background:var(--paper-a);color:var(--ink);box-shadow:0 6px 18px rgba(40,50,35,.2);touch-action:none;user-select:none;-webkit-user-select:none;}
+#touch button.held{background:var(--ink);color:var(--paper);}
+.tpad{display:flex;gap:10px;}
+.tpad.left button,.pedals button{width:64px;height:64px;font-size:22px;}
+.tright{display:grid;gap:10px;justify-items:end;}
+.tacts{display:grid;grid-template-columns:repeat(2,auto);gap:8px;}
+.tacts button{padding:10px 14px;font-size:13px;}
+.pedals{display:flex;gap:10px;}
+body.touch .vehicle{bottom:calc(100px + env(safe-area-inset-bottom,0px));}
+body.touch .prompt{bottom:calc(196px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px);}
+
+@media (max-width:760px){
+  .prices{display:none;}
+  #minimap{width:120px;height:138px;}
+  .money{font-size:24px;}
+  .vehicle{width:min(250px,calc(100vw - 32px));padding:12px 14px;gap:8px;}
+  .speed{font-size:34px;}
+  .prompt{max-width:calc(100vw - 32px);bottom:calc(210px + env(safe-area-inset-bottom,0px));}
+  .prompt div{font-size:13px;white-space:normal;}
+  .task{top:calc(100px + env(safe-area-inset-top,0px));width:calc(100vw - 32px - 146px);}
+  .task p{font-size:13px;}
+  .card{padding:22px 18px 18px;}
+}
+@media (max-width:760px) and (pointer:coarse){ .vehicle .kv{display:none;} }
+@media (prefers-reduced-motion:reduce){ .toast{animation:none;} .bar i{transition:none;} }
+</style>
+
+<div id="app">
+  <canvas id="c" aria-label="Herní scéna – farma v údolí"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div id="hud">
+    <section class="panel hud-tl" aria-label="Peníze a čas">
+      <div class="money" id="moneyBox"><span id="money">150 000</span><small>Kč</small></div>
+      <div class="clock">
+        <b id="day">Den 1</b><span id="time">08:00</span>
+        <button id="speedBtn" class="chipbtn" title="Rychlost času (T)">1×</button>
+        <button id="soundBtn" class="chipbtn" title="Zvuk motoru">Zvuk: vyp.</button>
+        <button id="helpBtn" class="chipbtn" title="Nápověda (H)">?</button>
+      </div>
+    </section>
+
+    <section class="panel task" aria-live="polite">
+      <span class="eyebrow">Další krok</span>
+      <p id="task">Skliď zralou pšenici na poli 1.</p>
+    </section>
+
+    <section class="hud-tr">
+      <div class="panel mapwrap"><canvas id="minimap" aria-label="Mapa farmy"></canvas></div>
+      <div class="panel prices">
+        <h3>Výkup u sil · Kč/l</h3>
+        <ul id="priceList"></ul>
+      </div>
+    </section>
+
+    <section class="panel vehicle" aria-label="Stroj">
+      <div class="vhead"><span class="vname" id="vName">Kombajn</span><span class="chip" id="vChip">Zvednuto</span></div>
+      <div class="speedrow"><span class="speed" id="vSpeed">0</span><small>km/h</small></div>
+      <dl class="kv" id="vKv"></dl>
+      <div id="vTank" hidden>
+        <div class="kv"><dt>Zásobník</dt><dd id="vTankTxt">0 / 9 000 l</dd></div>
+        <div class="bar"><i id="vTankBar"></i></div>
+      </div>
+      <div class="fieldline" id="vField" hidden></div>
+    </section>
+
+    <div class="prompt" id="prompt"></div>
+    <div id="toasts"></div>
+
+    <div id="touch" hidden>
+      <div class="tpad left"><button data-hold="KeyA" aria-label="Doleva">◀</button><button data-hold="KeyD" aria-label="Doprava">▶</button></div>
+      <div class="tright">
+        <div class="tacts">
+          <button data-tap="Space">Nářadí</button><button data-tap="KeyF">Akce F</button>
+          <button data-tap="Tab">Stroj</button><button data-tap="KeyC">Osivo</button>
+        </div>
+        <div class="pedals"><button data-hold="KeyS" aria-label="Brzda a couvání">▼</button><button data-hold="KeyW" aria-label="Plyn">▲</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="intro" class="overlay">
+    <div class="card" role="dialog" aria-labelledby="introTitle">
+      <h1 id="introTitle">Zlaté lány</h1>
+      <p class="lede" id="introLede">Malé hospodářství v údolí. Pole 1 je zralé a kombajn stojí na cestě. Skliď, prodej zrno ve výkupu, zkultivuj strniště, zasej a za výdělek kupuj další pole.</p>
+      <div class="cycle" aria-label="Cyklus pole">
+        <div class="c1">Sklizeň</div><div class="c2">Kultivace</div><div class="c3">Setí</div><div class="c4">Růst</div>
+      </div>
+      <div class="controls">
+        <div><span class="k"><kbd>W</kbd><kbd>S</kbd></span>plyn, brzda, couvání</div>
+        <div><span class="k"><kbd>A</kbd><kbd>D</kbd></span>zatáčení</div>
+        <div><span class="k"><kbd>Mezerník</kbd></span>spustit / zvednout nářadí</div>
+        <div><span class="k"><kbd>Tab</kbd></span>přesednout do druhého stroje</div>
+        <div><span class="k"><kbd>F</kbd></span>prodej, výměna nářadí, koupě pole</div>
+        <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
+        <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>
+        <div><span class="k"><kbd>Q</kbd><kbd>E</kbd></span>otočit kameru (nebo táhni myší)</div>
+        <div><span class="k"><kbd>kolečko</kbd></span>přiblížení</div>
+        <div><span class="k"><kbd>H</kbd></span>tato nápověda</div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="playBtn">Hrát</button>
+        <button class="btn ghost" id="newBtn" hidden>Nová hra</button>
+        <span class="note" id="saveNote">Hra se ukládá v tomto prohlížeči.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+if (!window.THREE) {
+  document.getElementById('introLede').textContent = 'Nepodařilo se načíst 3D knihovnu. Zkontroluj připojení k internetu a obnov stránku.';
+  return;
+}
+
+/* ---------- helpers ---------- */
+const fmt = new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 0 });
+const fmt2 = new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const hash2 = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+  const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
+  const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+  return lerp(lerp(a, b, ux), lerp(c, d, ux), uz);
+}
+const fbm = (x, z) => vnoise(x, z) * 0.55 + vnoise(x * 2.1 + 9, z * 2.1) * 0.3 + vnoise(x * 4.3, z * 4.3 + 5) * 0.15;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const col = h => new THREE.Color(h).convertSRGBToLinear();
+const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+
+/* ---------- renderer ---------- */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 1400);
+scene.fog = new THREE.Fog(0xcfe0d8, 200, 560);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 400;
+scene.add(sun); scene.add(sun.target);
+let shadowSize = 0;
+function setShadowSize(s) {
+  if (Math.abs(s - shadowSize) < 4) return;
+  shadowSize = s; const c = sun.shadow.camera;
+  c.left = -s; c.right = s; c.top = s; c.bottom = -s; c.updateProjectionMatrix();
+}
+setShadowSize(70);
+
+const matCache = {};
+function M(hex, opts) {
+  const k = hex + (opts ? JSON.stringify(opts) : '');
+  if (!matCache[k]) matCache[k] = new THREE.MeshStandardMaterial(Object.assign({ color: col(hex), roughness: 0.88, metalness: 0, flatShading: true }, opts || {}));
+  return matCache[k];
+}
+function mk(geo, mat, x, y, z, parent, cast = true) {
+  const m = new THREE.Mesh(geo, typeof mat === 'string' ? M(mat) : mat);
+  m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true;
+  if (parent) parent.add(m); return m;
+}
+const B = (w, h, d, mat, x, y, z, p) => mk(new THREE.BoxGeometry(w, h, d), mat, x, y, z, p);
+const CY = (rt, rb, h, seg, mat, x, y, z, p) => mk(new THREE.CylinderGeometry(rt, rb, h, seg), mat, x, y, z, p);
+const glassMat = new THREE.MeshStandardMaterial({ color: col('#b7dbe0'), roughness: 0.1, metalness: 0.15, transparent: true, opacity: 0.5 });
+const lampMat = new THREE.MeshStandardMaterial({ color: col('#fff4d6'), emissive: col('#ffe2a0'), emissiveIntensity: 0 });
+const beaconMat = new THREE.MeshStandardMaterial({ color: col('#f0a03a'), emissive: col('#ff9a2a'), emissiveIntensity: 0.4 });
+
+/* ---------- crops & soil ---------- */
+const S_STUB = 0, S_CULT = 1, S_SOWN = 2, S_RIPE = 3;
+const CROPS = [
+  { name: 'Pšenice', gen: 'pšenice', hours: 6, seed: 6, yield: 8, price: 7.2,
+    colors: ['#000000', '#8fbf5a', '#a7c35a', '#cbbd5a', '#e4bc52'], h: [0, .16, .48, .82, .95], fw: [0, .3, .7, .95, 1] },
+  { name: 'Ječmen', gen: 'ječmene', hours: 5, seed: 5, yield: 8.5, price: 6.4,
+    colors: ['#000000', '#94c460', '#b4c868', '#d4cd8c', '#e8d49c'], h: [0, .14, .42, .72, .8], fw: [0, .3, .7, .95, 1] },
+  { name: 'Řepka', gen: 'řepky', hours: 8, seed: 9, yield: 4.6, price: 14.5,
+    colors: ['#000000', '#7fb35a', '#6aa452', '#f0cd2e', '#8e8a4c'], h: [0, .2, .55, 1.05, 1.0], fw: [0, .4, .8, 1, 1] },
+];
+CROPS.forEach(c => { c.cols = c.colors.map(col); c.rgb = c.colors.map(hexRgb); });
+function shades(hex, n, amt) {
+  const out = [];
+  for (let k = 0; k < n; k++) { const c = new THREE.Color(hex); c.multiplyScalar(1 - amt + 2 * amt * k / (n - 1)); out.push('#' + c.getHexString()); }
+  return out;
+}
+const SOIL = {
+  [S_STUB]: { base: shades('#d9c48e', 4, .05), line: shades('#c2a872', 4, .05), rgb: hexRgb('#d9c48e') },
+  [S_CULT]: { base: shades('#83593f', 4, .06), line: shades('#684430', 4, .06), rgb: hexRgb('#83593f') },
+  [S_SOWN]: { base: shades('#6d4833', 4, .06), line: shades('#563826', 4, .06), rgb: hexRgb('#6d4833') },
+};
+SOIL[S_RIPE] = SOIL[S_SOWN];
+
+function price(ci, t) {
+  const c = CROPS[ci], d = t / 1440;
+  return c.price * (1 + 0.14 * Math.sin(d * 2 * Math.PI / 3.2 + ci * 2.1) + 0.05 * Math.sin(d * 2 * Math.PI * 1.7 + ci * 5.3));
+}
+
+/* ---------- terrain ---------- */
+function terrainH(x, z) {
+  const dx = Math.max(0, Math.abs(x) - 108), dz = Math.max(0, Math.abs(z - 25) - 123);
+  const d = Math.hypot(dx, dz);
+  if (d <= 0) return 0;
+  return smooth(0, 70, d) * (6 + 24 * fbm(x * 0.012 + 3, z * 0.012 + 7)) + smooth(0, 30, d) * fbm(x * 0.05, z * 0.05) * 3;
+}
+(function buildTerrain() {
+  const g = new THREE.PlaneGeometry(1000, 1000, 160, 160);
+  g.rotateX(-Math.PI / 2); g.translate(0, 0, 25);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setY(i, terrainH(p.getX(i), p.getZ(i)));
+  const t = g.toNonIndexed(); t.computeVertexNormals();
+  const pos = t.attributes.position, n = pos.count;
+  const cols = new Float32Array(n * 3);
+  const grass = ['#8fb556', '#86ad4f', '#97ba5c', '#80a84c'].map(col);
+  const patch = { gold: col('#dcc276'), light: col('#b7cf7d'), brown: col('#a37c5a'), mint: col('#9cc58c') };
+  const c = new THREE.Color();
+  for (let f = 0; f < n; f += 3) {
+    const cx = (pos.getX(f) + pos.getX(f + 1) + pos.getX(f + 2)) / 3;
+    const cz = (pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2)) / 3;
+    const cy = (pos.getY(f) + pos.getY(f + 1) + pos.getY(f + 2)) / 3;
+    const nz = fbm(cx * 0.03, cz * 0.03);
+    c.copy(grass[Math.floor(clamp(nz * 1.4 - 0.1, 0, 0.999) * 4)]);
+    if (cy > 2.5) {
+      const r = hash2(Math.floor((cx + 1000) / 46), Math.floor((cz + 1000) / 34));
+      if (r < 0.2) c.copy(patch.gold); else if (r < 0.34) c.copy(patch.light); else if (r < 0.41) c.copy(patch.brown); else if (r < 0.47) c.copy(patch.mint);
+    }
+    c.multiplyScalar(cy > 0.5 ? 0.94 + hash2(cx, cz) * 0.1 : 0.98 + hash2(cx, cz) * 0.04);
+    for (let k = 0; k < 3; k++) { cols[(f + k) * 3] = c.r; cols[(f + k) * 3 + 1] = c.g; cols[(f + k) * 3 + 2] = c.b; }
+  }
+  t.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  const m = new THREE.Mesh(t, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 }));
+  m.receiveShadow = true; scene.add(m);
+})();
+
+function flat(w, d, hex, x, y, z, opts) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), M(hex, Object.assign({ flatShading: false, roughness: 1 }, opts || {})));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m;
+}
+// roads
+function road(x0, x1, z0, z1) {
+  const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  flat(w, d, '#d8c59f', cx, 0.02, cz);
+  if (d > w) { flat(1.1, d, '#c7b186', cx - 1.6, 0.025, cz); flat(1.1, d, '#c7b186', cx + 1.6, 0.025, cz); }
+  else { flat(w, 1.1, '#c7b186', cx, 0.025, cz - 1.6); flat(w, 1.1, '#c7b186', cx, 0.025, cz + 1.6); }
+}
+road(-14, -6, -50, 106);
+road(-74, 62, 44, 52);
+flat(72, 40, '#d3cec3', -10, 0.03, -32); // farmyard pad x -46..26, z -52..-12
+// pond
+{ const r = new THREE.Mesh(new THREE.CircleGeometry(14.5, 28), M('#d8cfa6', { flatShading: false, roughness: 1 }));
+  r.rotation.x = -Math.PI / 2; r.position.set(64, 0.03, -42); r.receiveShadow = true; scene.add(r);
+  const w = new THREE.Mesh(new THREE.CircleGeometry(12.8, 28), M('#86b8c6', { flatShading: false, roughness: 0.25, metalness: 0.1 }));
+  w.rotation.x = -Math.PI / 2; w.position.set(64, 0.05, -42); scene.add(w); }
+
+/* ---------- collision world ---------- */
+const circles = [], boxes = [];
+const addBox = (x0, x1, z0, z1) => boxes.push({ x0, x1, z0, z1 });
+circles.push({ x: 64, z: -42, r: 12.5 });
+
+/* ---------- buildings ---------- */
+function gable(w, d, h, wall, roof, parent) {
+  B(w, h, d, wall, 0, h / 2, 0, parent);
+  const rh = d * 0.36;
+  const s = new THREE.Shape(); s.moveTo(-d / 2, 0); s.lineTo(d / 2, 0); s.lineTo(0, rh); s.lineTo(-d / 2, 0);
+  const pg = new THREE.ExtrudeGeometry(s, { depth: w, bevelEnabled: false });
+  pg.rotateY(Math.PI / 2); pg.translate(-w / 2, h, 0);
+  mk(pg, wall, 0, 0, 0, parent);
+  const ang = Math.atan2(rh, d / 2), L = Math.hypot(d / 2, rh) + 0.5;
+  for (const sg of [1, -1]) {
+    const r = B(w + 0.8, 0.26, L, roof, 0, 0, 0, parent);
+    r.rotation.x = sg * ang;
+    r.position.set(0, h + rh / 2 + Math.cos(ang) * 0.14, sg * (d / 4 + Math.sin(ang) * 0.14 + 0.1));
+  }
+}
+// barn
+{ const g = new THREE.Group(); g.position.set(-32, 0, -36); scene.add(g);
+  gable(14, 10, 6, '#c4614e', '#5d6268', g);
+  B(0.12, 4.4, 4.2, '#f2ebdf', 7.06, 2.2, 0, g);
+  const brace1 = B(0.14, 0.22, 5.6, '#f2ebdf', 7.1, 2.2, 0, g); brace1.rotation.x = Math.atan2(4.4, 4.2);
+  const brace2 = B(0.14, 0.22, 5.6, '#f2ebdf', 7.1, 2.2, 0, g); brace2.rotation.x = -Math.atan2(4.4, 4.2);
+  B(0.12, 0.9, 1.4, '#f2ebdf', 7.06, 7.0, 0, g);
+  addBox(-39.2, -24.8, -41.2, -30.8); }
+// house
+{ const g = new THREE.Group(); g.position.set(-34, 0, -19); scene.add(g);
+  gable(9, 7, 4.2, '#efe6d6', '#7b5a4e', g);
+  for (const x of [-2.8, 0.2, 2.8]) B(1.1, 1.1, 0.1, '#5d7d8c', x, 2.6, 3.52, g);
+  B(1.1, 2.1, 0.1, '#8a6a52', -1.4, 1.05, 3.52, g);
+  B(0.8, 2.2, 0.8, '#b9a89a', 2.6, 6.2, -1, g);
+  for (let i = 0; i < 9; i++) { const b = mk(new THREE.IcosahedronGeometry(0.55, 0), i % 3 ? '#7fa653' : '#e48a7a', -38 + i * 1.05, 0.45, -15); b.scale.y = 0.8; scene.add(b); }
+  addBox(-38.6, -29.4, -22.6, -15.4); }
+// machine shed (open to +z)
+{ const g = new THREE.Group(); scene.add(g);
+  B(16.4, 5.2, 0.4, '#a7afb0', 12, 2.6, -45, g);
+  B(0.4, 5.2, 10, '#a7afb0', 4, 2.6, -40, g);
+  B(0.4, 5.2, 10, '#a7afb0', 20, 2.6, -40, g);
+  const r = B(17.4, 0.3, 11.4, '#6c777d', 12, 5.45, -40, g); r.rotation.x = -0.05;
+  flat(15.4, 10.6, '#c5c0b4', 12, 0.04, -39.6);
+  addBox(3.7, 20.3, -45.3, -44.7); addBox(3.7, 4.3, -45, -35); addBox(19.7, 20.3, -45, -35); }
+// silos + intake canopy
+{ for (const [x, z] of [[15, -19], [21.5, -19]]) {
+    CY(3, 3, 13, 18, '#dfe1dc', x, 6.5, z, scene);
+    for (let k = 1; k < 5; k++) CY(3.05, 3.05, 0.18, 18, '#b9bdb7', x, k * 2.7, z, scene);
+    mk(new THREE.ConeGeometry(3.2, 2.4, 18), '#c9cdc7', x, 14.2, z, scene);
+    circles.push({ x, z, r: 3.2 }); }
+  const conv = B(0.7, 0.7, 15.5, '#c9a24a', 9.8, 7.4, -21.5, scene);
+  conv.lookAt(15, 13.5, -19);
+  for (const [x, z] of [[0.6, -28.4], [9.4, -28.4], [0.6, -19.6], [9.4, -19.6]]) { CY(0.18, 0.18, 6.8, 8, '#6c777d', x, 3.4, z, scene); circles.push({ x, z, r: 0.35 }); }
+  B(10, 0.3, 10, '#5f8d8a', 5, 6.9, -24, scene);
+  flat(4, 6, '#4a4f52', 5, 0.045, -24);
+  for (let k = 0; k < 6; k++) flat(3.6, 0.12, '#7b8286', 5, 0.05, -26.5 + k);
+}
+// zones on ground
+const sellZone = { x: 5, z: -24, r: 7.5 };
+const shedZone = { x0: 4, x1: 20, z0: -46, z1: -31 };
+{ const ring = new THREE.Mesh(new THREE.RingGeometry(sellZone.r - 0.5, sellZone.r, 40), new THREE.MeshBasicMaterial({ color: col('#e8b84a'), transparent: true, opacity: 0.75 }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(sellZone.x, 0.06, sellZone.z); scene.add(ring);
+  const sq = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.0, 4, 1), new THREE.MeshBasicMaterial({ color: col('#7fb2a4'), transparent: true, opacity: 0.7 }));
+  sq.rotation.x = -Math.PI / 2; sq.rotation.z = Math.PI / 4; sq.position.set(12, 0.06, -34.5); sq.scale.set(1.35, 0.55, 1); scene.add(sq); }
+// bales & props
+for (const [x, y] of [[-23, 0.75], [-21.5, 0.75], [-20, 0.75], [-22.25, 2.05], [-20.75, 2.05]]) {
+  const b = CY(0.75, 0.75, 1.3, 14, '#e2c77d', x, y, -46, scene); b.rotation.z = Math.PI / 2;
+}
+circles.push({ x: -21.5, z: -46, r: 2.6 });
+B(3.2, 1.6, 1.6, '#7a9fb4', -42, 0.8, -46, scene); addBox(-43.6, -40.4, -46.8, -45.2);
+
+/* ---------- wind turbines ---------- */
+const rotors = [];
+for (const [x, z] of [[-150, 40], [150, 95], [138, -70], [-120, 190]]) {
+  const y0 = terrainH(x, z) - 0.5;
+  CY(0.7, 1.4, 46, 10, '#f2f1ec', x, y0 + 23, z, scene);
+  B(1.8, 1.8, 4.2, '#f2f1ec', x, y0 + 46.5, z, scene);
+  const r = new THREE.Group(); r.position.set(x, y0 + 46.5, z + 2.3); scene.add(r);
+  mk(new THREE.SphereGeometry(0.75, 8, 6), '#f2f1ec', 0, 0, 0, r);
+  for (let k = 0; k < 3; k++) { const arm = new THREE.Group(); arm.rotation.z = k * Math.PI * 2 / 3; r.add(arm); B(0.9, 17, 0.25, '#f2f1ec', 0, 9, 0, arm); }
+  rotors.push(r);
+}
+
+/* ---------- fields ---------- */
+const CP = 4;
+const FIELDS = [
+  { id: 1, x0: -70, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-17.5, -3, Math.PI / 2] },
+  { id: 2, x0: 0, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-2.5, -3, -Math.PI / 2] },
+  { id: 3, x0: -70, z0: 56, w: 50, h: 44, owned: false, price: 420000, sign: [-17.5, 58, Math.PI / 2] },
+  { id: 4, x0: 0, z0: 56, w: 58, h: 42, owned: false, price: 460000, sign: [-2.5, 58, -Math.PI / 2] },
+];
+const cropGeo = new THREE.BoxGeometry(1, 1, 1); cropGeo.translate(0, 0.5, 0);
+const cropMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+const _m = new THREE.Matrix4(), _c = new THREE.Color();
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+FIELDS.forEach(f => {
+  f.n = f.w * f.h;
+  f.state = new Uint8Array(f.n); f.crop = new Uint8Array(f.n); f.growth = new Float32Array(f.n);
+  f.stage = new Uint8Array(f.n); f.dir = new Uint8Array(f.n); f.jit = new Float32Array(f.n);
+  for (let i = 0; i < f.n; i++) f.jit[i] = hash2((i % f.w) + f.id * 1000, (i / f.w | 0) * 1.37);
+  f.cnt = [0, 0, 0, 0]; f.prog = 0;
+  f.canvas = document.createElement('canvas'); f.canvas.width = f.w * CP; f.canvas.height = f.h * CP;
+  f.ctx = f.canvas.getContext('2d');
+  f.tex = new THREE.CanvasTexture(f.canvas); f.tex.encoding = THREE.sRGBEncoding; f.tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  flat(f.w + 1.4, f.h + 1.4, '#86a654', f.x0 + f.w / 2, 0.012, f.z0 + f.h / 2);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(f.x0 + f.w / 2, 0.03, f.z0 + f.h / 2); m.receiveShadow = true; scene.add(m);
+  f.mini = document.createElement('canvas'); f.mini.width = f.w; f.mini.height = f.h;
+  f.miniCtx = f.mini.getContext('2d'); f.miniImg = f.miniCtx.createImageData(f.w, f.h);
+  f.crops = new THREE.InstancedMesh(cropGeo, cropMat, f.n);
+  f.crops.castShadow = true; f.crops.receiveShadow = true; f.crops.frustumCulled = false;
+  for (let i = 0; i < f.n; i++) { f.crops.setMatrixAt(i, ZERO); f.crops.setColorAt(i, _c.set(0xffffff)); }
+  scene.add(f.crops);
+});
+function fieldAt(x, z) { for (const f of FIELDS) if (x >= f.x0 && x < f.x0 + f.w && z >= f.z0 && z < f.z0 + f.h) return f; return null; }
+function drawCell(f, i) {
+  const ix = i % f.w, iz = i / f.w | 0, px = ix * CP, py = iz * CP, s = f.state[i], j = f.jit[i];
+  const pal = SOIL[s], v = Math.floor(j * 3.999), ctx = f.ctx;
+  ctx.fillStyle = pal.base[v]; ctx.fillRect(px, py, CP, CP);
+  ctx.fillStyle = pal.line[v];
+  if (f.dir[i] === 0) ctx.fillRect(px + 2, py, 1, CP); else ctx.fillRect(px, py + 2, CP, 1);
+  if (s === S_STUB && j > 0.45) { ctx.fillStyle = '#ecdcab'; ctx.fillRect(px + (j * 13 | 0) % 4, py + (j * 29 | 0) % 4, 1, 1); }
+  f.texDirty = true;
+}
+function drawMini(f, i) {
+  const s = f.state[i]; let rgb;
+  if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[4];
+  else if (s === S_SOWN && f.stage[i] > 0) rgb = CROPS[f.crop[i]].rgb[f.stage[i]];
+  else rgb = SOIL[s].rgb;
+  const d = f.miniImg.data, o = i * 4;
+  d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255; f.miniDirty = true;
+}
+function updCrop(f, i) {
+  const s = f.state[i];
+  const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+  f.cropDirty = true;
+  if (st === 0) { f.crops.setMatrixAt(i, ZERO); return; }
+  const cr = CROPS[f.crop[i]], j = f.jit[i];
+  const row = (f.dir[i] === 0 ? i % f.w : i / f.w | 0) & 1;
+  const hgt = cr.h[st] * (0.95 + j * 0.08 + row * 0.03), fw = cr.fw[st];
+  const sx = f.dir[i] === 0 ? fw : 1, sz = f.dir[i] === 0 ? 1 : fw;
+  _m.makeScale(sx, hgt, sz); _m.setPosition(f.x0 + (i % f.w) + 0.5, 0.03, f.z0 + (i / f.w | 0) + 0.5);
+  f.crops.setMatrixAt(i, _m);
+  _c.copy(cr.cols[st]).multiplyScalar(0.95 + j * 0.06 + row * 0.05); f.crops.setColorAt(i, _c);
+}
+function refreshField(f) { for (let i = 0; i < f.n; i++) { drawCell(f, i); updCrop(f, i); drawMini(f, i); } }
+function flushFields() {
+  for (const f of FIELDS) {
+    if (f.texDirty) { f.tex.needsUpdate = true; f.texDirty = false; }
+    if (f.cropDirty) { f.crops.instanceMatrix.needsUpdate = true; if (f.crops.instanceColor) f.crops.instanceColor.needsUpdate = true; f.cropDirty = false; }
+  }
+}
+function growFields(dh) {
+  if (dh <= 0) return;
+  for (const f of FIELDS) {
+    const st = f.state, gr = f.growth;
+    for (let i = 0; i < f.n; i++) {
+      if (st[i] !== S_SOWN) continue;
+      const cr = CROPS[f.crop[i]], g = gr[i] += dh;
+      if (g >= cr.hours) { st[i] = S_RIPE; f.stage[i] = 4; updCrop(f, i); drawMini(f, i); }
+      else { const s = Math.min(3, Math.floor(g / cr.hours * 4)); if (s !== f.stage[i]) { f.stage[i] = s; updCrop(f, i); drawMini(f, i); } }
+    }
+  }
+}
+function countFields() {
+  for (const f of FIELDS) {
+    const c = [0, 0, 0, 0]; let pg = 0;
+    for (let i = 0; i < f.n; i++) { const s = f.state[i]; c[s]++; if (s === S_SOWN) pg += f.growth[i] / CROPS[f.crop[i]].hours; }
+    f.cnt = c; f.prog = c[2] ? pg / c[2] : 0;
+  }
+}
+
+/* ---------- signs ---------- */
+const signs = FIELDS.map(f => {
+  const [x, z, ry] = f.sign;
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
+  CY(0.07, 0.07, 2.4, 6, '#7a6250', -1.1, 1.2, 0, g); CY(0.07, 0.07, 2.4, 6, '#7a6250', 1.1, 1.2, 0, g);
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }), side = M('#e9dfc8');
+  const board = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.4, 0.12), [side, side, side, side, face, side]);
+  board.position.y = 2.0; board.castShadow = true; g.add(board);
+  circles.push({ x, z, r: 0.6 });
+  return { f, x, z, cv, tex };
+});
+function drawSign(s) {
+  const c = s.cv.getContext('2d'), f = s.f;
+  c.fillStyle = f.owned ? '#f4ecd8' : '#f3d27a'; c.fillRect(0, 0, 512, 256);
+  c.strokeStyle = 'rgba(36,49,42,.35)'; c.lineWidth = 8; c.strokeRect(10, 10, 492, 236);
+  c.fillStyle = '#24312a'; c.font = '800 92px "Bricolage Grotesque", "Trebuchet MS", sans-serif'; c.textBaseline = 'alphabetic';
+  c.fillText('Pole ' + f.id, 34, 112);
+  c.font = '600 40px Figtree, "Segoe UI", sans-serif';
+  c.fillText(f.owned ? 'Tvoje pole · ' + fmt2.format(f.w * f.h / 10000) + ' ha' : 'Na prodej · ' + fmt2.format(f.w * f.h / 10000) + ' ha', 34, 168);
+  if (!f.owned) { c.font = '700 42px Figtree, "Segoe UI", sans-serif'; c.fillText(fmt.format(f.price) + ' Kč', 34, 220); }
+  s.tex.needsUpdate = true;
+}
+const drawSigns = () => signs.forEach(drawSign);
+
+/* ---------- vegetation ---------- */
+(function vegetation() {
+  const R = rng(7), dummy = new THREE.Object3D();
+  const trunks = [], crowns = [], cones = [];
+  const blocked = (x, z, m) => {
+    for (const f of FIELDS) if (x > f.x0 - m && x < f.x0 + f.w + m && z > f.z0 - m && z < f.z0 + f.h + m) return true;
+    if (x > -14 - m && x < -6 + m && z > -52 && z < 108) return true;
+    if (z > 44 - m && z < 52 + m && x > -76 && x < 64) return true;
+    if (x > -48 - m && x < 28 + m && z > -54 - m && z < -10 + m) return true;
+    if (Math.hypot(x - 64, z + 42) < 16 + m) return true;
+    return false;
+  };
+  for (let a = 0; a < 2600; a++) {
+    const x = (R() - 0.5) * 760, z = (R() - 0.5) * 700 + 30;
+    const h = terrainH(x, z);
+    const inFlat = h < 0.01;
+    if (inFlat && R() > 0.16) continue;
+    if (!inFlat && R() > 0.55) continue;
+    if (blocked(x, z, 4)) continue;
+    const s = 0.75 + R() * 0.65, conifer = R() < (inFlat ? 0.2 : 0.42);
+    trunks.push([x, h, z, s, conifer]);
+    (conifer ? cones : crowns).push([x, h, z, s, R()]);
+    if (inFlat && Math.abs(x) < 104 && z > -94 && z < 144) circles.push({ x, z, r: 0.9 * s });
+  }
+  // hedgerows on outer field edges
+  const hedge = [];
+  const line = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 1.5);
+    for (let k = 0; k <= n; k++) { const t = k / n; hedge.push([lerp(x0, x1, t) + (R() - 0.5) * 0.6, lerp(z0, z1, t) + (R() - 0.5) * 0.6, 0.8 + R() * 0.6, R()]); }
+    addBox(Math.min(x0, x1) - 1, Math.max(x0, x1) + 1, Math.min(z0, z1) - 1, Math.max(z0, z1) + 1); };
+  line(-73.5, -6, -73.5, 41); line(-73.5, 55, -73.5, 101); line(53, -6, 53, 41); line(61, 55, 61, 99);
+  line(-70, 103, -20, 103); line(0, 101, 58, 101);
+  const greens = ['#6f9a4a', '#7fa653', '#5e8a43', '#93ad5a', '#86a24c'].map(col);
+  const coneCols = ['#4f7a4a', '#5b8650', '#46704a'].map(col);
+  const trunkM = new THREE.InstancedMesh((() => { const g = new THREE.CylinderGeometry(0.2, 0.3, 1, 6); g.translate(0, 0.5, 0); return g; })(), M('#7b6150'), trunks.length);
+  trunks.forEach((t, i) => { const [x, y, z, s, c] = t; dummy.position.set(x, y, z); dummy.rotation.set(0, 0, 0); dummy.scale.set(s, (c ? 1.4 : 2.4) * s, s); dummy.updateMatrix(); trunkM.setMatrixAt(i, dummy.matrix); });
+  const crownM = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), M('#ffffff'), crowns.length + hedge.length);
+  crowns.forEach((t, i) => { const [x, y, z, s, r] = t; dummy.position.set(x, y + 2.4 * s + 1.5 * s, z); dummy.rotation.set(0, r * 6, 0); dummy.scale.set(2.2 * s, 2.0 * s, 2.2 * s); dummy.updateMatrix(); crownM.setMatrixAt(i, dummy.matrix); crownM.setColorAt(i, _c.copy(greens[(r * 5) | 0]).multiplyScalar(0.92 + r * 0.14)); });
+  hedge.forEach((t, k) => { const i = crowns.length + k, [x, z, s, r] = t; dummy.position.set(x, 0.75 * s, z); dummy.rotation.set(0, r * 6, 0); dummy.scale.set(1.3 * s, 1.0 * s, 1.3 * s); dummy.updateMatrix(); crownM.setMatrixAt(i, dummy.matrix); crownM.setColorAt(i, _c.copy(greens[2 + ((r * 3) | 0)]).multiplyScalar(0.85 + r * 0.2)); });
+  const coneM = new THREE.InstancedMesh((() => { const g = new THREE.ConeGeometry(1, 1, 7); g.translate(0, 0.5, 0); return g; })(), M('#ffffff'), cones.length);
+  cones.forEach((t, i) => { const [x, y, z, s, r] = t; dummy.position.set(x, y + 1.0 * s, z); dummy.rotation.set(0, r * 6, 0); dummy.scale.set(1.8 * s, 6.2 * s, 1.8 * s); dummy.updateMatrix(); coneM.setMatrixAt(i, dummy.matrix); coneM.setColorAt(i, coneCols[(r * 3) | 0]); });
+  for (const m of [trunkM, crownM, coneM]) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
+})();
+
+/* ---------- vehicles ---------- */
+function wheel(r, w, rimHex) {
+  const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
+  const tire = mk(new THREE.CylinderGeometry(r, r, w, 16), '#2a2c2e', 0, 0, 0, spin); tire.rotation.z = Math.PI / 2;
+  const rim = mk(new THREE.CylinderGeometry(r * 0.56, r * 0.56, w + 0.04, 10), rimHex, 0, 0, 0, spin); rim.rotation.z = Math.PI / 2;
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const l = B(w * 1.04, r * 0.16, r * 0.22, '#222426', 0, Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97, spin); l.rotation.x = a; }
+  g.userData = { spin, r }; return g;
+}
+function addLights(g, y, z, xs) {
+  for (const x of xs) B(0.32, 0.18, 0.08, lampMat, x, y, z, g);
+  const sp = new THREE.SpotLight(0xfff1c8, 0, 48, 0.75, 0.6, 1.3);
+  sp.position.set(0, y, z); const t = new THREE.Object3D(); t.position.set(0, 0, z + 18); g.add(sp); g.add(t); sp.target = t;
+  return sp;
+}
+function buildTractor() {
+  const g = new THREE.Group(), body = '#5f9c7c', dark = '#3a3f42', cream = '#efe2b8';
+  B(0.9, 0.55, 3.6, dark, 0, 0.85, 0.35, g);
+  B(1.1, 0.95, 2.0, body, 0, 1.45, 1.15, g);
+  B(1.16, 0.1, 2.06, '#4f8a6b', 0, 1.96, 1.15, g);
+  B(1.02, 0.55, 0.45, dark, 0, 0.92, 2.35, g);
+  B(0.9, 0.4, 0.06, '#2f3437', 0, 1.5, 2.16, g);
+  B(1.8, 0.35, 1.8, body, 0, 1.6, -0.55, g);
+  const cab = mk(new THREE.BoxGeometry(1.7, 1.45, 1.7), glassMat, 0, 2.5, -0.55, g, false);
+  B(1.88, 0.16, 1.92, body, 0, 3.3, -0.55, g);
+  for (const sx of [-0.83, 0.83]) for (const sz of [-1.36, 0.26]) B(0.1, 1.45, 0.1, dark, sx, 2.5, sz, g);
+  for (const sx of [-1, 1]) B(0.66, 0.16, 1.9, body, sx * 1.0, 1.86, -0.7, g);
+  CY(0.06, 0.06, 1.1, 6, dark, 0.42, 2.45, 1.85, g);
+  B(0.32, 0.26, 0.5, dark, 0, 0.7, -1.6, g);
+  const wheels = [], front = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.86, 0.6, cream); w.position.set(sx * 1.0, 0.86, -0.7); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) { const p = new THREE.Group(); p.position.set(sx * 0.84, 0.52, 1.55); g.add(p); const w = wheel(0.52, 0.42, cream); p.add(w); wheels.push(w); front.push(p); }
+  const spot = addLights(g, 2.0, 2.2, [-0.4, 0.4]); addLights(g, 3.2, 0.42, []);
+  B(0.16, 0.16, 0.16, beaconMat, 0.7, 3.46, -0.1, g);
+  return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(0.42, 3.05, 1.85) };
+}
+function buildCultivator() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const y = '#e0a640', dark = '#3a3f42';
+  B(0.24, 0.24, 1.0, y, 0, 0.72, -0.4, lift);
+  B(4.2, 0.22, 0.25, y, 0, 0.85, -0.95, lift);
+  B(4.2, 0.22, 0.25, y, 0, 0.85, -1.75, lift);
+  for (const sx of [-1, 1]) B(0.18, 0.2, 1.1, y, sx * 2.0, 0.85, -1.35, lift);
+  B(1.6, 0.2, 0.2, y, 0, 0.85, -0.55, lift);
+  for (let i = 0; i < 9; i++) B(0.08, 0.8, 0.08, dark, -1.84 + i * 0.46, 0.45, i % 2 ? -0.95 : -1.75, lift);
+  const roller = new THREE.Group(); roller.position.set(0, 0.32, -2.4); lift.add(roller);
+  const rc = mk(new THREE.CylinderGeometry(0.3, 0.3, 4.1, 10), '#6a6f72', 0, 0, 0, roller); rc.rotation.z = Math.PI / 2;
+  for (const sx of [-1, 1]) B(0.12, 0.12, 0.8, y, sx * 2.0, 0.6, -2.05, lift);
+  return { group: g, lift, roller, up: 0.45, down: -0.2 };
+}
+function buildSeeder() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const blue = '#4f78a8', dark = '#3a3f42';
+  B(0.24, 0.24, 1.0, dark, 0, 0.72, -0.4, lift);
+  B(4.0, 0.2, 0.25, dark, 0, 0.75, -0.9, lift);
+  B(3.8, 0.95, 1.05, blue, 0, 1.5, -1.15, lift);
+  B(3.9, 0.12, 1.15, '#6f97c4', 0, 2.03, -1.15, lift);
+  for (const sx of [-1.7, 1.7]) B(0.12, 0.8, 0.12, dark, sx, 0.95, -1.15, lift);
+  B(4.0, 0.16, 0.2, dark, 0, 0.55, -1.6, lift);
+  for (let i = 0; i < 12; i++) { const d = mk(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 10), '#55595c', -1.83 + i * 0.333, 0.28, -1.65, lift); d.rotation.z = Math.PI / 2; }
+  const wheels = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.36, 0.22, '#d7dde2'); w.position.set(sx * 2.15, 0.36, -0.95); lift.add(w); wheels.push(w); }
+  return { group: g, lift, wheels, up: 0.4, down: -0.05 };
+}
+const IMPL = {
+  cultivator: Object.assign(buildCultivator(), { key: 'cultivator', name: 'Kultivátor', width: 4.2, workZ: -1.7, park: [8.5, -38.5], dust: col('#b48d68') }),
+  seeder: Object.assign(buildSeeder(), { key: 'seeder', name: 'Secí stroj', width: 4.0, workZ: -1.5, park: [15.5, -38.5], dust: col('#c7a984') }),
+};
+function parkImpl(im) { scene.add(im.group); im.group.position.set(im.park[0], 0, im.park[1]); im.group.rotation.y = 0; im.lift.position.y = im.up; }
+function buildCombine() {
+  const g = new THREE.Group(), red = '#cf5a4a', dark = '#3a3f42', light = '#ebe4d2';
+  B(2.5, 2.2, 5.4, red, 0, 2.3, -0.5, g);
+  B(2.0, 0.7, 4.6, dark, 0, 0.95, -0.4, g);
+  B(2.35, 0.8, 2.6, '#dc6a58', 0, 3.8, -0.9, g);
+  B(2.3, 0.95, 1.3, red, 0, 3.85, -2.55, g);
+  B(1.6, 0.06, 0.9, '#2f3437', 0, 4.35, -2.55, g);
+  B(2.52, 0.12, 5.42, light, 0, 1.25, -0.5, g);
+  const grainMat = new THREE.MeshStandardMaterial({ color: col('#e4bc52'), roughness: 1, flatShading: true });
+  const gg = new THREE.BoxGeometry(2.15, 1, 2.4); gg.translate(0, 0.5, 0);
+  const grain = mk(gg, grainMat, 0, 4.2, -0.9, g); grain.scale.y = 0.001;
+  mk(new THREE.BoxGeometry(1.9, 1.4, 1.45), glassMat, 0, 4.1, 1.5, g, false);
+  B(2.1, 0.15, 1.7, light, 0, 4.88, 1.5, g);
+  for (const sx of [-0.92, 0.92]) for (const sz of [0.82, 2.18]) B(0.09, 1.4, 0.09, dark, sx, 4.1, sz, g);
+  const fh = B(1.4, 1.0, 1.9, dark, 0, 1.35, 2.95, g); fh.rotation.x = 0.16;
+  CY(0.09, 0.09, 1.2, 6, dark, -0.8, 4.85, -2.7, g);
+  for (let k = 0; k < 5; k++) B(0.5, 0.05, 0.2, dark, -1.4, 0.7 + k * 0.5, 1.95, g);
+  B(0.18, 0.18, 0.18, beaconMat, 0.85, 5.04, 1.0, g); B(0.18, 0.18, 0.18, beaconMat, -0.85, 5.04, 1.0, g);
+  const wheels = [], rear = [];
+  for (const sx of [-1, 1]) { const w = wheel(1.05, 0.75, light); w.position.set(sx * 1.5, 1.05, 1.25); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) { const p = new THREE.Group(); p.position.set(sx * 1.2, 0.62, -2.75); g.add(p); const w = wheel(0.62, 0.45, light); p.add(w); wheels.push(w); rear.push(p); }
+  const header = new THREE.Group(); header.position.set(0, 0, 3.75); g.add(header);
+  const hl = new THREE.Group(); header.add(hl);
+  B(5.8, 0.35, 1.4, red, 0, 0.55, 0.3, hl);
+  B(5.8, 1.1, 0.15, red, 0, 1.0, -0.35, hl);
+  for (const sx of [-1, 1]) { B(0.12, 0.9, 1.5, red, sx * 2.9, 0.85, 0.3, hl); const d = mk(new THREE.ConeGeometry(0.22, 0.9, 4), light, sx * 2.9, 0.55, 1.25, hl); d.rotation.x = Math.PI / 2; }
+  B(5.6, 0.08, 0.2, '#56595b', 0, 0.42, 1.0, hl);
+  const reel = new THREE.Group(); reel.position.set(0, 1.62, 0.45); hl.add(reel);
+  const ax = mk(new THREE.CylinderGeometry(0.07, 0.07, 5.5, 6), dark, 0, 0, 0, reel); ax.rotation.z = Math.PI / 2;
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; B(5.3, 0.08, 0.08, light, 0, Math.cos(a) * 0.55, Math.sin(a) * 0.55, reel); }
+  for (const sx of [-2.7, 0, 2.7]) for (let k = 0; k < 3; k++) { const s = B(0.05, 1.1, 0.05, dark, sx, 0, 0, reel); s.rotation.x = k * Math.PI / 3; }
+  for (const sx of [-1, 1]) { const arm = B(0.1, 0.1, 1.4, red, sx * 2.75, 1.45, 0.0, hl); arm.rotation.x = -0.2; }
+  const pipe = new THREE.Group(); pipe.position.set(1.05, 4.05, -1.9); g.add(pipe);
+  const pc = mk(new THREE.CylinderGeometry(0.17, 0.17, 4.6, 8), red, 0, 0, -2.3, pipe); pc.rotation.x = Math.PI / 2;
+  B(0.36, 0.5, 0.36, dark, 0, -0.2, -4.6, pipe);
+  const spot = addLights(g, 4.75, 2.3, [-0.6, 0.6]);
+  return { group: g, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot, exhaust: new THREE.Vector3(-0.8, 5.5, -2.7) };
+}
+function makeVehicle(type) {
+  const v = { type, x: 0, z: 0, h: 0, speed: 0, steer: 0, thr: 0, lowered: false, prevTool: null, harvestT: 0, puffT: 0,
+    tank: { crop: -1, amount: 0, cap: 9000 }, seedCrop: 0, unloading: false, sold: 0, soldMoney: 0 };
+  if (type === 'tractor') Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c' }, buildTractor());
+  else Object.assign(v, { name: 'Kombajn Klas 7', r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4, toolW: 5.4, toolZ: 4.4, mapCol: '#cf5a4a' }, buildCombine());
+  scene.add(v.group); return v;
+}
+const tractor = makeVehicle('tractor'), combine = makeVehicle('combine');
+const vehicles = [tractor, combine];
+function attachImpl(key) {
+  for (const k in IMPL) if (IMPL[k].group.parent === tractor.group) parkImpl(IMPL[k]);
+  const im = IMPL[key]; tractor.impl = key; tractor.group.add(im.group);
+  im.group.position.set(0, 0, -1.75); im.group.rotation.y = 0; tractor.lowered = false;
+}
+
+/* ---------- particles ---------- */
+const PMAX = 320;
+const pMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.4, 0), new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }), PMAX);
+pMesh.frustumCulled = false; scene.add(pMesh);
+const P = { x: new Float32Array(PMAX), y: new Float32Array(PMAX), z: new Float32Array(PMAX), vx: new Float32Array(PMAX), vy: new Float32Array(PMAX), vz: new Float32Array(PMAX), life: new Float32Array(PMAX).fill(9), max: new Float32Array(PMAX).fill(1), size: new Float32Array(PMAX), g: new Float32Array(PMAX) };
+for (let i = 0; i < PMAX; i++) { pMesh.setMatrixAt(i, ZERO); pMesh.setColorAt(i, _c.set(0xffffff)); }
+let pIdx = 0;
+const CHAFF = col('#eadba6'), SMOKE = col('#8b8f8f');
+function emit(x, y, z, color, size, vx, vy, vz, life, grav = 0) {
+  const i = pIdx; pIdx = (pIdx + 1) % PMAX;
+  P.x[i] = x; P.y[i] = y; P.z[i] = z; P.vx[i] = vx; P.vy[i] = vy; P.vz[i] = vz; P.life[i] = 0; P.max[i] = life; P.size[i] = size; P.g[i] = grav;
+  pMesh.setColorAt(i, color);
+}
+function updParticles(dt) {
+  for (let i = 0; i < PMAX; i++) {
+    if (P.life[i] >= P.max[i]) continue;
+    P.life[i] += dt; const t = P.life[i] / P.max[i];
+    if (t >= 1) { pMesh.setMatrixAt(i, ZERO); continue; }
+    P.vy[i] -= P.g[i] * dt;
+    P.x[i] += P.vx[i] * dt; P.y[i] += P.vy[i] * dt; P.z[i] += P.vz[i] * dt;
+    const s = P.size[i] * (0.5 + t * 1.6) * (1 - t * t);
+    _m.makeScale(s, s, s); _m.setPosition(P.x[i], P.y[i], P.z[i]); pMesh.setMatrixAt(i, _m);
+  }
+  pMesh.instanceMatrix.needsUpdate = true; if (pMesh.instanceColor) pMesh.instanceColor.needsUpdate = true;
+}
+
+/* ---------- game state ---------- */
+let money = 150000, gameMin = 8 * 60, tsIdx = 0, active = combine, playing = false;
+const TIME_SCALES = [1, 5, 20];
+const SAVE_KEY = 'zlate-lany-v1';
+function newGame() {
+  money = 150000; gameMin = 8 * 60; tsIdx = 0;
+  for (const f of FIELDS) { f.state.fill(S_STUB); f.crop.fill(0); f.growth.fill(0); f.stage.fill(0); f.dir.fill(0); }
+  const f1 = FIELDS[0], f3 = FIELDS[2], f4 = FIELDS[3];
+  f1.state.fill(S_RIPE); f1.crop.fill(0); f1.stage.fill(4);
+  f3.state.fill(S_RIPE); f3.crop.fill(2); f3.stage.fill(4); f3.dir.fill(1);
+  f4.state.fill(S_SOWN); f4.crop.fill(1); f4.dir.fill(0);
+  for (let i = 0; i < f4.n; i++) { f4.growth[i] = 2.4 + f4.jit[i] * 0.4; f4.stage[i] = Math.min(3, Math.floor(f4.growth[i] / CROPS[1].hours * 4)); }
+  FIELDS.forEach((f, k) => f.owned = k < 2);
+  Object.assign(combine, { x: -10, z: -8, h: 0, speed: 0, lowered: false, unloading: false });
+  combine.tank = { crop: -1, amount: 0, cap: 9000 };
+  Object.assign(tractor, { x: 8.5, z: -36.5, h: 0, speed: 0, lowered: false, seedCrop: 0 });
+  attachImpl('cultivator');
+  active = combine;
+  FIELDS.forEach(refreshField); flushFields(); drawSigns(); countFields();
+}
+const b64 = { enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); },
+  dec(str) { const s = atob(str), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; } };
+function save() {
+  try {
+    const data = { v: 1, money, gameMin, tsIdx, active: active.type,
+      fields: FIELDS.map(f => ({ owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir), growth: b64.enc(new Uint8Array(f.growth.buffer)) })),
+      veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl })) };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) { /* storage unavailable */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY); if (!raw) return false;
+    const d = JSON.parse(raw); if (d.v !== 1) return false;
+    money = d.money; gameMin = d.gameMin; tsIdx = d.tsIdx || 0;
+    d.fields.forEach((s, k) => { const f = FIELDS[k]; f.owned = s.owned; f.state.set(b64.dec(s.state)); f.crop.set(b64.dec(s.crop)); f.dir.set(b64.dec(s.dir));
+      f.growth.set(new Float32Array(b64.dec(s.growth).buffer));
+      for (let i = 0; i < f.n; i++) f.stage[i] = f.state[i] === S_RIPE ? 4 : f.state[i] === S_SOWN ? Math.min(3, Math.floor(f.growth[i] / CROPS[f.crop[i]].hours * 4)) : 0; });
+    d.veh.forEach((s, k) => { const v = vehicles[k]; v.x = s.x; v.z = s.z; v.h = s.h; v.tank = s.tank; v.seedCrop = s.seedCrop || 0; });
+    attachImpl(d.veh[0].impl || 'cultivator');
+    active = d.active === 'tractor' ? tractor : combine;
+    FIELDS.forEach(refreshField); flushFields(); drawSigns(); countFields();
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ---------- input ---------- */
+const keys = {};
+const PREVENT = ['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+addEventListener('keydown', e => {
+  if (PREVENT.includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  if (e.repeat) return;
+  if (!playing) { if (e.code === 'Enter') startGame(); return; }
+  action(e.code);
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+function action(code) {
+  switch (code) {
+    case 'Space': toggleTool(); break;
+    case 'Tab': switchVehicle(); break;
+    case 'KeyF': doF(); break;
+    case 'KeyC': cycleSeed(); break;
+    case 'KeyT': cycleTime(); break;
+    case 'KeyH': showIntro(); break;
+  }
+}
+function toggleTool() {
+  const v = active; v.lowered = !v.lowered; v.prevTool = null;
+  if (v.lowered && v.type === 'tractor' && v.impl === 'seeder' && money < CROPS[v.seedCrop].seed) { v.lowered = false; toast('Nemáš peníze na osivo.', 'bad'); }
+}
+function switchVehicle() { active.unloading = false; active = active === tractor ? combine : tractor; cam.manual = -99; toast('Sedíš v: ' + active.name); }
+function cycleSeed() {
+  tractor.seedCrop = (tractor.seedCrop + 1) % CROPS.length;
+  const c = CROPS[tractor.seedCrop];
+  toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h');
+}
+function cycleTime() { tsIdx = (tsIdx + 1) % TIME_SCALES.length; }
+const inSell = v => Math.hypot(v.x - sellZone.x, v.z - sellZone.z) < sellZone.r;
+const inShed = v => v.x > shedZone.x0 && v.x < shedZone.x1 && v.z > shedZone.z0 && v.z < shedZone.z1;
+const nearSign = v => signs.find(s => !s.f.owned && Math.hypot(v.x - s.x, v.z - s.z) < 10);
+function doF() {
+  const v = active;
+  if (v.type === 'combine' && inSell(v) && v.tank.amount > 0) { v.unloading = !v.unloading; if (v.unloading) { v.sold = 0; v.soldMoney = 0; v.soldCrop = v.tank.crop; } return; }
+  if (v.type === 'tractor' && inShed(v)) { const other = v.impl === 'cultivator' ? 'seeder' : 'cultivator'; attachImpl(other); toast('Připojeno: ' + IMPL[other].name, 'good'); return; }
+  const s = nearSign(v);
+  if (s) {
+    if (money >= s.f.price) { money -= s.f.price; s.f.owned = true; drawSign(s); flashMoney(); toast('Pole ' + s.f.id + ' je tvoje. Úroda na něm patří tobě.', 'good'); save(); }
+    else toast('Na pole ' + s.f.id + ' ti chybí ' + fmt.format(s.f.price - money) + ' Kč.', 'bad');
+  }
+}
+// touch
+const touchMode = matchMedia('(hover: none) and (pointer: coarse)').matches;
+if (touchMode) { document.body.classList.add('touch'); document.getElementById('touch').hidden = false; }
+document.querySelectorAll('#touch [data-hold]').forEach(b => {
+  const k = b.dataset.hold;
+  const on = e => { e.preventDefault(); keys[k] = true; b.classList.add('held'); };
+  const off = () => { keys[k] = false; b.classList.remove('held'); };
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+});
+document.querySelectorAll('#touch [data-tap]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); if (playing) action(b.dataset.tap); }));
+
+/* ---------- camera ---------- */
+const cam = { yaw: 0, pitch: 0.66, dist: 52, manual: -99, t: new THREE.Vector3(-10, 1, -4) };
+const ptrs = new Map(); let pinch0 = 0, dist0 = 0;
+canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = cam.dist; } });
+canvas.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  if (ptrs.size === 1) { cam.yaw -= (e.clientX - p.x) * 0.006; cam.pitch = clamp(cam.pitch + (e.clientY - p.y) * 0.004, 0.32, 1.4); cam.manual = performance.now() / 1000; }
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) cam.dist = clamp(dist0 * pinch0 / d, 14, 120); }
+});
+const up = e => { ptrs.delete(e.pointerId); pinch0 = 0; };
+canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * (1 + Math.sign(e.deltaY) * 0.1), 14, 120); }, { passive: false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------- audio ---------- */
+let audio = null, soundOn = false;
+function initAudio() {
+  if (audio) return;
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const o1 = ac.createOscillator(), o2 = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
+    o1.type = 'sawtooth'; o2.type = 'square'; lp.type = 'lowpass'; lp.frequency.value = 320; g.gain.value = 0;
+    o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(ac.destination); o1.start(); o2.start();
+    audio = { ac, o1, o2, g };
+  } catch (e) { audio = null; }
+}
+function updAudio() {
+  if (!audio) return;
+  const v = active, t = audio.ac.currentTime, base = v.type === 'combine' ? 30 : 36;
+  const f = base + Math.abs(v.speed) * 4.5 + Math.max(0, v.thr) * 9 + (v.lowered ? 6 : 0);
+  audio.o1.frequency.setTargetAtTime(f, t, 0.15); audio.o2.frequency.setTargetAtTime(f * 0.5, t, 0.15);
+  audio.g.gain.setTargetAtTime(soundOn && playing ? 0.035 + Math.max(0, v.thr) * 0.02 : 0, t, 0.2);
+}
+
+/* ---------- simulation ---------- */
+function collide(v) {
+  let hit = false;
+  const others = vehicles.filter(o => o !== v).map(o => ({ x: o.x, z: o.z, r: o.r }));
+  for (const c of circles.concat(others)) {
+    const dx = v.x - c.x, dz = v.z - c.z, d = Math.hypot(dx, dz), min = c.r + v.r;
+    if (d < min && d > 1e-4) { v.x += dx / d * (min - d); v.z += dz / d * (min - d); hit = true; }
+  }
+  for (const b of boxes) {
+    const cx = clamp(v.x, b.x0, b.x1), cz = clamp(v.z, b.z0, b.z1), dx = v.x - cx, dz = v.z - cz, d = Math.hypot(dx, dz);
+    if (d < v.r) {
+      if (d > 1e-4) { v.x += dx / d * (v.r - d); v.z += dz / d * (v.r - d); }
+      else { const opts = [[b.x0 - v.r - v.x, 0], [b.x1 + v.r - v.x, 0], [0, b.z0 - v.r - v.z], [0, b.z1 + v.r - v.z]]; opts.sort((a, c) => Math.hypot(...a) - Math.hypot(...c)); v.x += opts[0][0]; v.z += opts[0][1]; }
+      hit = true;
+    }
+  }
+  const x = clamp(v.x, -100, 100), z = clamp(v.z, -90, 140); if (x !== v.x || z !== v.z) hit = true; v.x = x; v.z = z;
+  if (hit) v.speed *= 0.6;
+}
+function drive(v, dt, input) {
+  const thr = input ? ((keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0)) : 0;
+  const st = input ? ((keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0)) : 0;
+  const vmax = v.lowered ? v.vwork : v.vmax;
+  const maxSteer = lerp(0.62, 0.24, clamp(Math.abs(v.speed) / v.vmax, 0, 1));
+  v.steer += (st * maxSteer - v.steer) * Math.min(1, dt * 5);
+  if (thr > 0) v.speed += (v.speed < 0 ? v.brk : v.acc) * dt;
+  else if (thr < 0) v.speed -= (v.speed > 0 ? v.brk : v.acc * 0.7) * dt;
+  else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 2.4 * dt);
+  if (v.speed > vmax) v.speed = Math.max(vmax, v.speed - v.brk * dt);
+  if (v.speed < -v.vrev) v.speed = -v.vrev;
+  v.h += v.speed / v.wb * Math.tan(v.steer) * dt;
+  v.x += Math.sin(v.h) * v.speed * dt; v.z += Math.cos(v.h) * v.speed * dt;
+  collide(v); v.thr = thr;
+}
+const warnT = {};
+function warn(key, msg, kind = 'bad') { const t = performance.now(); if (warnT[key] && t - warnT[key] < 4000) return; warnT[key] = t; toast(msg, kind); }
+function applyCell(v, x, z, dirBit, res) {
+  const f = fieldAt(x, z); if (!f) return;
+  if (!f.owned) { res.notOwned = f; return; }
+  res.onField = true;
+  const i = Math.floor(x - f.x0) + Math.floor(z - f.z0) * f.w, s = f.state[i];
+  let changed = false;
+  if (v.type === 'tractor') {
+    if (v.impl === 'cultivator') { if (s === S_STUB) { f.state[i] = S_CULT; changed = true; } }
+    else if (s === S_CULT) {
+      const cr = CROPS[v.seedCrop];
+      if (money < cr.seed) { res.blocked = 'money'; return; }
+      money -= cr.seed; f.state[i] = S_SOWN; f.crop[i] = v.seedCrop; f.growth[i] = 0; f.stage[i] = 0; changed = true;
+    } else if (s === S_STUB) res.stub = true;
+  } else if (s === S_RIPE) {
+    const c = f.crop[i], cr = CROPS[c], tk = v.tank;
+    if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
+    if (tk.amount + cr.yield > tk.cap) { res.blocked = 'full'; return; }
+    tk.crop = c; tk.amount += cr.yield; f.state[i] = S_STUB; f.stage[i] = 0; v.harvestT = 0.35; changed = true;
+  }
+  if (changed) { f.dir[i] = dirBit; drawCell(f, i); updCrop(f, i); drawMini(f, i); res.changed++; }
+}
+function work(v, dt) {
+  if (v.harvestT > 0) v.harvestT -= dt;
+  if (!v.lowered || v.speed < 0.3) { v.prevTool = null; return; }
+  const W = v.type === 'tractor' ? IMPL[v.impl].width : v.toolW;
+  const Z = v.type === 'tractor' ? -1.75 + IMPL[v.impl].workZ : v.toolZ;
+  const sh = Math.sin(v.h), ch = Math.cos(v.h), rx = ch, rz = -sh;
+  const cx = v.x + sh * Z, cz = v.z + ch * Z;
+  let p = v.prevTool; if (!p || Math.hypot(cx - p.x, cz - p.z) > 4) p = { x: cx, z: cz };
+  const steps = Math.max(1, Math.ceil(Math.hypot(cx - p.x, cz - p.z) / 0.45));
+  const dirBit = Math.abs(sh) > Math.abs(ch) ? 1 : 0;
+  const res = { changed: 0, onField: false };
+  for (let s = 1; s <= steps; s++) {
+    const t = s / steps, px = lerp(p.x, cx, t), pz = lerp(p.z, cz, t);
+    for (let k = -W / 2 + 0.2; k <= W / 2 - 0.2 + 1e-6; k += 0.4) applyCell(v, px + rx * k, pz + rz * k, dirBit, res);
+  }
+  v.prevTool = { x: cx, z: cz };
+  if (res.notOwned && !res.onField) warn('own', 'Pole ' + res.notOwned.id + ' ti nepatří. Koupit ho můžeš u cedule u cesty.');
+  if (res.blocked === 'money') { v.lowered = false; warn('money', 'Došly peníze na osivo. Prodej úrodu.'); }
+  if (res.blocked === 'full') warn('full', 'Zásobník je plný. Jeď k výkupu u sil.');
+  if (res.blocked === 'mix') warn('mix', 'V zásobníku je jiná plodina. Nejdřív ji prodej.');
+  if (res.stub && !res.changed) warn('stub', 'Secí stroj potřebuje zkultivovanou půdu.', '');
+  if (res.onField && v.type === 'tractor' && Math.random() < dt * 45) {
+    const k = (Math.random() - 0.5) * W;
+    emit(cx + rx * k, 0.3, cz + rz * k, IMPL[v.impl].dust, 0.9 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6 - sh * 0.6, 0.6 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6 - ch * 0.6, 1.4 + Math.random() * 0.6);
+  }
+  if (v.type === 'combine' && v.harvestT > 0 && Math.random() < dt * 30) {
+    const bx = v.x - sh * 3.6, bz = v.z - ch * 3.6;
+    emit(bx + (Math.random() - 0.5) * 1.5, 1.4, bz + (Math.random() - 0.5) * 1.5, CHAFF, 0.7, -sh * 1.2 + (Math.random() - 0.5), 0.3 + Math.random() * 0.5, -ch * 1.2 + (Math.random() - 0.5), 1.8, 0.2);
+  }
+}
+const _v = new THREE.Vector3();
+function unload(v, dt) {
+  if (!v.unloading) return;
+  if (!inSell(v) || v.tank.amount <= 0) {
+    if (v.sold > 0) { toast('Prodáno ' + fmt.format(v.sold) + ' l ' + CROPS[v.soldCrop].gen + ' za ' + fmt.format(v.soldMoney) + ' Kč', 'good'); save(); }
+    v.unloading = false; v.sold = 0; v.soldMoney = 0; if (v.tank.amount <= 0) v.tank.crop = -1; return;
+  }
+  if (v.pipe.rotation.y > -1.3) return;
+  const amt = Math.min(v.tank.amount, 1800 * dt), pr = price(v.tank.crop, gameMin);
+  v.tank.amount -= amt; v.sold += amt; v.soldMoney += amt * pr; money += amt * pr; flashMoney();
+  if (Math.random() < dt * 40) { _v.set(0, -0.3, -4.6); v.pipe.localToWorld(_v); emit(_v.x, _v.y, _v.z, CROPS[v.tank.crop].cols[4], 0.4, (Math.random() - 0.5) * 0.4, -1, (Math.random() - 0.5) * 0.4, 0.9, 6); }
+}
+function visual(v, dt) {
+  v.group.position.set(v.x, 0, v.z); v.group.rotation.y = v.h;
+  for (const w of v.wheels) w.userData.spin.rotation.x += v.speed * dt / w.userData.r;
+  for (const p of v.front) p.rotation.y = v.steer;
+  for (const p of v.rear) p.rotation.y = -v.steer;
+  const k = Math.min(1, dt * 4);
+  if (v.type === 'tractor') {
+    const im = IMPL[v.impl]; im.lift.position.y += ((v.lowered ? im.down : im.up) - im.lift.position.y) * k;
+    if (im.roller && v.lowered) im.roller.rotation.x += v.speed * dt / 0.3;
+    if (im.wheels && v.lowered) for (const w of im.wheels) w.userData.spin.rotation.x += v.speed * dt / w.userData.r;
+  } else {
+    v.headerLift.position.y += ((v.lowered ? 0 : 0.6) - v.headerLift.position.y) * k;
+    if (v.lowered) v.reel.rotation.x += dt * 2.6;
+    v.pipe.rotation.y += ((v.unloading ? -Math.PI / 2 : 0) - v.pipe.rotation.y) * Math.min(1, dt * 2.5);
+    v.grain.visible = v.tank.amount > 0; v.grain.scale.y = Math.max(0.02, v.tank.amount / v.tank.cap * 0.7);
+    if (v.tank.crop >= 0) v.grainMat.color.copy(CROPS[v.tank.crop].cols[4]);
+  }
+  v.puffT -= dt;
+  if (v === active && v.puffT <= 0 && (v.thr > 0 || v.lowered)) {
+    v.puffT = 0.12; v.group.updateMatrixWorld(true); _v.copy(v.exhaust); v.group.localToWorld(_v);
+    emit(_v.x, _v.y, _v.z, SMOKE, 0.35, (Math.random() - 0.5) * 0.3, 1.4, (Math.random() - 0.5) * 0.3, 1.3);
+  }
+}
+
+/* ---------- environment ---------- */
+const C_SKY = col('#bfd9e3'), C_DUSK = col('#f0c8a2'), C_NIGHT = col('#26344c');
+const C_NOON = col('#fff0d4'), C_DAWN = col('#ffb67a'), C_MOON = col('#9cb2ff');
+const C_HSKY = col('#d5e6ef'), C_HGROUND = col('#9aa36c'), C_HNIGHT = col('#4a5a80');
+const tmpC1 = new THREE.Color(), tmpC2 = new THREE.Color();
+const sunDir = new THREE.Vector3();
+let dayAmt = 1;
+function updEnv(target) {
+  const hour = (gameMin / 60) % 24, df = (hour - 5) / 16;
+  const e = Math.sin(df * Math.PI) * 1.05, az = df * Math.PI;
+  dayAmt = smooth(-0.12, 0.22, e);
+  const dawn = (1 - smooth(0.05, 0.55, e)) * dayAmt;
+  if (e > 0.05) sunDir.set(Math.cos(az) * Math.cos(Math.max(e, 0.3)), Math.sin(Math.max(e, 0.3)), -0.5).normalize();
+  else sunDir.set(0.35, 0.85, 0.4).normalize();
+  sun.position.copy(target).addScaledVector(sunDir, 180); sun.target.position.copy(target);
+  tmpC1.copy(C_NOON).lerp(C_DAWN, dawn); sun.color.copy(C_MOON).lerp(tmpC1, dayAmt);
+  sun.intensity = lerp(0.35, 1.45, dayAmt);
+  hemi.color.copy(C_HNIGHT).lerp(C_HSKY, dayAmt); hemi.groundColor.copy(C_HNIGHT).lerp(C_HGROUND, dayAmt);
+  hemi.intensity = lerp(0.38, 0.62, dayAmt);
+  tmpC2.copy(C_SKY).lerp(C_DUSK, dawn * 0.75); tmpC2.lerp(C_NIGHT, 1 - dayAmt);
+  scene.background = tmpC2; scene.fog.color.copy(tmpC2);
+  const night = 1 - dayAmt;
+  lampMat.emissiveIntensity = night * 1.6;
+  for (const v of vehicles) v.spot.intensity = v === active ? night * 2.2 : night * 0.8;
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+const ui = { money: $('money'), moneyBox: $('moneyBox'), day: $('day'), time: $('time'), speed: $('speedBtn'), task: $('task'), prices: $('priceList'),
+  vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'), toasts: $('toasts') };
+const lastTxt = {};
+const setHTML = (el, key, html) => { if (lastTxt[key] !== html) { lastTxt[key] = html; el.innerHTML = html; } };
+function toast(msg, kind = '') {
+  const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg; ui.toasts.prepend(t);
+  while (ui.toasts.children.length > 3) ui.toasts.lastChild.remove();
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 320); }, 3200);
+}
+let flashT = 0;
+function flashMoney() { flashT = 0.4; }
+$('speedBtn').onclick = cycleTime;
+$('helpBtn').onclick = showIntro;
+$('soundBtn').onclick = () => { initAudio(); soundOn = !soundOn; if (audio && audio.ac.state === 'suspended') audio.ac.resume(); $('soundBtn').textContent = soundOn ? 'Zvuk: zap.' : 'Zvuk: vyp.'; };
+const STATE_NAMES = ['strniště', 'zkultivováno', 'roste', 'zralé'];
+function taskText() {
+  const owned = FIELDS.filter(f => f.owned), sum = k => owned.reduce((a, f) => a + f.cnt[k], 0);
+  const ripeF = owned.filter(f => f.cnt[S_RIPE] > 0).map(f => f.id);
+  let t;
+  if (combine.tank.amount >= combine.tank.cap - 10) t = 'Zásobník kombajnu je plný. Zajeď do žlutého kruhu u sil a stiskni F.';
+  else if (ripeF.length) t = 'Skliď zralé plodiny kombajnem na poli ' + ripeF.join(' a ') + '. Spusť lištu mezerníkem.';
+  else if (combine.tank.amount > 0) t = 'Prodej zrno z kombajnu ve výkupu u sil (F).';
+  else if (sum(S_STUB) > 0) t = tractor.impl === 'cultivator' ? 'Zkultivuj strniště traktorem. Tab přepne stroj.' : 'Na strniště potřebuješ kultivátor. Vyměníš ho v kůlně klávesou F.';
+  else if (sum(S_CULT) > 0) t = tractor.impl === 'seeder' ? 'Zasej zkultivovanou půdu. Osivo změníš klávesou C.' : 'Připoj v kůlně secí stroj (F) a zasej.';
+  else if (sum(S_SOWN) > 0) t = 'Plodiny rostou. Klávesa T zrychlí čas.';
+  else t = 'Všechno je hotové.';
+  const cheapest = FIELDS.filter(f => !f.owned).sort((a, b) => a.price - b.price)[0];
+  if (cheapest && money >= cheapest.price) t += ' Máš na koupi pole ' + cheapest.id + '.';
+  return t;
+}
+function updUI() {
+  ui.money.textContent = fmt.format(money);
+  ui.moneyBox.classList.toggle('flash', flashT > 0);
+  const day = Math.floor(gameMin / 1440) + 1, m = Math.floor(gameMin % 1440);
+  ui.day.textContent = 'Den ' + day; ui.time.textContent = String(m / 60 | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  ui.speed.textContent = TIME_SCALES[tsIdx] + '×';
+  const v = active;
+  ui.vName.textContent = v.name;
+  const working = v.lowered && v.speed > 0.3;
+  const chip = v.unloading ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
+  ui.vChip.textContent = chip[0]; ui.vChip.className = 'chip ' + chip[1];
+  ui.vSpeed.textContent = Math.round(Math.abs(v.speed) * 3.6);
+  let kv;
+  if (v.type === 'tractor') {
+    const im = IMPL[v.impl], c = CROPS[v.seedCrop];
+    kv = '<dt>Nářadí</dt><dd>' + im.name + ' ' + fmt2.format(im.width).replace(/,?0+$/, '') + ' m</dd>';
+    if (v.impl === 'seeder') kv += '<dt>Osivo <kbd>C</kbd></dt><dd>' + c.name + ' · ' + c.seed + ' Kč/m²</dd>';
+  } else kv = '<dt>Nářadí</dt><dd>Žací lišta 5,4 m</dd>';
+  setHTML(ui.vKv, 'kv', kv);
+  ui.vTank.hidden = v.type !== 'combine';
+  if (v.type === 'combine') {
+    ui.vTankTxt.textContent = fmt.format(v.tank.amount) + ' / ' + fmt.format(v.tank.cap) + ' l' + (v.tank.crop >= 0 && v.tank.amount > 0 ? ' · ' + CROPS[v.tank.crop].name : '');
+    ui.vTankBar.style.width = (v.tank.amount / v.tank.cap * 100).toFixed(1) + '%';
+  }
+  const f = fieldAt(v.x, v.z);
+  ui.vField.hidden = !f;
+  if (f) {
+    const parts = [];
+    f.cnt.forEach((c, k) => { if (c > 0) parts.push([c, STATE_NAMES[k] + (k === S_SOWN ? ' (zralost ' + Math.round(f.prog * 100) + ' %)' : '')]); });
+    parts.sort((a, b) => b[0] - a[0]);
+    setHTML(ui.vField, 'fl', '<b>Pole ' + f.id + '</b>' + (f.owned ? '' : ' · cizí') + ' · ' + parts.slice(0, 2).map(p => Math.max(1, Math.round(p[0] / f.n * 100)) + ' % ' + p[1]).join(', '));
+  }
+  // prompts
+  const pr = [];
+  if (v.type === 'combine' && inSell(v) && v.tank.amount > 0) pr.push(['F', v.unloading ? 'Zastavit vykládku' : 'Prodat ' + fmt.format(v.tank.amount) + ' l ' + CROPS[v.tank.crop].gen + ' za ' + fmt.format(v.tank.amount * price(v.tank.crop, gameMin)) + ' Kč']);
+  if (v.type === 'tractor' && inShed(v)) pr.push(['F', 'Vyměnit za ' + IMPL[v.impl === 'cultivator' ? 'seeder' : 'cultivator'].name.toLowerCase()]);
+  const s = nearSign(v); if (s) pr.push(['F', 'Koupit pole ' + s.f.id + ' za ' + fmt.format(s.f.price) + ' Kč']);
+  if (f && f.owned && !v.lowered) pr.push(['Mezerník', 'Spustit ' + (v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : 'žací lištu')]);
+  if (f && f.owned && v.lowered && Math.abs(v.speed) < 0.3) pr.push(['W', 'Jeď, nářadí pracuje jen v pohybu']);
+  if (v.type === 'combine' && v.tank.amount >= v.tank.cap - 10 && !inSell(v)) pr.push(['', 'Zásobník je plný']);
+  setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
+}
+function updSlowUI() {
+  ui.task.textContent = taskText();
+  let h = '';
+  CROPS.forEach((c, k) => { const p = price(k, gameMin), d = p - price(k, gameMin - 60);
+    h += '<li><span>' + c.name + '</span><span>' + fmt2.format(p) + '</span><span class="' + (d >= 0 ? 'up' : 'down') + '">' + (d >= 0 ? '▲' : '▼') + '</span></li>'; });
+  setHTML(ui.prices, 'prices', h);
+}
+
+/* ---------- minimap ---------- */
+const mm = $('minimap'), mctx = mm.getContext('2d');
+let MW = 0, MH = 0, msx = 1, msy = 1;
+const mapX = x => (100 - x) * msx, mapY = z => (140 - z) * msy;
+const mmBg = document.createElement('canvas');
+function sizeMinimap() {
+  const r = mm.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  MW = mm.width = Math.max(1, Math.round(r.width * dpr)); MH = mm.height = Math.max(1, Math.round(r.height * dpr));
+  msx = MW / 200; msy = MH / 230;
+  mmBg.width = MW; mmBg.height = MH; const c = mmBg.getContext('2d');
+  c.fillStyle = '#9fbe66'; c.fillRect(0, 0, MW, MH);
+  const rect = (x0, x1, z0, z1, fill) => { c.fillStyle = fill; c.fillRect(mapX(x1), mapY(z1), (x1 - x0) * msx, (z1 - z0) * msy); };
+  rect(-14, -6, -50, 106, '#e3d3b0'); rect(-74, 62, 44, 52, '#e3d3b0'); rect(-46, 26, -52, -12, '#ddd8ce');
+  rect(-39, -25, -41, -31, '#c4614e'); rect(-38.5, -29.5, -22.5, -15.5, '#efe6d6'); rect(4, 20, -45, -35, '#a7afb0');
+  c.fillStyle = '#dfe1dc'; for (const x of [15, 21.5]) { c.beginPath(); c.arc(mapX(x), mapY(-19), 3 * msx, 0, 7); c.fill(); }
+  c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(mapX(64), mapY(-42), 12.8 * msx, 0, 7); c.fill();
+  c.strokeStyle = '#e0a83a'; c.lineWidth = 1.5 * msx; c.beginPath(); c.arc(mapX(sellZone.x), mapY(sellZone.z), sellZone.r * msx, 0, 7); c.stroke();
+}
+function drawMinimap() {
+  if (!MW) return;
+  mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.drawImage(mmBg, 0, 0); mctx.imageSmoothingEnabled = false;
+  for (const f of FIELDS) {
+    if (f.miniDirty) { f.miniCtx.putImageData(f.miniImg, 0, 0); f.miniDirty = false; }
+    mctx.setTransform(-msx, 0, 0, -msy, mapX(f.x0), mapY(f.z0)); mctx.drawImage(f.mini, 0, 0);
+  }
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  const fs = Math.round(11 * msx * 1.1);
+  for (const f of FIELDS) {
+    const x = mapX(f.x0 + f.w), y = mapY(f.z0 + f.h), w = f.w * msx, h = f.h * msy;
+    mctx.lineWidth = Math.max(1, msx * 0.9); mctx.strokeStyle = f.owned ? 'rgba(255,255,255,.9)' : 'rgba(36,49,42,.55)';
+    mctx.setLineDash(f.owned ? [] : [4 * msx, 3 * msx]); mctx.strokeRect(x, y, w, h); mctx.setLineDash([]);
+    mctx.font = '800 ' + fs + 'px "Bricolage Grotesque", sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
+    mctx.fillStyle = 'rgba(36,49,42,.75)'; mctx.fillText(String(f.id), x + w / 2 + 0.8, y + h / 2 + 0.8);
+    mctx.fillStyle = '#fff'; mctx.fillText(String(f.id), x + w / 2, y + h / 2);
+  }
+  for (const v of vehicles) {
+    const x = mapX(v.x), y = mapY(v.z), a = Math.atan2(-Math.cos(v.h), -Math.sin(v.h)), s = (v === active ? 7 : 5) * msx;
+    mctx.save(); mctx.translate(x, y); mctx.rotate(a);
+    mctx.beginPath(); mctx.moveTo(s, 0); mctx.lineTo(-s * 0.75, s * 0.68); mctx.lineTo(-s * 0.4, 0); mctx.lineTo(-s * 0.75, -s * 0.68); mctx.closePath();
+    mctx.fillStyle = v.mapCol; mctx.fill(); mctx.lineWidth = Math.max(1, msx * (v === active ? 1.4 : 0.8)); mctx.strokeStyle = '#fff'; mctx.stroke();
+    mctx.restore();
+  }
+}
+
+/* ---------- intro ---------- */
+const intro = $('intro');
+let hasSave = false;
+function showIntro() {
+  playing = false; intro.hidden = false;
+  $('playBtn').textContent = hasSave || gameMin > 8 * 60 + 1 ? 'Pokračovat' : 'Hrát';
+  $('newBtn').hidden = !(hasSave || gameMin > 8 * 60 + 1);
+  $('playBtn').focus();
+}
+function startGame() { intro.hidden = true; playing = true; for (const k in keys) keys[k] = false; if (soundOn && audio) audio.ac.resume(); }
+$('playBtn').onclick = startGame;
+$('newBtn').onclick = () => { newGame(); hasSave = false; save(); startGame(); toast('Nová sezóna začíná. Pole 1 je zralé.'); };
+
+/* ---------- boot ---------- */
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  sizeMinimap();
+}
+addEventListener('resize', resize);
+hasSave = load();
+if (!hasSave) newGame();
+cam.yaw = active.h; cam.t.set(active.x, 1, active.z);
+resize(); updSlowUI(); showIntro();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { drawSigns(); sizeMinimap(); });
+setInterval(() => { if (playing) save(); }, 20000);
+addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+
+let last = performance.now(), slowT = 0, mapT = 0;
+const desired = new THREE.Vector3();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  tick(dt, now);
+}
+function tick(dt, now) {
+  if (playing) {
+    const gm = dt * TIME_SCALES[tsIdx]; gameMin += gm; growFields(gm / 60);
+  }
+  for (const v of vehicles) { drive(v, dt, playing && v === active); work(v, dt); if (v.type === 'combine') unload(v, dt); visual(v, dt); }
+  flushFields(); updParticles(dt);
+  for (const r of rotors) r.rotation.z += dt * 0.9;
+  // camera
+  const v = active, t = now / 1000;
+  if (keys.KeyQ) { cam.yaw += 1.7 * dt; cam.manual = t; }
+  if (keys.KeyE) { cam.yaw -= 1.7 * dt; cam.manual = t; }
+  if (cam.manual === -99) { const d = angDiff(cam.yaw, v.h); cam.yaw += d * Math.min(1, dt * 3); if (Math.abs(d) < 0.01) cam.manual = -50; }
+  else if (t - cam.manual > 2.5 && v.speed > 0.8) cam.yaw += angDiff(cam.yaw, v.h) * Math.min(1, dt * 1.2);
+  desired.set(v.x + Math.sin(v.h) * 3, 1, v.z + Math.cos(v.h) * 3);
+  cam.t.lerp(desired, 1 - Math.exp(-dt * 6));
+  const cp = Math.cos(cam.pitch) * cam.dist;
+  camera.position.set(cam.t.x - Math.sin(cam.yaw) * cp, cam.t.y + Math.sin(cam.pitch) * cam.dist, cam.t.z - Math.cos(cam.yaw) * cp);
+  camera.lookAt(cam.t);
+  setShadowSize(clamp(cam.dist * 1.5, 55, 150));
+  updEnv(cam.t);
+  if (flashT > 0) flashT -= dt;
+  updUI(); updAudio();
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); updSlowUI(); }
+  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+})();
+</script>
