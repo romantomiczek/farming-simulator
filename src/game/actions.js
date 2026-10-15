@@ -8,11 +8,13 @@ import {
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
 import { inFuel, refuel, repair } from './economy.js';
-import { marketAt, buyersOf } from './markets.js';
+import { marketAt, buyersOf, hayFeederAt } from './markets.js';
 import { hire, dismiss } from './helpers.js';
-import { greenhouses, waterCap } from './farm.js';
+import { greenhouses, waterCap, feedHay, BUILDINGS } from './farm.js';
+import { COWS } from './balance.js';
+import { earn } from './goals.js';
 import { inSawmill, treeInReach, fell, sellLogs } from './forestry.js';
-import { POND_FILL, GREENHOUSE_WATER } from '../world/layout.js';
+import { POND_FILL, GREENHOUSE_WATER, MILK_LOAD, DAIRY } from '../world/layout.js';
 import { tractor, combine, trailer, trailerCenter, vehicles, HARVESTERS, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
@@ -42,8 +44,10 @@ export function fAction() {
   }
   if (v.type === 'tractor' && v.impl === 'watertank') {
     const w = IMPL.watertank, near = z => Math.hypot(v.x - z.x, v.z - z.z) < z.r;
-    if (near(POND_FILL) && w.water < w.waterCap - 1) return { kind: 'fillWater' };
-    if (near(GREENHOUSE_WATER) && w.water > 0 && greenhouses() && G.farm.water < waterCap() - 1) return { kind: 'giveWater' };
+    if (w.milk && w.water > 0 && near(DAIRY)) return { kind: 'sellMilk' };
+    if (near(MILK_LOAD) && has('cows') && G.farm.milk >= 1 && (w.milk || w.water <= 0) && w.water < w.waterCap - 1) return { kind: 'loadMilk' };
+    if (!w.milk && near(POND_FILL) && w.water < w.waterCap - 1) return { kind: 'fillWater' };
+    if (!w.milk && near(GREENHOUSE_WATER) && w.water > 0 && greenhouses() && G.farm.water < waterCap() - 1) return { kind: 'giveWater' };
   }
   if (v.harvester) {
     if (v.unloading) return { kind: 'stopUnload', h: v };
@@ -55,6 +59,7 @@ export function fAction() {
     if (trailer.tipping) return { kind: 'stopTip' };
     if (hasTrailer() && trailer.tank.amount > 0 && sellPoint(trailerCenter(), trailer.tank.crop)) return { kind: 'tip', m: sellPoint(trailerCenter(), trailer.tank.crop) };
     if (hasTrailer() && trailer.tank.amount > 0 && marketAt(trailerCenter())) return { kind: 'wrongMarket', m: marketAt(trailerCenter()), crop: trailer.tank.crop };
+    if (hasTrailer() && trailer.hay > 0 && hayFeederAt(trailerCenter())) return { kind: 'feedHay', m: hayFeederAt(trailerCenter()) };
     if (hasTrailer() && trailer.bales > 0 && inBaleZone(trailerCenter())) return { kind: 'sellBales' };
     for (const h of HARVESTERS) if (h.available && h.unloading && trailerInReach(h)) return { kind: 'stopUnload', h };
     for (const h of HARVESTERS) if (h.available && h.tank.amount > 0 && trailerInReach(h)) return { kind: 'overload', h };
@@ -81,7 +86,7 @@ export function toggleTool() {
     toast('Přívěs nemá co spouštět. Úrodu vysypeš klávesou F ve výkupu, balíky prodáš F u stodoly.');
     return;
   }
-  if (v.type === 'tractor' && v.impl === 'watertank') { toast('Cisternu naplníš klávesou F u rybníka a vodu vyleješ F u skleníků.'); return; }
+  if (v.type === 'tractor' && v.impl === 'watertank') { toast('Cisternu naplníš klávesou F u rybníka a vodu vyleješ F u skleníků. Mléko nabereš F u kravína a prodáš v mlékárně v městečku.'); return; }
   if (v.type === 'forest') { toast('Strom pokácíš klávesou F, když stojíš u vzrostlého stromu.'); return; }
   if (v.type === 'jeep') { playAt('honk', v.x, v.z, v); return; }
   v.lowered = !v.lowered;
@@ -154,6 +159,22 @@ export function doF() {
       const w = IMPL.watertank, l = Math.min(w.water, waterCap() - G.farm.water);
       w.water -= l; G.farm.water += l;
       toast('Skleníky dostaly ' + fmt(l) + ' l vody.', 'good'); saveLocal(); return;
+    }
+    case 'loadMilk': {
+      const w = IMPL.watertank, l = Math.floor(Math.min(G.farm.milk, w.waterCap - w.water));
+      w.milk = true; w.water += l; G.farm.milk -= l;
+      toast('Nabráno ' + fmt(l) + ' l mléka. V mlékárně v městečku ho prodáš za ' + COWS.dairyPrice + ' Kč/l.', 'good'); saveLocal(); return;
+    }
+    case 'sellMilk': {
+      const w = IMPL.watertank, l = Math.floor(w.water), money = l * COWS.dairyPrice;
+      w.water = 0; w.milk = false; G.money += money; earn(money); G.flashT = 0.4;
+      toast('Mlékárna koupila ' + fmt(l) + ' l mléka za ' + fmt(money) + ' Kč', 'good'); saveLocal(); return;
+    }
+    case 'feedHay': {
+      const n = feedHay(a.m.feed, trailer.hay);
+      if (!n) { toast('Krmelec (' + BUILDINGS[a.m.feed].name + ') je plný.', 'bad'); return; }
+      trailer.hay -= n; trailer.bales -= n;
+      toast('Vyloženo ' + n + (n === 1 ? ' balík' : n < 5 ? ' balíky' : ' balíků') + ' sena do krmelce · ' + a.m.short, 'good'); saveLocal(); return;
     }
     case 'stopUnload': stopUnload(a.h, saveLocal); return;
     case 'sell': case 'overload': startUnload(a.h); return;

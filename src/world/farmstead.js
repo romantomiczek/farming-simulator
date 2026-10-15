@@ -3,10 +3,10 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { scene } from '../render/core.js';
 import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col, rng } from '../core/util.js';
-import { COW_PEN, HEN_RUN, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, boxes, circles } from './layout.js';
+import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, boxes, circles } from './layout.js';
 
 /**
- * Buildings you can buy (cow shed, hen house, greenhouses) and the sawmill. Each building is a
+ * Buildings you can buy (cow shed, hen house, sheep fold, pigsty, feed mixer, greenhouses) and the sawmill. Each building is a
  * group whose visibility and collisions follow ownership: setOwned(key, on). The animals are two
  * instanced meshes that wander slowly inside their runs.
  */
@@ -46,6 +46,59 @@ function buildCows() {
   // feed and water troughs at the east fence, next to the feed ring
   B(1.0, 0.6, 8, '#8a6a52', p.x1 - 1.2, 0.3, p.z1 - 6, g);
   B(1.0, 0.5, 3, '#7a9fb4', p.x1 - 1.2, 0.25, p.z0 + 5, g);
+  // milk cooling tank by the milk ring (the tank trailer loads here)
+  const m = MILK_LOAD;
+  CY(1.1, 1.1, 2.6, 14, '#d5d9dc', m.x - 7.5, 1.6, m.z + 1, g); CY(1.15, 1.15, 0.15, 14, '#aab0b4', m.x - 7.5, 2.95, m.z + 1, g);
+  for (const [dx, dz] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) CY(0.06, 0.06, 0.4, 5, '#aab0b4', m.x - 7.5 + dx, 0.2, m.z + 1 + dz, g);
+  const pipe = CY(0.08, 0.08, 4.5, 6, '#aab0b4', m.x - 5, 1.2, m.z + 1, g); pipe.rotation.z = Math.PI / 2;
+  addColl('cows', { x0: m.x - 8.8, x1: m.x - 6.2, z0: m.z - 0.3, z1: m.z + 2.3 });
+  return g;
+}
+
+function buildSheep() {
+  const g = new THREE.Group(), p = SHEEP_PEN;
+  flatPlane(p.x1 - p.x0, p.z1 - p.z0, '#8fa45e', (p.x0 + p.x1) / 2, 0.03, (p.z0 + p.z1) / 2, g);
+  fence(g, 'sheep', p.x0, p.x1, p.z0, p.z1);
+  // low wooden fold along the south side with an open front
+  const fx = (p.x0 + p.x1) / 2, fz = p.z0 + 3.2;
+  B(16, 2.4, 0.25, '#8a6a52', fx, 1.2, p.z0 + 0.6, g);
+  for (const dx of [-8, 8]) B(0.25, 2.4, 5, '#8a6a52', fx + dx, 1.2, fz, g);
+  gableRoof(g, 16, 5.4, 2.4, fx, fz, '#6b5a52');
+  // hay rack by the feed ring
+  B(1.4, 1.1, 3.2, '#9a7b5e', p.x1 - 1.4, 0.55, p.z1 - 4, g);
+  B(1.2, 0.5, 3.0, '#c2b866', p.x1 - 1.4, 1.2, p.z1 - 4, g);
+  return g;
+}
+
+function buildPigs() {
+  const g = new THREE.Group(), p = PIG_PEN;
+  flatPlane(p.x1 - p.x0, p.z1 - p.z0, '#7d6650', (p.x0 + p.x1) / 2, 0.03, (p.z0 + p.z1) / 2, g);
+  fence(g, 'pigs', p.x0, p.x1, p.z0, p.z1);
+  // brick sty on the west side, a mud wallow and the trough at the east fence
+  const sx = p.x0 + 4.5, sz = (p.z0 + p.z1) / 2;
+  B(8, 2.6, 12, '#c98f6e', sx, 1.3, sz, g);
+  gableRoof(g, 8, 12, 2.6, sx, sz, '#9a4f3e');
+  for (const dz of [-3.5, 0, 3.5]) B(0.1, 1.1, 1.1, '#5a3f30', sx + 4.02, 0.55, sz + dz, g);
+  flatPlane(5, 4, '#5e4836', p.x0 + 14, 0.05, p.z0 + 6, g);
+  B(1.0, 0.5, 6, '#8d9396', p.x1 - 1.2, 0.25, p.z1 - 5, g);
+  return g;
+}
+
+/** Feed mixer wagon parked between the cow shed and the sheep: tub, auger chute and two wheels. */
+function buildMixer() {
+  const g = new THREE.Group(), { x, z } = MIXER_AT;
+  B(5.2, 0.25, 1.6, '#3a3d40', x, 0.75, z, g);
+  B(4.4, 1.6, 2.3, '#3f7f4a', x, 1.75, z, g);
+  B(4.6, 0.15, 2.5, '#2f6b3b', x, 2.6, z, g);
+  B(1.2, 0.5, 0.9, '#bfc3c6', x - 1, 1.1, z + 1.35, g); // discharge door
+  const ch = B(1.6, 0.12, 0.5, '#bfc3c6', x - 1, 0.95, z + 2.0, g); ch.rotation.x = -0.35;
+  B(2.2, 0.12, 0.12, '#3a3d40', x + 3.6, 0.55, z, g); // drawbar
+  for (const sg of [1, -1]) {
+    const w = CY(0.55, 0.55, 0.4, 14, '#262626', x + 0.4, 0.55, z + sg * 1.35, g); w.rotation.x = Math.PI / 2;
+    const r = CY(0.3, 0.3, 0.42, 10, '#8d9396', x + 0.4, 0.55, z + sg * 1.35, g); r.rotation.x = Math.PI / 2;
+  }
+  B(0.1, 0.9, 0.1, '#3a3d40', x + 4.6, 0.45, z, g); // jack stand
+  addColl('mixer', { x0: x - 2.7, x1: x + 4.8, z0: z - 1.5, z1: z + 1.5 });
   return g;
 }
 
@@ -102,6 +155,21 @@ function cowGeo() {
     ...[[-0.28, -0.6], [0.28, -0.6], [-0.28, 0.6], [0.28, 0.6]].map(([x, z]) => new THREE.BoxGeometry(0.18, 0.7, 0.18).translate(x, 0.35, z)),
   ];
   return mergeGeometries(parts);
+}
+function sheepGeo() {
+  return mergeGeometries([
+    new THREE.BoxGeometry(0.62, 0.55, 1.0).translate(0, 0.7, 0),
+    new THREE.BoxGeometry(0.26, 0.3, 0.34).translate(0, 0.86, 0.6),
+    ...[[-0.2, -0.32], [0.2, -0.32], [-0.2, 0.32], [0.2, 0.32]].map(([x, z]) => new THREE.BoxGeometry(0.1, 0.45, 0.1).translate(x, 0.22, z)),
+  ]);
+}
+function pigGeo() {
+  return mergeGeometries([
+    new THREE.BoxGeometry(0.6, 0.5, 1.15).translate(0, 0.5, 0),
+    new THREE.BoxGeometry(0.42, 0.38, 0.3).translate(0, 0.56, 0.7),
+    new THREE.BoxGeometry(0.2, 0.16, 0.08).translate(0, 0.5, 0.88),
+    ...[[-0.2, -0.38], [0.2, -0.38], [-0.2, 0.38], [0.2, 0.38]].map(([x, z]) => new THREE.BoxGeometry(0.12, 0.28, 0.12).translate(x, 0.14, z)),
+  ]);
 }
 function henGeo() {
   return mergeGeometries([
@@ -167,15 +235,22 @@ export function buildFarmstead() {
 
   groups.cows = bake(buildCows());
   groups.hens = bake(buildHens());
+  groups.sheep = bake(buildSheep());
+  groups.pigs = bake(buildPigs());
+  groups.mixer = bake(buildMixer());
   for (const gh of GREENHOUSES) groups[gh.key] = bake(buildGreenhouse(gh));
   for (const k in groups) { groups[k].visible = false; scene.add(groups[k]); }
   const rings = {
     cows: ring(COW_PEN.feed, '#7fa653', markers), hens: ring(HEN_RUN.feed, '#e0b13a', markers),
-    water: ring(GREENHOUSE_WATER, '#6fb0c8', markers),
+    water: ring(GREENHOUSE_WATER, '#6fb0c8', markers), milk: ring(MILK_LOAD, '#f2efe6', markers),
+    sheep: ring(SHEEP_PEN.feed, '#d9d4c4', markers), pigs: ring(PIG_PEN.feed, '#e7a3a0', markers),
   };
   const cows = makeHerd(cowGeo(), 10, COW_PEN, ['#f2efe6', '#5b4636', '#8a5a3c', '#2f2f2f'], 0.35, 11);
   const hens = makeHerd(henGeo(), 40, HEN_RUN, ['#f4f1ea', '#b9733e', '#8a5a3c'], 0.8, 23);
-  scene.add(cows.mesh, hens.mesh);
+  const sheep = makeHerd(sheepGeo(), 16, SHEEP_PEN, ['#ece6d8', '#e4dccb', '#f2eee4', '#3a3330'], 0.3, 37);
+  const pigs = makeHerd(pigGeo(), 12, PIG_PEN, ['#e8b4a8', '#e2a99c', '#d99a8e', '#c48a7a'], 0.3, 41);
+  scene.add(cows.mesh, hens.mesh, sheep.mesh, pigs.mesh);
+  const herds = { cows, hens, sheep, pigs };
 
   return {
     /** Shows a building and turns its collisions on or off. */
@@ -183,13 +258,12 @@ export function buildFarmstead() {
       owned[key] = on;
       if (groups[key]) groups[key].visible = on;
       for (const b of boxes) if (b.owner === key) b.off = !on;
-      if (key === 'cows') { cows.mesh.visible = on; rings.cows.visible = on; }
-      if (key === 'hens') { hens.mesh.visible = on; rings.hens.visible = on; }
+      if (herds[key]) { herds[key].mesh.visible = on; rings[key].visible = on; }
+      if (key === 'cows') rings.milk.visible = on;
       rings.water.visible = !!(owned.greenhouse1 || owned.greenhouse2);
     },
     update(dt) {
-      if (owned.cows) cows.update(dt);
-      if (owned.hens) hens.update(dt);
+      for (const k in herds) if (owned[k]) herds[k].update(dt);
     },
   };
 }

@@ -188,7 +188,7 @@ const ACTS = {
     G.contracts.active = null; G.contracts.offers = [];
     drawSigns(); countFields(); toast('Všechna pole jsou tvoje.', 'good');
   },
-  feed: () => { for (const k in BUILDINGS) G.farm[BUILDINGS[k].store] = BUILDINGS[k].cap; G.farm.water = waterCap(); toast('Krmelce a voda jsou plné.', 'good'); },
+  feed: () => { for (const k in BUILDINGS) G.farm[BUILDINGS[k].store] = BUILDINGS[k].cap; for (const p in G.farm.mix) G.farm.mix[p] = BUILDINGS.cows.cap / 3; G.farm.water = waterCap(); toast('Krmelce a voda jsou plné.', 'good'); },
   goal: () => { const g = activeGoals()[0]; if (g) { G.goals.push(g.id); toast('Cíl označen jako splněný: ' + g.title); } },
   goalsReset: () => { G.goals = []; G.stats = emptyStats(); toast('Cíle a statistiky vynulovány.'); },
   teleport: () => teleport(+$('#devPlace').value),

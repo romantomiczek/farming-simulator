@@ -4,7 +4,8 @@ import { has, hasCondition, CATALOG, sellValue, leaseUpfront, leaseDaily, blockR
 import { takeLoan, repayLoan, dailyInterest, emergencyFuel, LOAN_MAX, LOAN_STEP, INTEREST_DAILY, EMERGENCY } from '../game/economy.js';
 import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../game/contracts.js';
 import { CROPS } from '../game/crops.js';
-import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap } from '../game/farm.js';
+import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap, eatsText, mixShares, mixOk } from '../game/farm.js';
+import { COWS, MIXER } from '../game/balance.js';
 import { trees, matureCount } from '../world/forest.js';
 import { forester, vehicles, IMPL } from '../vehicles/vehicles.js';
 import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName } from '../game/helpers.js';
@@ -142,17 +143,22 @@ const days = d => (d === Infinity ? '—' : d >= 10 ? 'víc než 10 dní' : Stri
 function farmHTML() {
   const F = G.farm, row = (title, sub, state, extra = '') =>
     `<div class="row"><div class="rmain"><b>${title}</b><span>${sub}</span>${extra}</div><div class="rstate">${state}</div></div>`;
-  let out = '<p class="lede small">Mléko, vejce a rajčata se odvážejí a platí o půlnoci. Krmivo vyložíš klávesou F ve sklízeči nebo přívěsem v kruhu u budovy, vodu přivezeš cisternou z rybníka.</p>';
+  let out = '<p class="lede small">Mléko, vejce, vlna, vepřové a rajčata se odvážejí a platí o půlnoci. Krmivo vyložíš klávesou F ve sklízeči nebo přívěsem v kruhu u budovy (krávy a ovce berou i balíky sena), vodu přivezeš cisternou z rybníka. Mléko můžeš cisternou odvézt do mlékárny v městečku za ' + COWS.dairyPrice + ' Kč/l místo ' + COWS.milkPrice + '.</p>';
   out += helpersHTML();
   out += fieldsHTML();
   out += '<h3 class="grp">Budovy a les</h3>';
-  for (const key of ['cows', 'hens']) {
+  for (const key in BUILDINGS) {
     const b = BUILDINGS[key];
     if (!has(key)) { out += row(b.name, 'Koupíš v Obchodě.', '<span class="chip">Nevlastníš</span>'); continue; }
-    const eats = b.eats.map(i => CROPS[i].name.toLowerCase()).join(', ');
-    out += row(b.name, 'Krmivo ' + fmt(F[b.store]) + ' / ' + fmt(b.cap) + ' l (' + eats + ') · vystačí ' + days(daysLeft(key)),
-      F.hungry[key] ? '<span class="chip warn">Hladoví</span>' : '<span class="chip on">V pořádku</span>',
-      '<span class="muted">Na odvoz: ' + fmt(F[b.out]) + ' ' + b.unit + ' · ' + fmt(b.make * 24) + ' ' + b.unit + ' denně po ' + b.price + ' Kč</span>');
+    const more = key === 'cows' && mixOk() ? 1 + MIXER.bonus : 1;
+    let extra = '<span class="muted">Na odvoz: ' + fmt(F[b.out]) + ' ' + b.unit + ' · ' + fmt(b.make * more * 24) + ' ' + b.unit + ' denně po ' + b.price + ' Kč</span>';
+    if (key === 'cows' && has('mixer')) {
+      const sh = mixShares(), p = x => Math.round(x * 100) + ' %';
+      extra += '<span class="muted">Krmná směs: zrno ' + p(sh.grain) + ' · seno ' + p(sh.hay) + ' · cukrovka ' + p(sh.beet)
+        + (mixOk() ? ' · vyvážená, +' + Math.round(MIXER.bonus * 100) + ' % mléka' : ' · pro víc mléka potřebuje každé aspoň ' + Math.round(MIXER.minShare * 100) + ' %') + '</span>';
+    }
+    out += row(b.name, 'Krmivo ' + fmt(F[b.store]) + ' / ' + fmt(b.cap) + ' l (' + eatsText(key) + ') · vystačí ' + days(daysLeft(key)),
+      F.hungry[key] ? '<span class="chip warn">Hladoví</span>' : '<span class="chip on">V pořádku</span>', extra);
   }
   const n = greenhouses();
   out += n

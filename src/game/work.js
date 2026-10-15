@@ -9,7 +9,7 @@ import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { IMPL, BALE_CELLS, HARVESTERS, toolLine, tractor, trailer, trailerCenter } from '../vehicles/vehicles.js';
 import { baleZone } from '../world/layout.js';
 import { marketAt, accepts, marketPrice } from './markets.js';
-import { BUILDINGS, space } from './farm.js';
+import { BUILDINGS, space, addFeed, partOf } from './farm.js';
 import { bales, addBale, removeBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
 import { toast, warn } from '../ui/toast.js';
@@ -205,7 +205,7 @@ const trailerAccepts = crop => trailer.bales === 0 && (trailer.tank.amount <= 0 
 function deliver(m, crop, amt, who) {
   if (m.feed) {
     const b = BUILDINGS[m.feed], take = Math.min(amt, space(m.feed));
-    G.farm[b.store] += take; who.fed = (who.fed || 0) + take; who.fedAt = b.name; who.fedCrop = crop;
+    addFeed(m.feed, take, partOf(crop)); who.fed = (who.fed || 0) + take; who.fedAt = b.name; who.fedCrop = crop;
     if (take <= 0) warn('feedFull', 'Krmelec (' + b.name + ') je plný.');
     return take;
   }

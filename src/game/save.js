@@ -50,7 +50,7 @@ export function newGame() {
   G.lastDay = dayOf(G.gameMin);
   G.farm = emptyFarm();
   G.stats = emptyStats(); G.goals = [];
-  forester.logs = 0; forester.cutting = null; TOOLS.watertank.water = 0;
+  forester.logs = 0; forester.cutting = null; TOOLS.watertank.water = 0; TOOLS.watertank.milk = false;
   loadForest(null);
   resetMachines(false);
   attachImpl('cultivator');
@@ -70,7 +70,7 @@ export function serialize() {
     })),
     veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel, helper: serializeHelper(v) })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
-    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), logs: forester.logs, water: TOOLS.watertank.water,
+    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), logs: forester.logs, water: TOOLS.watertank.water, tankMilk: !!TOOLS.watertank.milk,
     trailer: { tank: trailer.tank, bales: trailer.bales, hay: trailer.hay || 0 },
     bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3), hay: b.hay ? 1 : 0 })),
   };
@@ -135,11 +135,14 @@ export function applySave(d) {
   }
   G.lastDay = Number.isFinite(d.lastDay) ? d.lastDay : dayOf(G.gameMin);
   const farm = emptyFarm();
-  for (const k in farm) if (k !== 'hungry' && Number.isFinite(d.farm?.[k])) farm[k] = Math.max(0, d.farm[k]);
+  for (const k in farm) if (Number.isFinite(farm[k]) && Number.isFinite(d.farm?.[k])) farm[k] = Math.max(0, d.farm[k]);
+  for (const k in farm.mix) if (Number.isFinite(d.farm?.mix?.[k])) farm.mix[k] = Math.max(0, d.farm.mix[k]);
+  if (!d.farm?.mix) farm.mix.grain = farm.cowFeed; // older saves: count what is there as grain
   G.farm = farm;
   loadForest(d.forest);
   forester.logs = Math.max(0, Math.min(forester.logCap, +d.logs || 0)); forester.cutting = null;
   TOOLS.watertank.water = Math.max(0, Math.min(TOOLS.watertank.waterCap, +d.water || 0));
+  TOOLS.watertank.milk = !!d.tankMilk && TOOLS.watertank.water > 0;
   attachImpl(IMPL[d.veh[0]?.impl] ? d.veh[0].impl : 'cultivator');
   setHeader(d.veh[1]?.header === 'corn' ? 'corn' : 'grain');
   G.active = vehicles.find(v => v.type === d.active) || combine;

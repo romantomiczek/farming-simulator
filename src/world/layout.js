@@ -134,6 +134,7 @@ export const NO_TREES = [
   { x0: 143, x1: 192, z0: 52, z1: 136 }, { x0: 128, x1: 150, z0: 52, z1: 78 },
   { x0: 192, x1: 220, z0: 22, z1: 46 }, { x0: 226, x1: 256, z0: 50, z1: 80 },
   { x0: -100, x1: -48, z0: -54, z1: -14 }, { x0: 27, x1: 49, z0: -50, z1: -20 },
+  { x0: -104, x1: -16, z0: -96, z1: -52 }, // sheep, pigs and the mixer
   { x0: 6, x1: 142, z0: 106, z1: 140 }, { x0: -48, x1: -12, z0: 108, z1: 134 },
   { x0: 395, x1: 720, z0: -40, z1: 175 }, // town and station
   { x0: 495, x1: 645, z0: -405, z1: -280 }, // gravel pit
@@ -144,6 +145,13 @@ export const NO_TREES = [
 /** Animal pens south-west of the farm. feed = ring where you unload fodder with F. */
 export const COW_PEN = { x0: -96, x1: -74, z0: -50, z1: -26, feed: { x: -70, z: -21, r: 5 } };
 export const HEN_RUN = { x0: -66, x1: -52, z0: -50, z1: -38, feed: { x: -59, z: -33, r: 4.2 } };
+/** Sheep and pigs further south; the feed mixer wagon between the cow pen and the sheep. */
+export const SHEEP_PEN = { x0: -98, x1: -72, z0: -90, z1: -64, feed: { x: -66, z: -68, r: 4.5 } };
+export const PIG_PEN = { x0: -56, x1: -32, z0: -88, z1: -66, feed: { x: -25, z: -70, r: 4.5 } };
+export const MIXER_AT = { x: -84, z: -57 };
+/** Where the tank takes on milk at the cow shed, and the dairy in the town that buys it. */
+export const MILK_LOAD = { x: -88, z: -21, r: 4.5 };
+export const DAIRY = { x: 500, z: 28, r: 7.5 };
 /** Two greenhouses between the farmyard and the pond; water = ring for the water tank. */
 export const GREENHOUSES = [{ key: 'greenhouse1', x: 33, z: -40 }, { key: 'greenhouse2', x: 42, z: -40 }];
 export const GREENHOUSE_WATER = { x: 37.5, z: -27, r: 4.5 };

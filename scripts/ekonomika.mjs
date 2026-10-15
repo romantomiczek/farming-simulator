@@ -27,15 +27,20 @@ table(['Plodina', 'Tržba', 'Osivo', 'Zisk', 'Růst', 'Cena pole', 'Návratnost'
 }));
 
 const cheapest = idx => Math.min(...idx.map(i => CROPS[i].price));
+const HAY_L = 2200 / B.HAY_BALE_FEED; // a hay bale sells for about 2 200 Kč at the barn
 const animal = (name, a, perHour, price, eats) => {
-  const income = perHour * 24 * price, feed = a.feedPerHour * 24 * cheapest(eats), net = income - feed;
+  const income = perHour * 24 * price, feed = a.feedPerHour * 24 * (eats.length ? cheapest(eats) : HAY_L), net = income - feed;
   return [name, kc(a.price), kc(income), kc(feed), kc(net), days(a.price / net), (a.feedStore / (a.feedPerHour * 24)).toFixed(1).replace('.', ',') + ' dne'];
 };
-console.log('BUDOVY (za herní den; krmivo počítané nejlevnější plodinou)');
+console.log('BUDOVY (za herní den; krmivo počítané nejlevnější plodinou, seno cenou balíku ve stodole)');
 const gh = B.GREENHOUSE, ghNet = gh.kgPerHour * 24 * gh.kgPrice;
 table(['Budova', 'Cena', 'Tržba', 'Krmivo/voda', 'Zisk', 'Návratnost', 'Zásoba vydrží'], [
   animal('Kravín', B.COWS, B.COWS.milkPerHour, B.COWS.milkPrice, [1, 3, 5]),
+  animal('Kravín, mléko do mlékárny', B.COWS, B.COWS.milkPerHour, B.COWS.dairyPrice, [1, 3, 5]),
   animal('Kurník', B.HENS, B.HENS.eggsPerHour, B.HENS.eggPrice, [0, 1]),
+  animal('Ovčín (seno)', B.SHEEP, B.SHEEP.woolPerHour, B.SHEEP.woolPrice, []),
+  animal('Vepřín', B.PIGS, B.PIGS.meatPerHour, B.PIGS.meatPrice, [1, 3]),
+  (() => { const extra = B.COWS.milkPerHour * B.MIXER.bonus * 24 * B.COWS.milkPrice; return ['Míchací vůz (+' + Math.round(B.MIXER.bonus * 100) + ' % mléka)', kc(B.MIXER.price), kc(extra), '—', kc(extra), days(B.MIXER.price / extra), '—']; })(),
   ['Skleník', kc(gh.price), kc(ghNet), 'voda z rybníka', kc(ghNet), days(gh.price / ghNet), (gh.waterStore / (gh.waterPerHour * 24)).toFixed(1).replace('.', ',') + ' dne'],
 ]);
 

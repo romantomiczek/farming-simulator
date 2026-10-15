@@ -26,7 +26,7 @@ export const IMPL = {
     key: 'trailer', name: 'Přívěs', park: [23.5, -37], x: 0, z: 0, h: 0, speed: 4.2,
     tank: { crop: -1, amount: 0, cap: 14000 }, bales: 0, baleCap: 8, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0,
   }),
-  watertank: Object.assign(buildWaterTank(), { key: 'watertank', name: 'Cisterna na vodu', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5], water: 0, waterCap: 8000 }),
+  watertank: Object.assign(buildWaterTank(), { key: 'watertank', name: 'Cisterna', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5], water: 0, waterCap: 8000, milk: false }),
   mower: Object.assign(buildMower(), { key: 'mower', name: 'Žací lišta', width: 3.0, workZ: -1.25, speed: 4.6, park: [12, -49], dust: col('#9cbf6a') }),
 };
 export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower'];

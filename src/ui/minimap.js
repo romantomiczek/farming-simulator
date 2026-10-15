@@ -3,7 +3,7 @@ import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import {
   BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
-  RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS,
+  RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS, SHEEP_PEN, PIG_PEN, DAIRY,
 } from '../world/layout.js';
 import { treeDots } from '../world/vegetation.js';
 import { MARKETS } from '../game/markets.js';
@@ -45,6 +45,7 @@ function drawStatic(c, sc) {
   poly([[RAIL.x, RAIL.z0], [RAIL.x, RAIL.z1]], 3, '#8f8a82');
   // farm and village buildings
   rect(COW_PEN.x0, COW_PEN.x1, COW_PEN.z0, COW_PEN.z1, '#b2a372'); rect(HEN_RUN.x0, HEN_RUN.x1, HEN_RUN.z0, HEN_RUN.z1, '#c4b487');
+  rect(SHEEP_PEN.x0, SHEEP_PEN.x1, SHEEP_PEN.z0, SHEEP_PEN.z1, '#a3b07a'); rect(PIG_PEN.x0, PIG_PEN.x1, PIG_PEN.z0, PIG_PEN.z1, '#a08a72');
   for (const g of GREENHOUSES) rect(g.x - 3.5, g.x + 3.5, g.z - 8, g.z + 8, '#d7ece8');
   rect(-44, -28, 119, 129, '#b9a07c');
   rect(PAD.x0, PAD.x1, PAD.z0, PAD.z1, '#ddd8ce');
@@ -57,7 +58,7 @@ function drawStatic(c, sc) {
   c.fillStyle = '#dfe1dc';
   for (const x of [15, 21.5]) { c.beginPath(); c.arc(bx(x), by(-19), 3 * sc, 0, 7); c.fill(); }
   MARKETS.forEach(m => ring(m, m.color));
-  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); WOOD_BUYERS.forEach(w => ring(w, '#8a6a4a'));
+  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); WOOD_BUYERS.forEach(w => ring(w, '#8a6a4a')); ring(DAIRY, '#f2efe6');
 }
 /** Town buildings for the maps (filled in by the town builder). */
 export const townBlocks = [];
@@ -69,6 +70,7 @@ function drawLabels(c, sc, fontPx) {
   c.fillStyle = 'rgba(36,49,42,.85)';
   for (const m of MARKETS) c.fillText(m.short, bx(m.x), by(m.z) - m.r * sc - fontPx * 0.4);
   for (const w of WOOD_BUYERS) c.fillText(w.short, bx(w.x), by(w.z) - w.r * sc - fontPx * 0.4);
+  c.fillText('Mlékárna', bx(DAIRY.x), by(DAIRY.z) - DAIRY.r * sc - fontPx * 0.4);
 }
 
 export function sizeMinimap() {

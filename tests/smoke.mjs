@@ -114,6 +114,26 @@ try {
   });
   check('harvestor na poli', forest);
 
+  // animals: hay bales to the sheep, a balanced mix for the cows, milk by tank to the dairy
+  const farm = await page.evaluate(async () => {
+    const z = window.__zl, M = await import('/src/game/machines.js'), A = await import('/src/game/actions.js');
+    const V = await import('/src/vehicles/vehicles.js'), L = await import('/src/world/layout.js'), F = await import('/src/game/farm.js');
+    for (const k of ['cows', 'sheep', 'pigs', 'mixer', 'trailer', 'watertank']) M.buy(k);
+    const t = V.tractor; z.G.active = t;
+    const place = (x, zz) => { Object.assign(t, { x, z: zz, h: 0, speed: 0 }); Object.assign(V.trailer, { x, z: zz - 5, h: 0 }); z.step(3, 0.02); };
+    V.attachImpl('trailer'); V.trailer.bales = 3; V.trailer.hay = 3;
+    place(L.SHEEP_PEN.feed.x, L.SHEEP_PEN.feed.z + 8); const hay = A.fAction()?.kind; A.doF();
+    const sheep = z.G.farm.sheepFeed;
+    z.G.farm.cowFeed = 9000; Object.assign(z.G.farm.mix, { grain: 5000, hay: 2000, beet: 2000 }); z.G.farm.milk = 0; F.farmTick(4);
+    const milk = z.G.farm.milk;
+    V.attachImpl('watertank'); place(L.MILK_LOAD.x, L.MILK_LOAD.z); A.doF();
+    const m0 = z.G.money; place(L.DAIRY.x, L.DAIRY.z); const sell = A.fAction()?.kind; A.doF();
+    V.attachImpl('cultivator');
+    return { hay, sheep, milk, sell, paid: Math.round(z.G.money - m0) };
+  });
+  check('zvířata a mlékárna', farm.hay === 'feedHay' && farm.sheep === 3000 && farm.milk === 2000 && farm.sell === 'sellMilk' && farm.paid === 24000,
+    'seno ovcím ' + farm.sheep + ' l · mléko se směsí ' + farm.milk + ' l · mlékárna ' + farm.paid + ' Kč');
+
   // an hour of game time at full speed: traffic, animals, growth, helpers' world
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });
   check('hodina herního času', true);

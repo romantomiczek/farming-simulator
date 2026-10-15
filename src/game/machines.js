@@ -1,6 +1,6 @@
 import { G } from './state.js';
 import { vehicles, IMPL, IMPL_ORDER, tractor, combine, trailer, attachImpl, setHeader, applyUpgrades } from '../vehicles/vehicles.js';
-import { COWS, HENS, GREENHOUSE, WOOD } from './balance.js';
+import { COWS, HENS, SHEEP, PIGS, MIXER, GREENHOUSE, WOOD } from './balance.js';
 
 /**
  * Everything the player can own. key matches the vehicle type or implement key;
@@ -19,10 +19,13 @@ export const CATALOG = [
   { key: 'baler', name: 'Lis na balíky', kind: 'Nářadí', price: 480000, desc: 'Lisuje slámu za kombajnem a seno z luk do kulatých balíků.' },
   { key: 'mower', name: 'Žací lišta', kind: 'Nářadí', price: 140000, desc: 'Záběr 3 m. Poseče louku a nechá řádek sena pro lis; tráva pak sama doroste.' },
   { key: 'trailer', name: 'Sklápěcí přívěs', kind: 'Nářadí', price: 150000, desc: '14 000 l zrna nebo 8 balíků.' },
-  { key: 'watertank', name: 'Cisterna na vodu', kind: 'Nářadí', price: 70000, desc: '8 000 l vody z rybníka pro skleníky. V kůlně klávesa 7.' },
+  { key: 'watertank', name: 'Cisterna', kind: 'Nářadí', price: 70000, desc: '8 000 l vody z rybníka pro skleníky, nebo mléka z kravína do mlékárny. V kůlně klávesa 7.' },
   { key: 'jeep', name: 'Jeep Lesák 4×4', kind: 'Osobní auto', price: 290000, desc: 'Rychlý terénní vůz, až 80 km/h. Nic netáhne a nepracuje, ale rychle tě doveze k poli, do lesa i do městečka. Mezerník troubí.' },
   { key: 'forest', name: 'Harvestor Les 8', kind: 'Lesnictví', price: WOOD.harvesterPrice, desc: 'Kácí vzrostlé stromy v lesních parcelách a veze až ' + WOOD.logCap + ' m³ dřeva na pilu nebo do dřevoskladu.' },
-  { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: COWS.price, noLease: true, desc: 'Krávy žerou kukuřici, ječmen nebo cukrovku a dávají mléko. Mléko se prodá samo o půlnoci.' },
+  { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: COWS.price, noLease: true, desc: 'Krávy žerou kukuřici, ječmen, cukrovku nebo balíky sena a dávají mléko. Mléko se prodá samo o půlnoci, nebo ho cisternou odvezeš do mlékárny v městečku za ' + COWS.dairyPrice + ' Kč/l místo ' + COWS.milkPrice + '.' },
+  { key: 'mixer', name: 'Míchací krmný vůz', kind: 'Budovy', price: MIXER.price, noLease: true, desc: 'Stojí u kravína a míchá krmnou směs. Když je v krmelci zrno, seno i cukrovka (každé aspoň ' + Math.round(MIXER.minShare * 100) + ' %), dávají krávy o ' + Math.round(MIXER.bonus * 100) + ' % víc mléka. Potřebuje kravín.' },
+  { key: 'sheep', name: 'Ovčín s 16 ovcemi', kind: 'Budovy', price: SHEEP.price, noLease: true, desc: 'Ovce žerou balíky sena z luk a dávají vlnu. Vlna se prodá o půlnoci.' },
+  { key: 'pigs', name: 'Vepřín s 12 prasaty', kind: 'Budovy', price: PIGS.price, noLease: true, desc: 'Prasata žerou kukuřici nebo ječmen. Vepřové se prodá o půlnoci.' },
   { key: 'hens', name: 'Kurník se 40 slepicemi', kind: 'Budovy', price: HENS.price, noLease: true, desc: 'Slepice žerou pšenici nebo ječmen a snášejí vejce. Vejce se prodají o půlnoci.' },
   { key: 'greenhouse1', name: 'Skleník s rajčaty', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Pěstuje rajčata, potřebuje vodu z cisterny. Rajčata se prodají o půlnoci.' },
   { key: 'greenhouse2', name: 'Druhý skleník', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Zdvojnásobí sklizeň rajčat i spotřebu vody.' },
@@ -79,6 +82,7 @@ export function blockReason(key) {
   const v = vehicles.find(x => x.type === key);
   if (v && (v.tank.amount > 0 || v.unloading)) return 'Nejdřív vyprázdni zásobník.';
   if (v?.logs > 0) return 'Nejdřív prodej dřevo na pile.';
+  if (key === 'watertank' && IMPL.watertank.milk && IMPL.watertank.water > 0) return 'V cisterně je mléko. Prodej ho v mlékárně.';
   if (key === 'upCombine' && combine.tank.amount > 9000) return 'Zásobník kombajnu je plnější než 9 000 l.';
   if (key === 'upTrailer' && trailer.tank.amount > 14000) return 'Přívěs je plnější než 14 000 l.';
   if (G.contracts.active && key === contractNeeds(G.contracts.active)) return 'Potřebuješ ho na rozpracovanou zakázku.';

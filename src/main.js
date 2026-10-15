@@ -49,7 +49,7 @@ const vegetation = buildVegetation(scene);
 const farmstead = buildFarmstead();
 const wildlife = buildWildlife();
 const traffic = buildTraffic();
-ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
+ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'sheep', 'pigs', 'mixer', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
   const q = quality();

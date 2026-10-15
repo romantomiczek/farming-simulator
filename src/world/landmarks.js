@@ -3,7 +3,8 @@ import { mk, B, CY, bake, flatten } from '../render/materials.js';
 import { rng } from '../core/util.js';
 import { groundH } from './terrain.js';
 import { gable, label, strip } from './buildings.js';
-import { RAIL, STATION, PIT, CHAPEL, PONDS, WOOD_BUYERS, circles, addBox, roadAt } from './layout.js';
+import { RAIL, STATION, PIT, CHAPEL, PONDS, WOOD_BUYERS, DAIRY, circles, addBox, roadAt } from './layout.js';
+import { col } from '../core/util.js';
 import { townBlocks } from '../ui/minimap.js';
 
 /**
@@ -40,6 +41,7 @@ function street(st, ax, az, bx, bz, half, skip = []) {
       const w = 8 + R() * 3, dep = 6.5 + R() * 1.5, off = half + 3 + dep / 2;
       const x = ax + ux * d + uz * off * side, z = az + uz * d - ux * off * side;
       if (roadAt(x, z, dep / 2 + 1)) continue;
+      if (Math.hypot(x - DAIRY.x, z - DAIRY.z) < 16) continue; // the dairy's ring
       // the house sits at side·(uz, -ux) from the street; its front (local +z) points back at it
       house(st, x, z, Math.atan2(-side * uz, side * ux), w, dep);
     }
@@ -70,6 +72,20 @@ function buildTown(st, scene) {
   addBox(540, 556, 5.5, 14.5); circles.push({ x: 560, z: 4, r: 2.6 });
   townBlocks.push({ x0: 540, x1: 556, z0: 5.5, z1: 14.5, col: '#d9dcd8' });
   label(scene, 'Krmivárna', 548, 4.2, 14.6, 0);
+
+  // dairy: white hall with a blue roof, two upright milk silos and the tank ring on the main road
+  { const d = DAIRY, hx = d.x, hz = d.z - 18;
+    B(15, 5.5, 9, '#f3f1ea', hx, 2.75, hz, st); B(15.6, 0.3, 9.6, '#4f6f8f', hx, 5.65, hz, st);
+    B(3.2, 3.2, 0.12, '#9aa3a8', hx - 3, 1.6, hz + 4.53, st);
+    for (const sz of [-1, 1]) for (const dx of [-6, -3.5, 1, 3.5, 6]) if (sz < 0 || dx > 0) B(1.4, 0.9, 0.1, '#5d7d8c', hx + dx, 3.8, hz + sz * 4.53, st);
+    B(5, 3, 4, '#e6e8e4', hx - 9.5, 1.5, hz + 1, st); B(5.4, 0.25, 4.4, '#4f6f8f', hx - 9.5, 3.1, hz + 1, st); // office
+    B(1.2, 0.9, 0.1, '#5d7d8c', hx - 9.5, 1.9, hz + 3.03, st);
+    for (const dx of [5, 8.2]) { CY(1.4, 1.4, 9, 14, '#dde2e5', hx + dx + 4, 4.5, hz - 1, st); mk(new THREE.SphereGeometry(1.4, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#c9d0d4', hx + dx + 4, 9, hz - 1, st); circles.push({ x: hx + dx + 4, z: hz - 1, r: 1.5 }); }
+    addBox(hx - 7.5, hx + 7.5, hz - 4.5, hz + 4.5); addBox(hx - 12, hx - 7, hz - 1, hz + 3);
+    townBlocks.push({ x0: hx - 12, x1: hx + 7.5, z0: hz - 4.5, z1: hz + 4.5, col: '#f3f1ea' });
+    label(scene, 'Mlékárna', hx + 2, 4.2, hz + 4.6, 0);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(d.r - 0.5, d.r, 40), new THREE.MeshBasicMaterial({ color: col('#f2efe6'), transparent: true, opacity: 0.8 }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(d.x, groundH(d.x, d.z) + 0.06, d.z); scene.add(ring); }
 
   // timber yard: log stacks and a hut
   const wb = WOOD_BUYERS[1];
