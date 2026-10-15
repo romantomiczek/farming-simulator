@@ -2,11 +2,12 @@ import { fmt } from '../core/util.js';
 import { G, TIME_SCALES } from './state.js';
 import { CROPS, HEADERS } from './crops.js';
 import {
-  inSell, inBaleZone, hasTrailer, trailerInReach, startUnload, stopUnload, startTipping, stopTipping, sellBales,
+  sellPoint, inBaleZone, hasTrailer, trailerInReach, startUnload, stopUnload, startTipping, stopTipping, sellBales,
 } from './work.js';
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
 import { inFuel, refuel, repair } from './economy.js';
+import { marketAt, buyersOf } from './markets.js';
 import { tractor, combine, trailer, trailerCenter, vehicles, HARVESTERS, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
@@ -29,12 +30,14 @@ export function fAction() {
   if (inFuel(v) && v.fuel < v.fuelCap - 1) return { kind: 'refuel', v };
   if (v.harvester) {
     if (v.unloading) return { kind: 'stopUnload', h: v };
-    if (v.tank.amount > 0 && inSell(v)) return { kind: 'sell', h: v };
+    if (v.tank.amount > 0 && sellPoint(v, v.tank.crop)) return { kind: 'sell', h: v, m: sellPoint(v, v.tank.crop) };
+    if (v.tank.amount > 0 && marketAt(v)) return { kind: 'wrongMarket', m: marketAt(v), crop: v.tank.crop };
     if (v.tank.amount > 0 && trailerInReach(v)) return { kind: 'overload', h: v };
     if (v === combine && inShed(v) && otherHeader()) return { kind: 'header', header: otherHeader() };
   } else {
     if (trailer.tipping) return { kind: 'stopTip' };
-    if (hasTrailer() && trailer.tank.amount > 0 && inSell(trailerCenter())) return { kind: 'tip' };
+    if (hasTrailer() && trailer.tank.amount > 0 && sellPoint(trailerCenter(), trailer.tank.crop)) return { kind: 'tip', m: sellPoint(trailerCenter(), trailer.tank.crop) };
+    if (hasTrailer() && trailer.tank.amount > 0 && marketAt(trailerCenter())) return { kind: 'wrongMarket', m: marketAt(trailerCenter()), crop: trailer.tank.crop };
     if (hasTrailer() && trailer.bales > 0 && inBaleZone(trailerCenter())) return { kind: 'sellBales' };
     for (const h of HARVESTERS) if (h.available && h.unloading && trailerInReach(h)) return { kind: 'stopUnload', h };
     for (const h of HARVESTERS) if (h.available && h.tank.amount > 0 && trailerInReach(h)) return { kind: 'overload', h };
@@ -119,6 +122,7 @@ export function doF() {
     case 'tip': startTipping(); return;
     case 'stopTip': stopTipping(saveLocal); return;
     case 'sellBales': sellBales(saveLocal); return;
+    case 'wrongMarket': toast(a.m.name + ' nebere ' + CROPS[a.crop].gen + '. Vezme ji: ' + buyersOf(a.crop).join(', ') + '.', 'bad'); return;
     case 'swap': swapImpl(a.impl); return;
     case 'header': swapHeader(a.header); return;
   }

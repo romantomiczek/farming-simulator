@@ -1,79 +1,93 @@
 import { FIELDS } from '../world/fields.js';
 import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
-import { BOUNDS, ROADS, PAD, POND, sellZone, baleZone, fuelZone } from '../world/layout.js';
+import { BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone } from '../world/layout.js';
+import { MARKETS } from '../game/markets.js';
 import { bales } from '../world/bales.js';
 
-// North-up map of the valley. World +x is drawn to the left so the map matches the
-// default camera view (looking north, +x on the left).
+// North-up map that follows the active vehicle. World +x is drawn to the left so the map
+// matches the default camera view (looking north, +x on the left). The static layer (roads,
+// buildings, zones) is drawn once for the whole valley at a fixed scale and scrolled.
+const VIEW_M = 210; // metres shown across the minimap
 const mm = document.getElementById('minimap'), ctx = mm.getContext('2d');
 const bg = document.createElement('canvas');
-const SPAN_X = BOUNDS.x1 - BOUNDS.x0, SPAN_Z = BOUNDS.z1 - BOUNDS.z0;
-let W = 0, H = 0, sx = 1, sy = 1;
-const mapX = x => (BOUNDS.x1 - x) * sx, mapY = z => (BOUNDS.z1 - z) * sy;
+let W = 0, H = 0, s = 1;
+const bx = x => (BOUNDS.x1 + 6 - x) * s, by = z => (BOUNDS.z1 + 6 - z) * s; // world → static layer px
 
 export function sizeMinimap() {
   const r = mm.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
   if (!r.width) return;
   W = mm.width = Math.round(r.width * dpr); H = mm.height = Math.round(r.height * dpr);
-  sx = W / SPAN_X; sy = H / SPAN_Z;
-  bg.width = W; bg.height = H;
+  s = W / VIEW_M;
+  bg.width = Math.ceil((BOUNDS.x1 - BOUNDS.x0 + 12) * s); bg.height = Math.ceil((BOUNDS.z1 - BOUNDS.z0 + 12) * s);
   const c = bg.getContext('2d');
-  const rect = (x0, x1, z0, z1, fill) => { c.fillStyle = fill; c.fillRect(mapX(x1), mapY(z1), (x1 - x0) * sx, (z1 - z0) * sy); };
-  c.fillStyle = '#9fbe66'; c.fillRect(0, 0, W, H);
+  const rect = (x0, x1, z0, z1, fill) => { c.fillStyle = fill; c.fillRect(bx(x1), by(z1), (x1 - x0) * s, (z1 - z0) * s); };
+  const ring = (z, color) => { c.strokeStyle = color; c.lineWidth = 1.5 * s; c.beginPath(); c.arc(bx(z.x), by(z.z), z.r * s, 0, 7); c.stroke(); };
+  c.fillStyle = '#9fbe66'; c.fillRect(0, 0, bg.width, bg.height);
   ROADS.forEach(r => rect(r.x0, r.x1, r.z0, r.z1, '#e3d3b0'));
   rect(PAD.x0, PAD.x1, PAD.z0, PAD.z1, '#ddd8ce');
   rect(-39, -25, -41, -31, '#c4614e'); rect(-38.5, -29.5, -22.5, -15.5, '#efe6d6'); rect(4, 20, -45, -35, '#a7afb0');
+  for (const [x, z, w, d] of HOUSES) rect(x - d / 2, x + d / 2, z - w / 2, z + w / 2, '#e9ddc8');
+  rect(CHURCH.x - 6, CHURCH.x + 7, CHURCH.z - 3.5, CHURCH.z + 3.5, '#f2ebdf');
+  rect(132, 144, 67, 77, '#efe6d6'); rect(196, 214, 22, 33, '#d9dcd8'); rect(232, 248, 67, 77, '#e7dfd2');
   c.fillStyle = '#dfe1dc';
-  for (const x of [15, 21.5]) { c.beginPath(); c.arc(mapX(x), mapY(-19), 3 * sx, 0, 7); c.fill(); }
-  c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(mapX(POND.x), mapY(POND.z), POND.r * sx, 0, 7); c.fill();
-  c.strokeStyle = '#e0a83a'; c.lineWidth = 1.5 * sx; c.beginPath(); c.arc(mapX(sellZone.x), mapY(sellZone.z), sellZone.r * sx, 0, 7); c.stroke();
-  c.strokeStyle = '#b07a4a'; c.beginPath(); c.arc(mapX(baleZone.x), mapY(baleZone.z), baleZone.r * sx, 0, 7); c.stroke();
-  c.strokeStyle = '#c8553f'; c.beginPath(); c.arc(mapX(fuelZone.x), mapY(fuelZone.z), fuelZone.r * sx, 0, 7); c.stroke();
+  for (const x of [15, 21.5]) { c.beginPath(); c.arc(bx(x), by(-19), 3 * s, 0, 7); c.fill(); }
+  c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(bx(POND.x), by(POND.z), POND.r * s, 0, 7); c.fill();
+  MARKETS.forEach(m => ring(m, m.color));
+  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f');
+  c.font = '700 ' + Math.round(9 * s) + 'px Figtree, sans-serif'; c.textAlign = 'center';
+  c.fillStyle = 'rgba(36,49,42,.8)';
+  for (const m of MARKETS) c.fillText(m.short, bx(m.x), by(m.z) - m.r * s - 3 * s);
 }
 
 export function drawMinimap() {
   if (!W) return;
+  const v = G.active;
+  // keep the active vehicle centred, but do not scroll past the valley edges
+  const ox = Math.min(Math.max(bx(v.x) - W / 2, 0), Math.max(0, bg.width - W));
+  const oy = Math.min(Math.max(by(v.z) - H / 2, 0), Math.max(0, bg.height - H));
+  const mx = x => bx(x) - ox, my = z => by(z) - oy;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(bg, 0, 0);
+  ctx.fillStyle = '#9fbe66'; ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(bg, -ox, -oy);
   ctx.imageSmoothingEnabled = false;
   for (const f of FIELDS) {
     if (f.miniDirty) { f.miniCtx.putImageData(f.miniImg, 0, 0); f.miniDirty = false; }
-    ctx.setTransform(-sx, 0, 0, -sy, mapX(f.x0), mapY(f.z0));
+    ctx.setTransform(-s, 0, 0, -s, mx(f.x0), my(f.z0));
     ctx.drawImage(f.mini, 0, 0);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const fs = Math.round(12 * sx);
-  ctx.font = '800 ' + fs + 'px "Bricolage Grotesque", sans-serif';
+  ctx.font = '800 ' + Math.round(12 * s) + 'px "Bricolage Grotesque", sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const f of FIELDS) {
-    const x = mapX(f.x0 + f.w), y = mapY(f.z0 + f.h), w = f.w * sx, h = f.h * sy;
-    ctx.lineWidth = Math.max(1, sx * 0.9);
-    ctx.strokeStyle = f.owned ? 'rgba(255,255,255,.9)' : 'rgba(36,49,42,.55)';
-    ctx.setLineDash(f.owned ? [] : [4 * sx, 3 * sx]); ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+    const x = mx(f.x0 + f.w), y = my(f.z0 + f.h), w = f.w * s, h = f.h * s;
+    if (x > W || y > H || x + w < 0 || y + h < 0) continue;
+    const job = G.contracts.active?.field === f.id;
+    ctx.lineWidth = Math.max(1, s * 0.9);
+    ctx.strokeStyle = f.owned ? 'rgba(255,255,255,.9)' : job ? '#4d8a5d' : 'rgba(36,49,42,.55)';
+    ctx.setLineDash(f.owned || job ? [] : [4 * s, 3 * s]); ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(36,49,42,.75)'; ctx.fillText(String(f.id), x + w / 2 + 0.8, y + h / 2 + 0.8);
     ctx.fillStyle = '#fff'; ctx.fillText(String(f.id), x + w / 2, y + h / 2);
   }
   ctx.fillStyle = '#f2dc8c'; ctx.strokeStyle = 'rgba(36,49,42,.6)'; ctx.lineWidth = 1;
-  for (const b of bales) { ctx.beginPath(); ctx.arc(mapX(b.x), mapY(b.z), Math.max(1.5, 0.9 * sx), 0, 7); ctx.fill(); ctx.stroke(); }
-  // trailer: a small box along its heading
+  for (const b of bales) { ctx.beginPath(); ctx.arc(mx(b.x), my(b.z), Math.max(1.5, 0.9 * s), 0, 7); ctx.fill(); ctx.stroke(); }
   if (trailer.group.visible) {
-  ctx.save();
-  ctx.translate(mapX(trailer.x + Math.sin(trailer.h) * 0.8), mapY(trailer.z + Math.cos(trailer.h) * 0.8));
-  ctx.rotate(Math.atan2(-Math.cos(trailer.h), -Math.sin(trailer.h)));
-  ctx.fillStyle = '#c8794a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, sx * 0.8);
-  ctx.fillRect(-2.8 * sx, -1.3 * sx, 5.6 * sx, 2.6 * sx); ctx.strokeRect(-2.8 * sx, -1.3 * sx, 5.6 * sx, 2.6 * sx);
-  ctx.restore();
-  }
-  for (const v of vehicles) {
-    if (!v.available) continue;
-    const s = (v === G.active ? 7 : 5) * sx;
     ctx.save();
-    ctx.translate(mapX(v.x), mapY(v.z));
-    ctx.rotate(Math.atan2(-Math.cos(v.h), -Math.sin(v.h)));
-    ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(-s * 0.75, s * 0.68); ctx.lineTo(-s * 0.4, 0); ctx.lineTo(-s * 0.75, -s * 0.68); ctx.closePath();
-    ctx.fillStyle = v.mapCol; ctx.fill();
-    ctx.lineWidth = Math.max(1, sx * (v === G.active ? 1.4 : 0.8)); ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.translate(mx(trailer.x + Math.sin(trailer.h) * 0.8), my(trailer.z + Math.cos(trailer.h) * 0.8));
+    ctx.rotate(Math.atan2(-Math.cos(trailer.h), -Math.sin(trailer.h)));
+    ctx.fillStyle = '#c8794a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, s * 0.8);
+    ctx.fillRect(-2.8 * s, -1.3 * s, 5.6 * s, 2.6 * s); ctx.strokeRect(-2.8 * s, -1.3 * s, 5.6 * s, 2.6 * s);
+    ctx.restore();
+  }
+  for (const u of vehicles) {
+    if (!u.available) continue;
+    const r = (u === v ? 7 : 5) * s;
+    ctx.save();
+    ctx.translate(mx(u.x), my(u.z));
+    ctx.rotate(Math.atan2(-Math.cos(u.h), -Math.sin(u.h)));
+    ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * 0.75, r * 0.68); ctx.lineTo(-r * 0.4, 0); ctx.lineTo(-r * 0.75, -r * 0.68); ctx.closePath();
+    ctx.fillStyle = u.mapCol; ctx.fill();
+    ctx.lineWidth = Math.max(1, s * (u === v ? 1.4 : 0.8)); ctx.strokeStyle = '#fff'; ctx.stroke();
     ctx.restore();
   }
 }

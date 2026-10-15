@@ -17,7 +17,9 @@ import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js'
 import { flushBales } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
 import { cam, bindCamera, updateCamera } from './render/camera.js';
-import { updEnv } from './render/environment.js';
+import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
+import { WX, updateWeather, season, isWinter } from './game/weather.js';
+import { updRain } from './fx/rain.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap } from './ui/minimap.js';
@@ -27,7 +29,7 @@ import { toast } from './ui/toast.js';
 import { toggleSound, updAudio } from './audio.js';
 
 /* ---------- world ---------- */
-buildTerrain(scene);
+const terrain = buildTerrain(scene);
 const { rotors } = buildFarm(scene);
 const vegetation = buildVegetation(scene);
 
@@ -41,6 +43,7 @@ function applyQuality() {
 /* ---------- game start ---------- */
 const hasSave = loadLocal();
 if (!hasSave) newGame();
+snapSeasonTint(terrain.material, vegetation.leafMat, season());
 cam.yaw = G.active.h;
 cam.t.set(G.active.x, 1, G.active.z);
 
@@ -90,7 +93,8 @@ function tick(dt) {
   if (G.playing) {
     const gm = dt * TIME_SCALES[G.tsIdx];
     G.gameMin += gm;
-    growFields(gm / 60);
+    updateWeather(dt);
+    growFields((gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1));
     upkeep(dt);
     if (chargeDays()) { generateOffers(); saveLocal(); }
   }
@@ -109,7 +113,9 @@ function tick(dt) {
 
   updateCamera(dt, G.active);
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
-  updEnv(cam.t, G.gameMin, vehicles, G.active);
+  updEnv(cam.t, G.gameMin, vehicles, G.active, WX);
+  updSeasonTint(dt, terrain.material, vegetation.leafMat, season());
+  updRain(dt, cam.t, WX.rain, isWinter());
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
   updAudio(G.active, G.playing);

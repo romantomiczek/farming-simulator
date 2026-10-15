@@ -51,12 +51,29 @@ Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **�
 
 Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou.
 
+## Svět
+
+Údolí se táhne od farmy na východ. Hlavní silnice vede kolem polí 5 a 6 do vesnice s kostelem. Na prodej je šest polí (3–8).
+
+| Výkup | Kde | Co bere | Cena |
+| --- | --- | --- | --- |
+| Družstvo | u sil na farmě | všechno | 95 % |
+| Mlýn Zlatý klas | u vjezdu do vesnice | pšenice, ječmen | 110–112 % |
+| Olejna | za vesnicí jižně od silnice | řepka, slunečnice | 112–114 % |
+| Cukrovar a bioplynka | na konci silnice | cukrovka, kukuřice | 110–115 % |
+
+Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodinu, kde se teď prodá nejdráž. Minimapa sleduje stroj, ve kterém sedíš.
+
+**Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu.
+
+**Počasí** se mění po čtyřech hodinách: jasno, oblačno, déšť, v zimě sněžení. Za deště a hodinu po něm se nesklízí. Déšť trochu urychlí růst. Předpověď je pod hodinami.
+
 ## Ekonomika
 
 **Kancelář (K)** má tři záložky. Dokud je otevřená, čas stojí.
 
 - **Obchod:** na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs. Pluh, rozmetadlo, lis, řádkový adaptér a sklízeč cukrovky koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den). Vlastní stroj prodáš za 55 % ceny podle stavu.
-- **Zakázky:** obděláváš sousedova pole 3 a 4 (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem.
+- **Zakázky:** obděláváš sousedova pole, která ti nepatří (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem.
 - **Finance:** úvěr až 1 000 000 Kč po 100 000 Kč s úrokem 0,4 % denně. Najdeš tu i nouzový dovoz 60 l nafty, když v poli dojde.
 
 **Nafta:** stroje ji spotřebovávají při jízdě a víc při práci. Tankuje se v červeném kruhu u čerpací stanice vedle kůlny (F, 36 Kč/l). Bez nafty se stroj nerozjede.
@@ -110,5 +127,5 @@ prototyp/              původní jednosouborový prototyp
 2. **Logistika:** přívěs na zrno, překládka z kombajnu a vysypání ve výkupu (hotovo).
 3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem, cukrovka se sklízečem (hotovo).
 4. **Ekonomika:** obchod se stroji (nákup, pronájem, prodej), nafta a opotřebení, zakázky u souseda, úvěr (hotovo).
-5. **Svět:** větší mapa, více výkupů, roční období a počasí.
+5. **Svět:** větší mapa s vesnicí a osmi poli, čtyři výkupy s různými cenami, roční období a počasí (hotovo).
 6. **Pomocníci:** najatí řidiči.

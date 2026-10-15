@@ -33,6 +33,9 @@ export function setShadowSize(s) {
 }
 setShadowSize(70);
 
+/** Fog distances of the current preset; weather shortens them from here. */
+export const fogBase = { near: 200, far: 560 };
+
 export function resize() {
   const w = innerWidth, h = innerHeight;
   if (!w || !h) return;
@@ -50,8 +53,8 @@ export function applyRenderQuality() {
     sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
     if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
   }
-  scene.fog.near = Math.max(140, q.view * 0.4);
-  scene.fog.far = q.view;
+  fogBase.near = scene.fog.near = Math.max(140, q.view * 0.4);
+  fogBase.far = scene.fog.far = q.view;
   camera.far = q.view + 150;
   camera.updateProjectionMatrix();
 }

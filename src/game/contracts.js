@@ -4,6 +4,7 @@ import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE } from './crops.js';
 import { has, setContractNeeds } from './machines.js';
 import { FIELDS, countFields, drawSigns } from '../world/fields.js';
 import { toast } from '../ui/toast.js';
+import { season } from './weather.js';
 
 /**
  * Field work for the neighbour on fields the player does not own. One contract at a time.
@@ -60,7 +61,7 @@ export function generateOffers() {
     const share = k => f.cnt[k] / f.n;
     if (share(S_RIPE) > 0.5) offers.push(offer('harvest', f, dominantCrop(f, S_RIPE)));
     else if (share(S_STUB) > 0.5) { offers.push(offer('cultivate', f)); offers.push(offer('plough', f)); }
-    else if (share(S_CULT) > 0.5) offers.push(offer('sow', f, (day * 7 + f.id * 3) % CROPS.length)); // the neighbour picks the crop
+    else if (share(S_CULT) > 0.5 && season().sow) offers.push(offer('sow', f, (day * 7 + f.id * 3) % CROPS.length)); // the neighbour picks the crop
     else if (share(S_SOWN) > 0.5 && f.fertShare < 0.3) offers.push(offer('fertilize', f));
   }
   G.contracts.offers = offers;

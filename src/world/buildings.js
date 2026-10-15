@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { terrainH } from './terrain.js';
-import { ROADS, PAD, POND, sellZone, baleZone, fuelZone, circles, addBox } from './layout.js';
+import { ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, circles, addBox } from './layout.js';
+import { MARKETS } from '../game/markets.js';
 
 /** House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. */
 function gable(w, d, h, wall, roof, parent) {
@@ -101,7 +102,7 @@ export function buildFarm(scene) {
 
   // wind turbine towers
   const rotors = [];
-  for (const [x, z] of [[-150, 40], [150, 95], [138, -70], [-120, 190]]) {
+  for (const [x, z] of [[-150, 40], [305, 110], [300, -70], [-120, 190]]) {
     const y0 = terrainH(x, z) - 0.5;
     CY(0.7, 1.4, 46, 10, '#f2f1ec', x, y0 + 23, z, st);
     B(1.8, 1.8, 4.2, '#f2f1ec', x, y0 + 46.5, z, st);
@@ -115,16 +116,79 @@ export function buildFarm(scene) {
     rotors.push(r);
   }
 
+  buildVillage(st);
+  buildBuyers(st, scene);
   scene.add(bake(st));
   addZoneMarkers(scene);
   return { rotors };
 }
 
+/** Village along the street east of the farm: houses on both sides and a small church. */
+function buildVillage(st) {
+  for (const [x, z, w, d, wall, roof, ry] of HOUSES) {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; st.add(g);
+    gable(w, d, 4.2, wall, roof, g);
+    for (const sx of [-w / 4, w / 4]) B(1.0, 1.0, 0.1, '#5d7d8c', sx, 2.5, d / 2 + 0.03, g);
+    B(1.0, 2.0, 0.1, '#8a6a52', 0, 1.0, d / 2 + 0.03, g);
+    addBox(x - d / 2, x + d / 2, z - w / 2, z + w / 2);
+  }
+  const g = new THREE.Group(); g.position.set(CHURCH.x + 2, 0, CHURCH.z); st.add(g);
+  gable(10, 7, 6, '#f2ebdf', '#7b5a4e', g);
+  B(3.2, 12, 3.2, '#f2ebdf', -6.6, 6, 0, g);
+  const spire = mk(new THREE.ConeGeometry(2.6, 5, 4), '#5d6268', -6.6, 14.5, 0, g); spire.rotation.y = Math.PI / 4;
+  B(1.0, 1.4, 0.1, '#5d7d8c', -6.6, 9, 1.65, g);
+  addBox(CHURCH.x - 6.2, CHURCH.x + 7.4, CHURCH.z - 3.6, CHURCH.z + 3.6);
+}
+
+/** Text board for a building facade (kept out of bake: it has its own texture). */
+function label(scene, text, x, y, z, ry) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#24312a'; c.fillRect(0, 0, 512, 128);
+  c.fillStyle = '#fbf7ee'; c.font = '800 64px "Bricolage Grotesque", "Trebuchet MS", sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 256, 68);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+  m.position.set(x, y, z); m.rotation.y = ry; scene.add(m);
+  document.fonts?.ready.then(() => { c.fillStyle = '#24312a'; c.fillRect(0, 0, 512, 128); c.fillStyle = '#fbf7ee'; c.fillText(text, 256, 68); tex.needsUpdate = true; });
+}
+
+/** Mill, oil mill and sugar factory along the main road, plus a label on the farm intake. */
+function buildBuyers(st, scene) {
+  // mill: tall gabled building with two small silos
+  { const g = new THREE.Group(); g.position.set(138, 0, 72); st.add(g);
+    gable(12, 10, 9, '#efe6d6', '#8a5a44', g);
+    for (const x of [-3.5, 0, 3.5]) for (const y of [3, 6.5]) B(1.1, 1.3, 0.1, '#5d7d8c', x, y, -5.03, g);
+    for (const dz of [-2.5, 2.5]) { CY(1.8, 1.8, 11, 14, '#dfe1dc', 9, 5.5, dz, g); mk(new THREE.ConeGeometry(1.9, 1.6, 14), '#c9cdc7', 9, 11.8, dz, g); circles.push({ x: 147, z: 72 + dz, r: 2 }); }
+    addBox(132, 144, 67, 77);
+    label(scene, 'Mlýn', 138, 6, 66.9, Math.PI); }
+  // oil mill: hall and three tanks
+  { B(18, 5, 6, '#d9dcd8', 205, 2.5, 25, st);
+    B(18.6, 0.3, 6.6, '#6c777d', 205, 5.15, 25, st);
+    for (const x of [198, 205, 212]) { CY(2.2, 2.2, 7, 16, '#e8e2c8', x, 3.5, 30.5, st); CY(2.25, 2.25, 0.3, 16, '#c9b13a', x, 7.1, 30.5, st); circles.push({ x, z: 30.5, r: 2.3 }); }
+    addBox(196, 214, 22, 28);
+    label(scene, 'Olejna', 205, 3.6, 28.08, 0); }
+  // sugar factory and biogas: big hall, chimney, two green domes
+  { const g = new THREE.Group(); g.position.set(240, 0, 72); st.add(g);
+    gable(16, 10, 7, '#e7dfd2', '#5d6268', g);
+    CY(0.9, 1.3, 22, 12, '#b9a89a', 10, 11, -2, g);
+    CY(1.0, 1.0, 1.2, 12, '#c8553f', 10, 21.5, -2, g);
+    addBox(232, 248, 67, 77); circles.push({ x: 250, z: 70, r: 1.5 });
+    for (const [dx, dz] of [[-12, 6], [-12, -4]]) {
+      const d = mk(new THREE.SphereGeometry(4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#6f9a6a', dx, 0, dz, g);
+      d.scale.y = 0.7; circles.push({ x: 240 + dx, z: 72 + dz, r: 4 });
+    }
+    label(scene, 'Cukrovar', 240, 5, 66.9, Math.PI); }
+  label(scene, 'Družstvo', 5, 7.6, -18.88, 0);
+}
+
 /** Coloured ground rings that show where to sell grain and where to swap implements. */
 function addZoneMarkers(scene) {
-  const ring = new THREE.Mesh(new THREE.RingGeometry(sellZone.r - 0.5, sellZone.r, 40),
-    new THREE.MeshBasicMaterial({ color: col('#e8b84a'), transparent: true, opacity: 0.75 }));
-  ring.rotation.x = -Math.PI / 2; ring.position.set(sellZone.x, 0.06, sellZone.z); scene.add(ring);
+  for (const m of MARKETS) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(m.r - 0.5, m.r, 40),
+      new THREE.MeshBasicMaterial({ color: col(m.color), transparent: true, opacity: 0.75 }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(m.x, 0.06, m.z); scene.add(ring);
+  }
   const baleRing = new THREE.Mesh(new THREE.RingGeometry(baleZone.r - 0.5, baleZone.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#b07a4a'), transparent: true, opacity: 0.75 }));
   baleRing.rotation.x = -Math.PI / 2; baleRing.position.set(baleZone.x, 0.06, baleZone.z); scene.add(baleRing);

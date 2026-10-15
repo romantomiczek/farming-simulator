@@ -1,18 +1,19 @@
 import * as THREE from 'three';
 import { col, smooth, fbm, hash2, clamp } from '../core/util.js';
+import { FLAT } from './layout.js';
 
 /** Height of the ground. The valley floor around the farm is exactly flat (0). */
 export function terrainH(x, z) {
-  const dx = Math.max(0, Math.abs(x) - 108), dz = Math.max(0, Math.abs(z - 25) - 123);
+  const dx = Math.max(0, x - FLAT.x1, FLAT.x0 - x), dz = Math.max(0, z - FLAT.z1, FLAT.z0 - z);
   const d = Math.hypot(dx, dz);
   if (d <= 0) return 0;
   return smooth(0, 70, d) * (6 + 24 * fbm(x * 0.012 + 3, z * 0.012 + 7)) + smooth(0, 30, d) * fbm(x * 0.05, z * 0.05) * 3;
 }
 
 export function buildTerrain(scene) {
-  const g = new THREE.PlaneGeometry(1000, 1000, 150, 150);
+  const g = new THREE.PlaneGeometry(1100, 1000, 165, 150);
   g.rotateX(-Math.PI / 2);
-  g.translate(0, 0, 25);
+  g.translate(77, 0, 25);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) p.setY(i, terrainH(p.getX(i), p.getZ(i)));
   const t = g.toNonIndexed();

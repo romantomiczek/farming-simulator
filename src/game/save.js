@@ -2,7 +2,7 @@ import { G, dayOf } from './state.js';
 import { CATALOG, resetMachines, applyOwnership } from './machines.js';
 import { generateOffers } from './contracts.js';
 import { CROPS, S_STUB, S_SOWN, S_RIPE } from './crops.js';
-import { FIELDS, refreshField, flushFields, drawSigns, countFields } from '../world/fields.js';
+import { FIELDS, refreshField, flushFields, drawSigns, countFields, applyStart } from '../world/fields.js';
 import { vehicles, combine, trailer, attachImpl, setHeader, sendHome, IMPL } from '../vehicles/vehicles.js';
 import { bales, setBales, flushBales } from '../world/bales.js';
 
@@ -32,13 +32,7 @@ function afterLoad() {
 
 export function newGame() {
   G.money = 150000; G.gameMin = 8 * 60; G.tsIdx = 0;
-  for (const f of FIELDS) { f.state.fill(S_STUB); f.crop.fill(0); f.growth.fill(0); f.stage.fill(0); f.dir.fill(0); f.bonus.fill(0); f.straw.fill(0); }
-  const [f1, , f3, f4] = FIELDS;
-  f1.state.fill(S_RIPE); f1.crop.fill(0); f1.stage.fill(4); // ripe wheat to start with
-  f3.state.fill(S_RIPE); f3.crop.fill(2); f3.stage.fill(4); f3.dir.fill(1); // canola, for sale
-  f4.state.fill(S_SOWN); f4.crop.fill(1); // growing barley, for sale
-  for (let i = 0; i < f4.n; i++) { f4.growth[i] = 2.4 + f4.jit[i] * 0.4; f4.stage[i] = stageOf(f4, i); }
-  FIELDS.forEach((f, k) => (f.owned = k < 2));
+  FIELDS.forEach(applyStart); // ripe wheat on field 1, the rest as laid out in FIELD_DEFS
   vehicles.forEach(sendHome);
   Object.assign(vehicles[0], { seedCrop: 0, baleAcc: 0 });
   trailer.tank = { crop: -1, amount: 0, cap: 14000 };
@@ -72,7 +66,7 @@ export function serialize() {
 
 /** Validates everything first and only then touches the game, so a bad file never half-loads. */
 export function applySave(d) {
-  if (!d || ![1, 2, 3, VERSION].includes(d.v) || !Array.isArray(d.fields) || d.fields.length !== FIELDS.length || !Array.isArray(d.veh)) return false;
+  if (!d || ![1, 2, 3, VERSION].includes(d.v) || !Array.isArray(d.fields) || d.fields.length > FIELDS.length || !Array.isArray(d.veh)) return false;
   const decoded = d.fields.map((s, k) => {
     const f = FIELDS[k];
     const out = {
@@ -85,6 +79,7 @@ export function applySave(d) {
     return out;
   });
   G.money = +d.money || 0; G.gameMin = +d.gameMin || 480; G.tsIdx = d.tsIdx | 0;
+  FIELDS.forEach((f, k) => { if (!decoded[k]) applyStart(f); }); // fields added after the save was made
   decoded.forEach((s, k) => {
     const f = FIELDS[k];
     f.owned = s.owned; f.state.set(s.state); f.crop.set(s.crop); f.dir.set(s.dir); f.bonus.set(s.bonus); f.straw.set(s.straw);

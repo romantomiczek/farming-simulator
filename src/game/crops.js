@@ -60,12 +60,6 @@ SOIL[S_RIPE] = SOIL[S_SOWN];
 export const SOIL_PLOW = { base: shades('#6c4630', 4, 0.06), line: shades('#4c3021', 4, 0.06), rgb: hexRgb('#6c4630') };
 export const STRAW = { base: '#e3b64a', line: '#b88d2e', rgb: hexRgb('#e3b64a') };
 
-/** Grain price in Kč/l at game minute t: slow multi-day swing plus a faster wobble. */
-export function price(ci, t) {
-  const c = CROPS[ci], d = t / 1440;
-  return c.price * (1 + 0.14 * Math.sin((d * 2 * Math.PI) / 3.2 + ci * 2.1) + 0.05 * Math.sin(d * 2 * Math.PI * 1.7 + ci * 5.3));
-}
-
 /** Straw bale price in Kč per bale. */
 export function balePrice(t) {
   const d = t / 1440;

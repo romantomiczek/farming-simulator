@@ -101,7 +101,7 @@ function jobLine(c) {
 
 function jobsHTML() {
   const a = G.contracts.active;
-  let out = '<p class="lede small">Sousedovi obděláš pole 3 a 4, dokud je nekoupíš. Osivo a hnojivo dodá on, úrodu si odveze sám. Odměnu dostaneš, když dokončíš 90 % práce do dvou dnů.</p>';
+  let out = '<p class="lede small">Sousedovi obděláš pole, která ti nepatří, dokud je nekoupíš. Osivo a hnojivo dodá on, úrodu si odveze sám. Odměnu dostaneš, když dokončíš 90 % práce do dvou dnů.</p>';
   if (a) {
     const left = Math.max(0, a.deadline - G.gameMin);
     out += `<div class="row active"><div class="rmain"><b>${CTYPES[a.type].name} · pole ${a.field}</b><span>${jobLine(a)}</span>

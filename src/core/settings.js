@@ -17,6 +17,8 @@ export const PRESETS = {
   },
 };
 
+for (const k in PRESETS) PRESETS[k].key = k;
+
 function detectGPU() {
   try {
     const c = document.createElement('canvas');

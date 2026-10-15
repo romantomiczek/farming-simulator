@@ -7,7 +7,14 @@ import { FIELD_DEFS, circles } from './layout.js';
 import { G } from '../game/state.js';
 
 const CP = 4; // canvas pixels per field cell
-const cropGeo = new THREE.BoxGeometry(1, 1, 1); cropGeo.translate(0, 0.5, 0);
+// crop block without its bottom face (never visible): 10 triangles instead of 12
+const cropGeo = (() => {
+  const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, 0.5, 0);
+  const idx = Array.from(g.index.array), bottom = g.groups[3];
+  idx.splice(bottom.start, bottom.count);
+  g.setIndex(idx); g.clearGroups();
+  return g;
+})();
 const cropMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const _m = new THREE.Matrix4(), _c = new THREE.Color();
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -18,7 +25,7 @@ export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
  * direction the tool drove), the crop is one instanced box per cell.
  */
 export const FIELDS = FIELD_DEFS.map(def => {
-  const f = { ...def };
+  const f = { ...def, ownedStart: def.owned };
   f.n = f.w * f.h;
   f.state = new Uint8Array(f.n); f.crop = new Uint8Array(f.n); f.growth = new Float32Array(f.n);
   f.stage = new Uint8Array(f.n); f.dir = new Uint8Array(f.n); f.jit = new Float32Array(f.n);
@@ -43,11 +50,26 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.miniCtx = f.mini.getContext('2d'); f.miniImg = f.miniCtx.createImageData(f.w, f.h);
 
   f.crops = new THREE.InstancedMesh(cropGeo, cropMat, f.n);
-  f.crops.castShadow = true; f.crops.receiveShadow = true; f.crops.frustumCulled = false;
+  f.crops.castShadow = true; f.crops.receiveShadow = true;
+  // fixed bounds so fields off screen (and outside the shadow area) are skipped entirely
+  f.crops.boundingSphere = new THREE.Sphere(new THREE.Vector3(f.x0 + f.w / 2, 1, f.z0 + f.h / 2), Math.hypot(f.w, f.h) / 2 + 3);
   for (let i = 0; i < f.n; i++) { f.crops.setMatrixAt(i, ZERO); f.crops.setColorAt(i, _c.set(0xffffff)); }
   scene.add(f.crops);
   return f;
 });
+
+/** Puts a field into its new-game state from FIELD_DEFS.start. */
+export function applyStart(f) {
+  const st = f.start || { s: 'stub' };
+  const S = { stub: S_STUB, cult: S_CULT, sown: S_SOWN, ripe: S_RIPE }[st.s] ?? S_STUB;
+  f.state.fill(S); f.crop.fill(st.crop || 0); f.growth.fill(0); f.stage.fill(S === S_RIPE ? 4 : 0);
+  f.dir.fill(st.dir || 0); f.bonus.fill(0); f.straw.fill(0);
+  if (S === S_SOWN) {
+    const hours = CROPS[st.crop || 0].hours;
+    for (let i = 0; i < f.n; i++) { f.growth[i] = (st.growth || 0) + f.jit[i] * 0.4; f.stage[i] = Math.min(3, Math.floor((f.growth[i] / hours) * 4)); }
+  }
+  f.owned = f.ownedStart;
+}
 
 export function fieldAt(x, z) {
   for (const f of FIELDS) if (x >= f.x0 && x < f.x0 + f.w && z >= f.z0 && z < f.z0 + f.h) return f;

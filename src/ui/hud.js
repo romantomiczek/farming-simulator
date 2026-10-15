@@ -1,7 +1,7 @@
 import { fmt, fmt2, plural } from '../core/util.js';
 import { G, TIME_SCALES } from '../game/state.js';
 import {
-  CROPS, HEADERS, STATE_NAMES, S_STUB, S_CULT, S_SOWN, S_RIPE, FERT_COST, FERT_BONUS, PLOW_BONUS, price, balePrice,
+  CROPS, HEADERS, STATE_NAMES, S_STUB, S_CULT, S_SOWN, S_RIPE, FERT_COST, FERT_BONUS, PLOW_BONUS, balePrice,
 } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
 import { bales } from '../world/bales.js';
@@ -9,6 +9,8 @@ import { IMPL, IMPL_ORDER, BALE_CELLS, HARVESTERS, tractor, combine, trailer } f
 import { hasTrailer } from '../game/work.js';
 import { fAction, inShed } from '../game/actions.js';
 import { has } from '../game/machines.js';
+import { marketPrice, bestMarket, buyersOf } from '../game/markets.js';
+import { WX, season, dayInSeason, isWinter, isWet, forecast, weatherName, DAYS_PER_SEASON } from '../game/weather.js';
 import { DIESEL, repairQuote, refuelLiters } from '../game/economy.js';
 import { CTYPES, progress } from '../game/contracts.js';
 
@@ -17,7 +19,7 @@ const ui = {
   money: $('money'), moneyBox: $('moneyBox'), day: $('day'), time: $('time'), speed: $('speedBtn'), task: $('task'),
   prices: $('priceList'), vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'),
   vTankLabel: $('vTankLabel'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
-  shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'),
+  shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'), wx: $('wxLine'),
   vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), job: $('jobLine'),
 };
 
@@ -43,16 +45,17 @@ function taskText() {
   let t;
   if (fullH) {
     t = hasTrailer()
-      ? 'Zásobník ' + fullH.gen + ' je plný. Přistav přívěs vlevo od něj pod rouru a stiskni F, nebo jeď k silům.'
-      : 'Zásobník ' + fullH.gen + ' je plný. Zajeď do žlutého kruhu u sil a stiskni F. Rychlejší je připojit v kůlně přívěs.';
-  } else if (full(trailer.tank)) t = 'Přívěs je plný. Odvez ho do žlutého kruhu u sil a vysyp klávesou F.';
+      ? 'Zásobník ' + fullH.gen + ' je plný. Přistav přívěs vlevo od něj pod rouru a stiskni F, nebo jeď do výkupu.'
+      : 'Zásobník ' + fullH.gen + ' je plný. Zajeď do kruhu výkupu a stiskni F, nejvíc teď platí ' + bestMarket(fullH.tank.crop, G.gameMin).m.name + '.';
+  } else if (full(trailer.tank)) t = 'Přívěs je plný. Odvez ho do výkupu (nejvíc platí ' + bestMarket(trailer.tank.crop, G.gameMin).m.name + ') a vysyp klávesou F.';
   else if (trailer.bales >= trailer.baleCap) t = 'Přívěs je plný balíků. Odvez je do hnědého kruhu u stodoly a prodej klávesou F.';
   else if (waitingH) t = (waitingH === combine ? 'Kombajn' : 'Sklízeč') + ' vykládá. Najeď přívěsem vlevo od něj pod výsypnou rouru.';
+  else if ((ripe.length || ripeBeet.length) && isWet()) t = 'Prší, sklízet se teď nedá. Plodiny oschnou hodinu po dešti, mezitím můžeš kultivovat, hnojit nebo prodávat.';
   else if (ripe.length) t = 'Skliď zralé plodiny kombajnem na poli ' + ripe.join(' a ') + '. Spusť lištu mezerníkem.';
   else if (ripeBeet.length) t = has('beet') ? 'Skliď cukrovku na poli ' + ripeBeet.join(' a ') + ' sklízečem cukrovky. Přesedneš do něj klávesou Tab.'
     : 'Cukrovka na poli ' + ripeBeet.join(' a ') + ' je zralá. Sklízeč cukrovky si pronajmi nebo kup v Kanceláři (K).';
-  else if (loadedH) t = hasTrailer() ? 'Přelož úrodu ze zásobníku ' + loadedH.gen + ' do přívěsu (F), nebo ji prodej u sil.' : 'Prodej úrodu ze zásobníku ' + loadedH.gen + ' ve výkupu u sil (F).';
-  else if (trailer.tank.amount > 0) t = 'Odvez zrno v přívěsu k silům a vysyp ho klávesou F.';
+  else if (loadedH) t = hasTrailer() ? 'Přelož úrodu ze zásobníku ' + loadedH.gen + ' do přívěsu (F), nebo ji prodej ve výkupu.' : 'Prodej úrodu ze zásobníku ' + loadedH.gen + ' ve výkupu (F). Nejvíc teď platí ' + bestMarket(loadedH.tank.crop, G.gameMin).m.name + '.';
+  else if (trailer.tank.amount > 0) t = 'Odvez úrodu v přívěsu do výkupu a vysyp ji klávesou F. Nejvíc teď platí ' + bestMarket(trailer.tank.crop, G.gameMin).m.name + '.';
   else if (straw > 40) t = has('baler') ? 'Na poli leží řádky slámy. Připoj v kůlně lis a slisuj je do balíků, než pole zkultivuješ.'
     : 'Na poli leží řádky slámy. Lis na balíky koupíš nebo pronajmeš v Kanceláři (K). Jinak slámu zaorej.';
   else if (bales.length) t = 'Na poli leží ' + plural(bales.length, 'balík', 'balíky', 'balíků') + '. Připoj přívěs a projeď kolem nich, naloží se samy. Prodáš je u stodoly.';
@@ -60,11 +63,12 @@ function taskText() {
   else if (sum(S_STUB) > 0) t = tractor.impl === 'cultivator' || tractor.impl === 'plough'
     ? (has('plough') ? 'Zkultivuj nebo zoráš strniště. Pluh je pomalejší, ale dá +15 % výnosu.' : 'Zkultivuj strniště. Pluh (+15 % výnosu) koupíš v Kanceláři (K).')
     : 'Na strniště potřebuješ kultivátor nebo pluh. Vyměníš je v kůlně (klávesy 1–6).';
+  else if (sum(S_CULT) > 0 && isWinter()) t = 'Zima: nesije se a nic neroste. Zoráš strniště, opravíš stroje v kůlně (R), nebo počkáš na jaro (T zrychlí čas).';
   else if (sum(S_CULT) > 0) t = tractor.impl === 'seeder' ? 'Zasej zkultivovanou půdu. Osivo změníš klávesou C.' : 'Připoj v kůlně secí stroj a zasej.';
   else if (unfert.length && has('spreader')) t = 'Pohnoj pole ' + unfert.join(' a ') + ' rozmetadlem (+25 % výnosu), dokud plodiny rostou.';
   else if (unfert.length && G.money > 90000 && !G.contracts.active) t = 'Rozmetadlo za 90 000 Kč z Kanceláře (K) přidá rostoucím plodinám 25 % výnosu.';
   else if (G.contracts.offers.length && !G.contracts.active) t = 'Plodiny rostou. Mezitím si vydělej zakázkou u souseda: Kancelář (K) → Zakázky.';
-  else if (sum(S_SOWN) > 0) t = 'Plodiny rostou. Klávesa T zrychlí čas.';
+  else if (sum(S_SOWN) > 0) t = isWinter() ? 'V zimě plodiny nerostou. Na jaře se rozrostou znovu, T zrychlí čas.' : 'Plodiny rostou. Klávesa T zrychlí čas.';
   else t = 'Všechno je hotové.';
   const cheapest = FIELDS.filter(f => !f.owned).sort((a, b) => a.price - b.price)[0];
   if (cheapest && G.money >= cheapest.price) t += ' Máš na koupi pole ' + cheapest.id + '.';
@@ -76,9 +80,10 @@ function fPrompt(a) {
   switch (a.kind) {
     case 'refuel': { const l = refuelLiters(a.v); return l >= 1 ? 'Natankovat ' + fmt(l) + ' l nafty za ' + fmt(l * DIESEL) + ' Kč' : 'Na naftu nemáš peníze'; }
     case 'stopUnload': return 'Zastavit vykládku ' + a.h.gen;
-    case 'sell': return 'Prodat ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' za ' + fmt(a.h.tank.amount * price(a.h.tank.crop, G.gameMin)) + ' Kč';
+    case 'sell': return 'Prodat ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' za ' + fmt(a.h.tank.amount * marketPrice(a.m, a.h.tank.crop, G.gameMin)) + ' Kč';
+    case 'wrongMarket': return a.m.name + ' nebere ' + CROPS[a.crop].gen + ' · vezme ji ' + buyersOf(a.crop).join(', ');
     case 'overload': return 'Přeložit ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' do přívěsu';
-    case 'tip': return 'Vysypat a prodat ' + fmt(trailer.tank.amount) + ' l za ' + fmt(trailer.tank.amount * price(trailer.tank.crop, G.gameMin)) + ' Kč';
+    case 'tip': return 'Vysypat a prodat ' + fmt(trailer.tank.amount) + ' l za ' + fmt(trailer.tank.amount * marketPrice(a.m, trailer.tank.crop, G.gameMin)) + ' Kč';
     case 'stopTip': return 'Zastavit vysypávání';
     case 'sellBales': return 'Prodat ' + plural(trailer.bales, 'balík', 'balíky', 'balíků') + ' za ' + fmt(trailer.bales * balePrice(G.gameMin)) + ' Kč';
     case 'swap': return 'Vyměnit za ' + IMPL[a.impl].name.toLowerCase();
@@ -179,8 +184,13 @@ export function updUI() {
 }
 
 /** Twice a second: next-step hint and the price list. */
+const hhmm = min => { const m = Math.floor(min % 1440); return String((m / 60) | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+
 export function updSlowUI() {
   setText(ui.task, 'task', taskText());
+  const fc = forecast(), winter = isWinter();
+  setText(ui.wx, 'wx', season().name + ' · den ' + dayInSeason() + ' ze ' + DAYS_PER_SEASON + ' · ' + weatherName(WX.kind, winter) +
+    (fc ? ', ' + weatherName(fc.kind, winter).toLowerCase() + ' od ' + hhmm(fc.at) : ''));
   const c = G.contracts.active;
   ui.job.hidden = !c;
   if (c) {
@@ -190,10 +200,10 @@ export function updSlowUI() {
   }
   let h = '';
   CROPS.forEach((c, k) => {
-    const p = price(k, G.gameMin), d = p - price(k, G.gameMin - 60);
-    h += '<li><span>' + c.name + '</span><span>' + fmt2(p) + '</span><span class="' + (d >= 0 ? 'up' : 'down') + '">' + (d >= 0 ? '▲' : '▼') + '</span></li>';
+    const { m, p } = bestMarket(k, G.gameMin), d = p - marketPrice(m, k, G.gameMin - 60);
+    h += '<li><span>' + c.name + '</span><span>' + fmt2(p) + '</span><span class="where">' + m.short + '</span><span class="' + (d >= 0 ? 'up' : 'down') + '">' + (d >= 0 ? '▲' : '▼') + '</span></li>';
   });
   const bp = balePrice(G.gameMin), bd = bp - balePrice(G.gameMin - 60);
-  h += '<li class="sep"><span>Balík slámy</span><span>' + fmt(bp) + '</span><span class="' + (bd >= 0 ? 'up' : 'down') + '">' + (bd >= 0 ? '▲' : '▼') + '</span></li>';
+  h += '<li class="sep"><span>Balík slámy</span><span>' + fmt(bp) + '</span><span class="where">Stodola</span><span class="' + (bd >= 0 ? 'up' : 'down') + '">' + (bd >= 0 ? '▲' : '▼') + '</span></li>';
   setHTML(ui.prices, 'prices', h);
 }

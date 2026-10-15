@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { M } from '../render/materials.js';
 import { rng, lerp, col } from '../core/util.js';
 import { terrainH } from './terrain.js';
-import { FIELD_DEFS, POND, circles, addBox } from './layout.js';
+import { FIELD_DEFS, ROADS, PAD, POND, NO_TREES, BOUNDS, circles, addBox } from './layout.js';
 
 /**
  * Trees on the hills and in the valley, plus hedgerows along the outer field edges.
@@ -13,17 +13,18 @@ import { FIELD_DEFS, POND, circles, addBox } from './layout.js';
 export function buildVegetation(scene) {
   const R = rng(7), dummy = new THREE.Object3D();
   const blocked = (x, z, m) => {
-    for (const f of FIELD_DEFS) if (x > f.x0 - m && x < f.x0 + f.w + m && z > f.z0 - m && z < f.z0 + f.h + m) return true;
-    if (x > -14 - m && x < -6 + m && z > -52 && z < 108) return true;
-    if (z > 44 - m && z < 52 + m && x > -76 && x < 64) return true;
-    if (x > -48 - m && x < 28 + m && z > -54 - m && z < -10 + m) return true;
+    const inRect = (x0, x1, z0, z1) => x > x0 - m && x < x1 + m && z > z0 - m && z < z1 + m;
+    for (const f of FIELD_DEFS) if (inRect(f.x0, f.x0 + f.w, f.z0, f.z0 + f.h)) return true;
+    for (const r of ROADS) if (inRect(r.x0, r.x1, r.z0, r.z1)) return true;
+    for (const r of NO_TREES) if (inRect(r.x0, r.x1, r.z0, r.z1)) return true;
+    if (inRect(PAD.x0 - 2, PAD.x1 + 2, PAD.z0 - 2, PAD.z1 + 2)) return true;
     if (Math.hypot(x - POND.x, z - POND.z) < POND.r + 3 + m) return true;
     return false;
   };
 
   const valley = [], hills = [];
-  for (let a = 0; a < 2600; a++) {
-    const x = (R() - 0.5) * 760, z = (R() - 0.5) * 700 + 30;
+  for (let a = 0; a < 3200; a++) {
+    const x = (R() - 0.5) * 900 + 77, z = (R() - 0.5) * 700 + 30;
     const h = terrainH(x, z);
     const inFlat = h < 0.01;
     if (inFlat && R() > 0.16) continue;
@@ -32,7 +33,7 @@ export function buildVegetation(scene) {
     const s = 0.75 + R() * 0.65, conifer = R() < (inFlat ? 0.2 : 0.42);
     const t = { x, y: h, z, s, conifer, r: R() };
     (inFlat ? valley : hills).push(t);
-    if (inFlat && Math.abs(x) < 104 && z > -94 && z < 144) circles.push({ x, z, r: 0.9 * s });
+    if (inFlat && x > BOUNDS.x0 - 4 && x < BOUNDS.x1 + 4 && z > BOUNDS.z0 - 4 && z < BOUNDS.z1 + 4) circles.push({ x, z, r: 0.9 * s });
   }
 
   const hedge = [];
@@ -65,7 +66,9 @@ export function buildVegetation(scene) {
     trunks.setMatrixAt(i, dummy.matrix);
   });
 
-  const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), M('#ffffff'), hedge.length + decid.length);
+  // own material (not the shared white one): its colour is the season tint for leaves and hedges
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, flatShading: true });
+  const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), leafMat, hedge.length + decid.length);
   hedge.forEach((t, i) => {
     dummy.position.set(t.x, 0.75 * t.s, t.z); dummy.rotation.set(0, t.r * 6, 0); dummy.scale.set(1.3 * t.s, t.s, 1.3 * t.s); dummy.updateMatrix();
     crowns.setMatrixAt(i, dummy.matrix); crowns.setColorAt(i, c.copy(greens[2 + ((t.r * 3) | 0)]).multiplyScalar(0.85 + t.r * 0.2));
@@ -86,6 +89,7 @@ export function buildVegetation(scene) {
   for (const m of [trunks, crowns, cones]) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
 
   return {
+    leafMat,
     /** 0..1 share of hill trees to draw. Trunks are reordered to match, see trunkOrder. */
     setDensity(d) {
       const nd = decidValley + Math.round((decid.length - decidValley) * d);

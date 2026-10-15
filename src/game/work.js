@@ -2,18 +2,21 @@ import * as THREE from 'three';
 import { lerp, fmt, plural } from '../core/util.js';
 import { G } from './state.js';
 import {
-  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, price, balePrice,
+  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice,
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { IMPL, BALE_CELLS, HARVESTERS, toolLine, tractor, trailer, trailerCenter } from '../vehicles/vehicles.js';
-import { sellZone, baleZone } from '../world/layout.js';
+import { baleZone } from '../world/layout.js';
+import { marketAt, accepts, marketPrice } from './markets.js';
 import { bales, addBale, removeBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
 import { toast, warn } from '../ui/toast.js';
 import { contractAllows, contractCell } from './contracts.js';
+import { season, isWet } from './weather.js';
 
 const inZone = (zone, p) => Math.hypot(p.x - zone.x, p.z - zone.z) < zone.r;
-export const inSell = p => inZone(sellZone, p);
+/** The buyer at point p if it takes crop, else null. */
+export const sellPoint = (p, crop) => { const m = marketAt(p); return m && accepts(m, crop) ? m : null; };
 export const inBaleZone = p => inZone(baleZone, p);
 
 /**
@@ -38,6 +41,7 @@ function applyCell(v, x, z, k, dirBit, res) {
         break;
       case 'seeder':
         if (s === S_CULT) {
+          if (!season().sow) { res.blocked = 'winter'; return; }
           const crop = job ? G.contracts.active.crop : v.seedCrop, cr = CROPS[crop];
           if (!job) {
             if (G.money < cr.seed) { res.blocked = 'money'; return; }
@@ -63,6 +67,7 @@ function applyCell(v, x, z, k, dirBit, res) {
   } else if (s === S_RIPE) {
     const c = f.crop[i], cr = CROPS[c], tk = v.tank;
     if (cr.header !== v.header) { res.blocked = 'header'; res.needHeader = cr.header; return; }
+    if (isWet()) { res.blocked = 'wet'; return; }
     if (!job) {
       if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
       const y = cr.yield * yieldMult(f.bonus[i]);
@@ -115,6 +120,8 @@ export function work(v, dt) {
       : v.header === 'beet' ? 'Sklízeč cukrovky sklízí jen cukrovku.'
       : 'Na tuhle plodinu potřebuješ ' + HEADERS[res.needHeader].short + '. Vyměníš ho v kůlně.');
   }
+  if (res.blocked === 'wet') warn('wet', 'Za deště a hodinu po něm se nesklízí, plodiny musí oschnout.');
+  if (res.blocked === 'winter') { v.lowered = false; warn('winter', 'V zimě se nesije. Počkej na jaro.'); }
   if (res.stub && !res.changed) warn('stub', 'Secí stroj potřebuje zkultivovanou nebo zoranou půdu.', '');
 
   // baler: drop a bale behind the chamber every BALE_CELLS of straw
@@ -167,7 +174,7 @@ const trailerAccepts = crop => trailer.bales === 0 && (trailer.tank.amount <= 0 
 
 function sellToast(who, onDone) {
   if (who.sold > 0) {
-    toast('Prodáno ' + fmt(who.sold) + ' l ' + CROPS[who.soldCrop].gen + ' za ' + fmt(who.soldMoney) + ' Kč', 'good');
+    toast('Prodáno ' + fmt(who.sold) + ' l ' + CROPS[who.soldCrop].gen + ' za ' + fmt(who.soldMoney) + ' Kč · ' + who.soldAt, 'good');
     onDone?.();
   }
   who.sold = 0; who.soldMoney = 0;
@@ -191,10 +198,10 @@ function pour(x, y, z, crop, dt, spread = 0.4) {
 /** One harvester's unloading: sells at the intake or fills the trailer under its pipe, else waits. */
 function unloadHarvester(h, dt, onDone) {
   if (!h.unloading) return;
-  const toTrailer = !inSell(h) && trailerInReach(h);
+  const m = sellPoint(h, h.tank.crop), toTrailer = !m && trailerInReach(h);
   if (h.tank.amount <= 0) stopUnload(h, onDone);
-  else if (!inSell(h) && !hasTrailer()) stopUnload(h, onDone);
-  else if (!inSell(h) && !toTrailer) h.waiting = 'reach';
+  else if (!m && !hasTrailer()) stopUnload(h, onDone);
+  else if (!m && !toTrailer) h.waiting = 'reach';
   else if (toTrailer && !trailerAccepts(h.tank.crop)) {
     h.waiting = 'mix';
     warn('mixT', trailer.bales ? 'V přívěsu jsou balíky. Nejdřív je prodej u stodoly.' : 'V přívěsu je jiná plodina. Nejdřív ho prodej.');
@@ -207,7 +214,8 @@ function unloadHarvester(h, dt, onDone) {
       amt = Math.min(amt, trailer.tank.cap - trailer.tank.amount);
       trailer.tank.crop = crop; trailer.tank.amount += amt; h.moved += amt;
     } else {
-      const pr = price(crop, G.gameMin);
+      const pr = marketPrice(m, crop, G.gameMin);
+      h.soldAt = m.name;
       h.sold += amt; h.soldMoney += amt * pr; G.money += amt * pr; G.flashT = 0.4;
     }
     h.tank.amount -= amt;
@@ -226,9 +234,11 @@ export function updateLogistics(dt, onDone) {
 
   const t = trailer;
   if (t.tipping) {
-    if (!hasTrailer() || !inSell(trailerCenter()) || t.tank.amount <= 0) stopTipping(onDone);
+    const m = hasTrailer() && sellPoint(trailerCenter(), t.tank.crop);
+    if (!m || t.tank.amount <= 0) stopTipping(onDone);
     else if (t.tip.rotation.x < -0.5) { // body is up
-      const crop = t.tank.crop, amt = Math.min(t.tank.amount, TIP_RATE * dt), pr = price(crop, G.gameMin);
+      const crop = t.tank.crop, amt = Math.min(t.tank.amount, TIP_RATE * dt), pr = marketPrice(m, crop, G.gameMin);
+      t.soldAt = m.name;
       t.tank.amount -= amt; t.sold += amt; t.soldMoney += amt * pr; G.money += amt * pr; G.flashT = 0.4;
       _v.set((Math.random() - 0.5) * 1.8, 0.2, 0); t.tip.localToWorld(_v);
       pour(_v.x, _v.y, _v.z, crop, dt, 0.8);
