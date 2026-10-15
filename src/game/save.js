@@ -7,6 +7,7 @@ import { vehicles, combine, trailer, attachImpl, setHeader, sendHome, IMPL } fro
 import { bales, setBales, flushBales } from '../world/bales.js';
 import { forester, IMPL as TOOLS } from '../vehicles/vehicles.js';
 import { serializeForest, loadForest } from '../world/forest.js';
+import { MAP_DEFAULTS } from '../world/layout.js';
 import { emptyFarm } from './farm.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
 import { emptyStats, loadStats, loadGoals, GOALS, progressOf } from './goals.js';
@@ -64,7 +65,7 @@ export function serialize() {
   return {
     v: VERSION, money: G.money, gameMin: G.gameMin, tsIdx: G.tsIdx, active: G.active.type,
     fields: FIELDS.map(f => ({
-      owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir),
+      id: f.id, x0: f.x0, z0: f.z0, owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir),
       growth: b64.enc(new Uint8Array(f.growth.buffer)), bonus: b64.enc(f.bonus), straw: b64.enc(f.straw),
     })),
     veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel, helper: serializeHelper(v) })),
@@ -77,26 +78,32 @@ export function serialize() {
 
 /** Validates everything first and only then touches the game, so a bad file never half-loads. */
 export function applySave(d) {
-  if (!d || ![1, 2, 3, VERSION].includes(d.v) || !Array.isArray(d.fields) || d.fields.length > FIELDS.length || !Array.isArray(d.veh)) return false;
-  const decoded = d.fields.map((s, k) => {
-    const f = FIELDS[k];
+  if (!d || ![1, 2, 3, VERSION].includes(d.v) || !Array.isArray(d.fields) || !Array.isArray(d.veh)) return false;
+  // Fields are matched by number (saves made before the map editor: by position in the original map).
+  // A field the map editor resized starts fresh but stays bought; a deleted field is skipped.
+  const decoded = new Map(), moved = new Set();
+  d.fields.forEach((s, k) => {
+    const id = Number.isFinite(s?.id) ? s.id : MAP_DEFAULTS.fields[k]?.id;
+    const f = FIELDS.find(g => g.id === id);
+    if (!f || decoded.has(f)) return;
+    if ((Number.isFinite(s.x0) && s.x0 !== f.x0) || (Number.isFinite(s.z0) && s.z0 !== f.z0)) moved.add(f.id);
     const out = {
       owned: !!s.owned, state: b64.dec(s.state), crop: b64.dec(s.crop), dir: b64.dec(s.dir), growth: b64.dec(s.growth),
       bonus: s.bonus ? b64.dec(s.bonus) : new Uint8Array(f.n), straw: s.straw ? b64.dec(s.straw) : new Uint8Array(f.n),
     };
-    for (const key of ['state', 'crop', 'dir', 'bonus', 'straw']) if (out[key].length !== f.n) throw new Error('bad field size');
-    if (out.growth.length !== f.n * 4) throw new Error('bad field size');
+    const sized = ['state', 'crop', 'dir', 'bonus', 'straw'].every(key => out[key].length === f.n) && out.growth.length === f.n * 4;
+    if (!sized) { decoded.set(f, { owned: out.owned, fresh: true }); moved.add(f.id); return; }
     for (let i = 0; i < f.n; i++) if ((out.state[i] > S_RIPE && out.state[i] !== S_NONE) || out.crop[i] >= CROPS.length) throw new Error('bad cell');
-    return out;
+    decoded.set(f, out);
   });
   G.money = +d.money || 0; G.gameMin = +d.gameMin || 480; G.tsIdx = d.tsIdx | 0;
-  FIELDS.forEach((f, k) => { if (!decoded[k]) applyStart(f); }); // fields added after the save was made
-  decoded.forEach((s, k) => {
-    const f = FIELDS[k];
+  for (const f of FIELDS) {
+    const s = decoded.get(f);
+    if (!s || s.fresh) { applyStart(f); if (s) f.owned = s.owned; continue; } // new or resized field
     f.owned = s.owned; f.state.set(s.state); f.crop.set(s.crop); f.dir.set(s.dir); f.bonus.set(s.bonus); f.straw.set(s.straw);
     f.growth.set(new Float32Array(s.growth.buffer));
     for (let i = 0; i < f.n; i++) f.stage[i] = stageOf(f, i);
-  });
+  }
   vehicles.forEach((v, k) => {
     const s = d.veh[k];
     if (!s) { sendHome(v); return; }
@@ -119,7 +126,7 @@ export function applySave(d) {
     }
     G.machines.tractor = 'own';
     G.loan = Math.max(0, +d.loan || 0);
-    const ok = c => c && Number.isFinite(c.field) && Number.isFinite(c.target);
+    const ok = c => c && Number.isFinite(c.field) && Number.isFinite(c.target) && FIELDS.some(f => f.id === c.field); // the field may have been deleted in the map editor
     G.contracts = { offers: (d.contracts?.offers || []).filter(ok), active: ok(d.contracts?.active) ? d.contracts.active : null };
   } else {
     resetMachines(true);
@@ -140,7 +147,8 @@ export function applySave(d) {
   afterLoad();
   if (!G.contracts.active && !G.contracts.offers.length) generateOffers();
   // helpers carry on where they were (after ownership and contracts are known)
-  vehicles.forEach((v, k) => { v.helper = null; if (v.available) restoreHelper(v, d.veh[k]?.helper); });
+  // a helper on a field the map editor moved or resized would follow the old path, so he goes home instead
+  vehicles.forEach((v, k) => { v.helper = null; const h = d.veh[k]?.helper; if (v.available && !moved.has(h?.field)) restoreHelper(v, h); });
   if (G.active.helper) G.active = vehicles.find(v => v.available && !v.helper) || G.active;
   G.stats = loadStats(d.stats);
   // saves from before goals existed: whatever is already achieved counts as done, without a reward

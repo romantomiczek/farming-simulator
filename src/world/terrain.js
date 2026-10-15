@@ -33,15 +33,16 @@ function hills(x, z) {
 const FIELD_PAD = 6;
 const levelCache = new Map();
 /** Height of field def f (its terrace level, rounded to 0.5 m). */
+const inHome = f => f.x0 + f.w <= HOME.x1 && f.x0 >= HOME.x0 && f.z0 >= HOME.z0 && f.z0 + f.h <= HOME.z1;
 export function levelOf(f) {
-  if (f.x0 + f.w <= HOME.x1 && f.x0 >= HOME.x0 && f.z0 >= HOME.z0 && f.z0 + f.h <= HOME.z1) return 0;
+  if (inHome(f)) return 0;
   if (!levelCache.has(f.id)) levelCache.set(f.id, Math.round(hills(f.x0 + f.w / 2, f.z0 + f.h / 2) * 2) / 2);
   return levelCache.get(f.id);
 }
 const ZONES = [
   { r: HOME, level: 0, m: 60 },
   { r: { x0: TOWN.x0, x1: RAIL.x + 20, z0: TOWN.z0, z1: TOWN.z1 }, level: 0, m: 50 },
-  ...FIELD_DEFS.filter(f => f.id > 8).map(f => ({
+  ...FIELD_DEFS.filter(f => !inHome(f)).map(f => ({
     r: { x0: f.x0 - FIELD_PAD, x1: f.x0 + f.w + FIELD_PAD, z0: f.z0 - FIELD_PAD, z1: f.z0 + f.h + FIELD_PAD }, level: levelOf(f), m: 22,
   })),
   { r: { x0: CHAPEL.x - 16, x1: CHAPEL.x + 16, z0: CHAPEL.z - 16, z1: CHAPEL.z + 16 }, level: Math.round(hills(CHAPEL.x, CHAPEL.z)), m: 18 },

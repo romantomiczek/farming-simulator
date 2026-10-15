@@ -17,6 +17,7 @@ import { FIELDS, refreshField, flushFields, countFields, drawSigns } from '../wo
 import { SAWMILL, POND } from '../world/layout.js';
 import { saveLocal } from '../game/save.js';
 import { toast } from './toast.js';
+import { toggleMapEditor } from './mapeditor.js';
 
 /**
  * Developer panel (F9): time, weather, graphics details, world switches, cheats and live info.
@@ -76,6 +77,9 @@ function html() {
     ${check('devTracks', 'Stopy kol a prach')}
     ${check('devParticles', 'Částice (prach, kouř, plevy)')}
     ${check('devHud', 'Skrýt HUD (na snímky obrazovky)')}`, false)}
+  ${sec('Mapa', `
+    <p class="muted">Přesouvej a měň pole, louky, cesty, rybníky a lesy. Změny se uloží do src/world/map.json.</p>
+    <div class="devbtns">${button('mapEdit', 'Editor mapy')}</div>`)}
   ${sec('Hra', `
     <div class="devbtns">${button('money1', '+ 100 000 Kč')}${button('money2', '+ 1 000 000 Kč')}</div>
     <div class="devbtns">${button('unlock', 'Všechny stroje a budovy')}${button('service', 'Natankovat a opravit')}</div>
@@ -188,6 +192,7 @@ const ACTS = {
   goal: () => { const g = activeGoals()[0]; if (g) { G.goals.push(g.id); toast('Cíl označen jako splněný: ' + g.title); } },
   goalsReset: () => { G.goals = []; G.stats = emptyStats(); toast('Cíle a statistiky vynulovány.'); },
   teleport: () => teleport(+$('#devPlace').value),
+  mapEdit: () => { toggleDev(false); toggleMapEditor(true); },
 };
 // actions that change the saved game are saved right away
 const SAVES = new Set(['unlock', 'service', 'ripen', 'ripeAll', 'fields', 'feed', 'goal', 'goalsReset', 'money1', 'money2', 'dayBack', 'dayFwd', 'season']);

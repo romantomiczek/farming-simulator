@@ -4,6 +4,7 @@ import { rng, lerp, col, fbm, smooth } from '../core/util.js';
 import { addWind } from '../render/wind.js';
 import { groundH } from './terrain.js';
 import {
+  MAP_DEFAULTS,
   FIELD_DEFS, ROADS, PAD, POND, PONDS, NO_TREES, BOUNDS, PIT, FOREST_PLOTS, BRIDGES, TURBINES, RAIL, RIVER,
   circles, addBox, inRect, inPond, polyDist, riverDist,
 } from './layout.js';
@@ -181,10 +182,18 @@ export function buildVegetation(scene) {
     if (box) addBox(Math.min(x0, x1) - 1, Math.max(x0, x1) + 1, Math.min(z0, z1) - 1, Math.max(z0, z1) + 1);
   };
   // the home fields: hedges only on the outer sides; the northern ends of fields 3 and 4 border the forest track
-  line(-73.5, -6, -73.5, 41, true); line(-73.5, 55, -73.5, 101, true); line(53, -6, 53, 41, true); line(61, 55, 61, 99, true);
+  // (only while those fields sit where they were drawn; moved home fields get the general rule below)
+  const asDrawn = id => {
+    const f = FIELD_DEFS.find(g => g.id === id), d = MAP_DEFAULTS.fields.find(g => g.id === id);
+    return !!f && !!d && f.x0 === d.x0 && f.z0 === d.z0 && f.w === d.w && f.h === d.h;
+  };
+  if (asDrawn(1)) line(-73.5, -6, -73.5, 41, true);
+  if (asDrawn(3)) line(-73.5, 55, -73.5, 101, true);
+  if (asDrawn(2)) line(53, -6, 53, 41, true);
+  if (asDrawn(4)) line(61, 55, 61, 99, true);
   // the new fields: a hedge (mez) along the side away from their sign
   for (const f of FIELD_DEFS) {
-    if (f.id <= 8 || f.poly) continue;
+    if ((f.id <= 8 && asDrawn(f.id)) || f.poly) continue;
     const roadDist = (x, z) => Math.min(...ROADS.map(r => polyDist(x, z, r.pts)));
     const sides = [
       [f.x0 - 3.5, f.z0, f.x0 - 3.5, f.z0 + f.h], [f.x0 + f.w + 3.5, f.z0, f.x0 + f.w + 3.5, f.z0 + f.h],

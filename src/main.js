@@ -38,6 +38,7 @@ import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
 import { toast } from './ui/toast.js';
 import { initDev, toggleDev, updDev, devEnabled } from './ui/devpanel.js';
+import { mapEditorOpen } from './ui/mapeditor.js';
 import { toggleSound, updAudio, sound } from './audio.js';
 
 /* ---------- world ---------- */
@@ -71,6 +72,7 @@ cam.t.set(G.active.x, 1, G.active.z);
 const openMap = () => toggleBigMap(undefined, v => { G.active = v; cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
 const ACTIONS = { KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
 bindInput(code => {
+  if (mapEditorOpen()) return; // the map editor handles its own keys
   if (code === 'F9' && devEnabled) { toggleDev(); return; }
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }

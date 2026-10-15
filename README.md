@@ -178,6 +178,20 @@ Panel pro ladění a testování otevřeš klávesou **F9** nebo tlačítkem **D
 - **Svět:** vypínače oblohy, mraků, zvířat, větru, stop kol, částic a skrytí HUD na snímky obrazovky.
 - **Hra:** peníze, všechny stroje a budovy, natankování a opravy, zralá pole, nákup všech polí, plné krmivo a voda, cíle a přesun stroje na vybrané místo.
 - **Info:** grafická karta, rozlišení, vykreslovací volání a trojúhelníky, paměť, poloha a stav stroje.
+- **Mapa:** otevře editor mapy, viz níže.
+
+### Editor mapy
+
+V panelu F9 → **Editor mapy** se ukáže plán celého kraje shora (sever nahoře, stejně jako velká mapa M). Hra mezitím stojí.
+
+- **Pole a louky:** klikni a táhni. Rohy vybraného pole mění jeho velikost, po metrech. V panelu vpravo nastavíš číslo, rozměr, louku, vlastnictví na začátku hry, stav a plodinu v nové hře, kvalitu půdy a cenu (prázdná cena = podle plochy).
+- **Cesty:** táhni body. Dvojklik na cestu přidá bod, Delete smaže vybraný bod. **Přidat → Cestu** a klikáním zadáš novou, Enter ji dokončí.
+- **Rybníky a lesní parcely:** posun a úchyty velikosti. Stromy pro harvestor se v parcelách rozmístí znovu.
+- **Kontrola** upozorní na překrývající se pole, pole na cestě, řece nebo v rybníce, cestu přes řeku mimo most a věci za hranicí mapy.
+- **Uložit a obnovit** zapíše změny do `src/world/map.json` a hra se obnoví s novou mapou. Terén, terasy, stromy, živé ploty, cedule, minimapa i doprava se přizpůsobí samy. Do souboru jde uložit jen při spuštění přes `spustit.bat` nebo `npm run dev`. V sestavené verzi editor ukáže text k ručnímu zkopírování do `map.json`.
+- **Výchozí mapa** vrátí původní rozvržení (prázdný `map.json`).
+- **Rozehraná hra** se načte i po úpravě mapy. Posunuté pole stejné velikosti si drží úrodu, pole se změněnou velikostí začne znovu podle nastavení pro novou hru. Koupená pole zůstanou koupená, zakázky na smazaných polích propadnou.
+- **Zůstává na místě:** řeka a mosty, městečko a železnice, dvůr s budovami, vesnice a výkupy, protože jejich budovy jsou postavené na pevných místech.
 
 ## Struktura
 
@@ -187,7 +201,7 @@ src/
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc, obloha (sky.js),
                        vítr ve vegetaci (wind.js)
-  world/               rozvržení mapy (layout.js), terén s terasami, řekou a rybníky,
+  world/               rozvržení mapy (layout.js, úpravy z editoru v map.json), terén s terasami, řekou a rybníky,
                        budovy a vesnice, městečko, nádraží a pískovna (landmarks.js),
                        vegetace, pole a louky, balíky, kravín, kurník a skleníky
                        (farmstead.js), les (forest.js), zvířata (wildlife.js),
@@ -197,7 +211,8 @@ src/
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
                        zvířata a skleníky (farm.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
   fx/                  částice (prach, plevy, kouř), déšť a sníh, stopy kol (tracks.js)
-  ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky, vývojářský panel (devpanel.js)
+  ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky, vývojářský panel (devpanel.js),
+                       editor mapy (mapeditor.js)
 prototyp/              původní jednosouborový prototyp
 godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), viz godot-demo/README.md
 ```

@@ -3,6 +3,28 @@
 // Around it: forest in the west, rolling hills with big fields in the north, fish ponds in the
 // south, the river with its meadows in the east and the town with the railway beyond it.
 
+import MAP_EDITS from './map.json';
+
+/**
+ * Map editor (F9 → Editor mapy) saves fields, roads, ponds and forest plots to map.json.
+ * Each saved section replaces the defaults below in place, so every importer sees the edited map.
+ * MAP_DEFAULTS keeps the original values for the editor and for code that treats untouched home fields specially.
+ */
+export const MAP_DEFAULTS = {};
+const num = v => typeof v === 'number' && Number.isFinite(v);
+const CHECK = {
+  fields: f => num(f.id) && num(f.x0) && num(f.z0) && num(f.w) && num(f.h) && f.w >= 4 && f.h >= 4,
+  roads: r => num(r.w) && Array.isArray(r.pts) && r.pts.length >= 2 && r.pts.every(p => num(p[0]) && num(p[1])),
+  ponds: p => num(p.x) && num(p.z) && num(p.rx) && num(p.rz),
+  forestPlots: p => num(p.x0) && num(p.x1) && num(p.z0) && num(p.z1) && p.x1 > p.x0 && p.z1 > p.z0,
+};
+function useEdits(key, arr) {
+  MAP_DEFAULTS[key] = structuredClone(arr);
+  const list = MAP_EDITS?.[key];
+  if (Array.isArray(list) && list.every(CHECK[key])) arr.splice(0, arr.length, ...structuredClone(list));
+  return arr;
+}
+
 /** Area vehicles may drive in. */
 export const BOUNDS = { x0: -430, x1: 770, z0: -430, z1: 570 };
 /** The original flat valley floor around the farm (height 0). */
@@ -18,7 +40,7 @@ export const HOME = { x0: -108, x1: 262, z0: -98, z1: 148 };
  * (cells outside it are grass); price is per field, computed from area and quality when missing.
  * meadow = grassland for hay instead of a field for crops.
  */
-export const FIELD_DEFS = [
+export const FIELD_DEFS = useEdits('fields', [
   { id: 1, x0: -70, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-17.5, -3, Math.PI / 2], start: { s: 'ripe', crop: 0 } },
   { id: 2, x0: 0, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-2.5, -3, -Math.PI / 2], start: { s: 'stub' } },
   { id: 3, x0: -70, z0: 56, w: 50, h: 44, owned: false, price: 420000, sign: [-17.5, 58, Math.PI / 2], start: { s: 'ripe', crop: 2, dir: 1 } },
@@ -49,13 +71,13 @@ export const FIELD_DEFS = [
   { id: 24, x0: 228, z0: -335, w: 67, h: 75, meadow: true, q: 0.7, start: { s: 'ripe' } },
   { id: 25, x0: 358, z0: -235, w: 54, h: 180, meadow: true, q: 0.8, start: { s: 'ripe' } },
   { id: 26, x0: 134, z0: -288, w: 86, h: 40, meadow: true, q: 0.7, start: { s: 'ripe' } },
-];
+]);
 
 /**
  * Roads as centre lines with a width. kind: 'road' (gravel road) or 'dirt' (field and forest tracks).
  * Fields, buildings and trees keep clear of them; they are draped over the terrain.
  */
-export const ROADS = [
+export const ROADS = useEdits('roads', [
   { id: 'main', w: 8, kind: 'road', pts: [[-74, 48], [262, 48], [338, 48], [420, 48], [640, 48], [700, 48]] },
   { id: 'farmN', w: 8, kind: 'road', pts: [[-10, -50], [-10, 124]] },
   { id: 'forestTrack', w: 4, kind: 'dirt', pts: [[-6, 106], [140, 106]] },
@@ -70,7 +92,7 @@ export const ROADS = [
   { id: 'townS', w: 6, kind: 'road', pts: [[520, 48], [520, -100], [560, -200], [560, -275]] },
   { id: 'townN', w: 6, kind: 'road', pts: [[480, 48], [480, 160]] },
   { id: 'townE', w: 6, kind: 'road', pts: [[600, 48], [600, 140]] },
-];
+]);
 
 /** The river: centre line from north to south. Water is 14 m wide in a 16 m channel. */
 export const RIVER = [[300, 575], [320, 480], [350, 400], [338, 300], [310, 220], [320, 150], [340, 60], [330, -20], [305, -110], [320, -200], [336, -250], [350, -330], [345, -390], [330, -440]];
@@ -79,11 +101,11 @@ export const RIVER_HALF = 8;
 export const BRIDGES = [{ x: 338, z: 48, along: 'x', len: 26, w: 9 }, { x: 338, z: 300, along: 'x', len: 26, w: 7 }];
 export const FORD = { x: 336, z: -250, r: 12 };
 /** Fish ponds in the south: ellipses (rx, rz) with a dam on the downstream side. */
-export const PONDS = [
+export const PONDS = useEdits('ponds', [
   { x: 72, z: -290, rx: 50, rz: 30 },
   { x: -90, z: -320, rx: 40, rz: 28 },
   { x: 170, z: -330, rx: 45, rz: 30 },
-];
+]);
 /** The gravel pit south of the town. */
 export const PIT = { x0: 500, x1: 640, z0: -400, z1: -285, depth: 7 };
 /** Town east of the river (flat ground), the railway and the station. */
@@ -129,7 +151,7 @@ export const GREENHOUSE_WATER = { x: 37.5, z: -27, r: 4.5 };
 export const POND_FILL = { x: 64, z: -42, r: 18 };
 /** Forest plots for the harvester: the old plantation north of the fields and two in the western forest. */
 export const FOREST = { x0: 12, x1: 138, z0: 110, z1: 137 };
-export const FOREST_PLOTS = [FOREST, { x0: -262, x1: -200, z0: 78, z1: 132 }, { x0: -335, x1: -272, z0: -62, z1: -8 }];
+export const FOREST_PLOTS = useEdits('forestPlots', [FOREST, { x0: -262, x1: -200, z0: 78, z1: 132 }, { x0: -335, x1: -272, z0: -62, z1: -8 }]);
 export const SAWMILL = { x: -20, z: 116, r: 7 };
 /** Who buys wood: the sawmill at the farm road and the timber yard in the town (pays more, further away). */
 export const WOOD_BUYERS = [
