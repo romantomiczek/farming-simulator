@@ -27,6 +27,8 @@ import { cam, bindCamera, updateCamera } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
 import { WX, updateWeather, season, isWinter } from './game/weather.js';
 import { updRain } from './fx/rain.js';
+import { updTracks } from './fx/tracks.js';
+import { updWind } from './render/wind.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap } from './ui/minimap.js';
@@ -122,6 +124,7 @@ function tick(dt) {
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
   updateTrailer(dt, trailer.tank.crop >= 0 ? CROPS[trailer.tank.crop].heapCol : null);
+  updTracks(dt, vehicles, trailer, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
   updateLogistics(dt, saveLocal);
   flushFields();
   flushBales();
@@ -136,6 +139,7 @@ function tick(dt) {
   updEnv(cam.t, G.gameMin, vehicles, G.active, WX);
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season());
   updRain(dt, cam.t, WX.rain, isWinter());
+  updWind(dt, WX.rain, WX.cloud);
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
   updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });

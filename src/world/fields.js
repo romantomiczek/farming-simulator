@@ -6,6 +6,7 @@ import { hash2, fmt, fmt2 } from '../core/util.js';
 import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW } from '../game/crops.js';
 import { FIELD_DEFS, circles } from './layout.js';
 import { G } from '../game/state.js';
+import { addWind } from '../render/wind.js';
 
 const CP = 4; // canvas pixels per field cell
 // crop block without its bottom face (never visible): 10 triangles instead of 12
@@ -30,7 +31,8 @@ const cropDetailGeo = (() => {
   g.computeVertexNormals();
   return g;
 })();
-const cropMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+// crops sway in the wind: waves roll across the field
+const cropMat = addWind(new THREE.MeshLambertMaterial({ color: 0xffffff }), { amp: 0.14, base: 0.2, spatial: 0.16 });
 const _m = new THREE.Matrix4(), _s = new THREE.Matrix4(), _c = new THREE.Color();
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -45,6 +47,9 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.state = new Uint8Array(f.n); f.crop = new Uint8Array(f.n); f.growth = new Float32Array(f.n);
   f.stage = new Uint8Array(f.n); f.dir = new Uint8Array(f.n); f.jit = new Float32Array(f.n);
   f.bonus = new Uint8Array(f.n); f.straw = new Uint8Array(f.n);
+  // wheel ruts: track = 1 + orientation * 4 + offset in pixels, trackS = state + 1 when it was made
+  // (a rut disappears as soon as a tool works the cell); not saved
+  f.track = new Uint8Array(f.n); f.trackS = new Uint8Array(f.n);
   for (let i = 0; i < f.n; i++) f.jit[i] = hash2((i % f.w) + f.id * 1000, ((i / f.w) | 0) * 1.37);
   f.cnt = [0, 0, 0, 0]; f.prog = 0; f.strawCnt = 0; f.fertShare = 0;
 
@@ -78,7 +83,7 @@ export function applyStart(f) {
   const st = f.start || { s: 'stub' };
   const S = { stub: S_STUB, cult: S_CULT, sown: S_SOWN, ripe: S_RIPE }[st.s] ?? S_STUB;
   f.state.fill(S); f.crop.fill(st.crop || 0); f.growth.fill(0); f.stage.fill(S === S_RIPE ? 4 : 0);
-  f.dir.fill(st.dir || 0); f.bonus.fill(0); f.straw.fill(0);
+  f.dir.fill(st.dir || 0); f.bonus.fill(0); f.straw.fill(0); f.track.fill(0);
   if (S === S_SOWN) {
     const hours = CROPS[st.crop || 0].hours;
     for (let i = 0; i < f.n; i++) { f.growth[i] = (st.growth || 0) + f.jit[i] * 0.4; f.stage[i] = Math.min(3, Math.floor((f.growth[i] / hours) * 4)); }
@@ -114,7 +119,28 @@ export function drawCell(f, i) {
     ctx.fillStyle = s === S_STUB ? '#cfc6ad' : '#a58e78';
     ctx.fillRect(px + ((j * 7) | 0) % 4, py + ((j * 17) | 0) % 4, 1, 1);
   }
+  const t = f.track[i];
+  if (t && f.trackS[i] === s + 1) {
+    ctx.fillStyle = s === S_STUB ? 'rgba(92, 72, 46, 0.6)' : 'rgba(36, 24, 14, 0.45)';
+    const o = (t - 1) & 3;
+    if ((t - 1) >> 2) ctx.fillRect(px, py + o, CP, 2); else ctx.fillRect(px + o, py, 2, CP);
+  }
   f.texDirty = true;
+}
+
+/** A wheel at (x, z) heading h leaves a rut in the field cell under it. */
+export function markTrack(x, z, h) {
+  const f = fieldAt(x, z);
+  if (!f) return;
+  const ix = (x - f.x0) | 0, iz = (z - f.z0) | 0, i = iz * f.w + ix;
+  if (f.straw[i]) return;
+  const alongX = Math.abs(Math.sin(h)) > Math.abs(Math.cos(h));
+  const frac = alongX ? z - f.z0 - iz : x - f.x0 - ix;
+  const t = 1 + (alongX ? 4 : 0) + Math.min(2, (frac * CP) | 0);
+  const tag = f.state[i] + 1;
+  if (f.track[i] === t && f.trackS[i] === tag) return;
+  f.track[i] = t; f.trackS[i] = tag;
+  drawCell(f, i);
 }
 
 export function drawMini(f, i) {
@@ -147,7 +173,7 @@ export function updCrop(f, i) {
   f.crops.setColorAt(i, _c);
 }
 
-export function refreshField(f) { for (let i = 0; i < f.n; i++) { drawCell(f, i); updCrop(f, i); drawMini(f, i); } }
+export function refreshField(f) { f.track.fill(0); for (let i = 0; i < f.n; i++) { drawCell(f, i); updCrop(f, i); drawMini(f, i); } }
 
 /** Uploads changed textures and instance buffers once per frame. */
 export function flushFields() {

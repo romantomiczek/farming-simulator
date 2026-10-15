@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { M } from '../render/materials.js';
+import { addWind } from '../render/wind.js';
 import { rng, lerp, col } from '../core/util.js';
 import { terrainH } from './terrain.js';
 import { FIELD_DEFS, ROADS, PAD, POND, NO_TREES, BOUNDS, circles, addBox } from './layout.js';
@@ -78,7 +79,7 @@ export function buildVegetation(scene) {
   });
 
   // own material (not the shared white one): its colour is the season tint for leaves and hedges
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, flatShading: true });
+  const leafMat = addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, flatShading: true }), { amp: 0.04, base: -1, spatial: 0.05 });
   const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), leafMat, hedge.length + decid.length);
   hedge.forEach((t, i) => {
     dummy.position.set(t.x, 0.75 * t.s, t.z); dummy.rotation.set(0, t.r * 6, 0); dummy.scale.set(1.3 * t.s, t.s, 1.3 * t.s); dummy.updateMatrix();
@@ -91,7 +92,9 @@ export function buildVegetation(scene) {
   });
 
   const coneGeo = new THREE.ConeGeometry(1, 1, 7); coneGeo.translate(0, 0.5, 0);
-  const cones = new THREE.InstancedMesh(coneGeo, M('#ffffff'), conif.length);
+  // own material (the shared white one is used elsewhere) so only the conifers get the wind
+  const coneMat = addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, flatShading: true }), { amp: 0.02, base: 0.15, spatial: 0.05 });
+  const cones = new THREE.InstancedMesh(coneGeo, coneMat, conif.length);
   conif.forEach((t, i) => {
     dummy.position.set(t.x, t.y + t.s, t.z); dummy.rotation.set(0, t.r * 6, 0); dummy.scale.set(1.8 * t.s, 6.2 * t.s, 1.8 * t.s); dummy.updateMatrix();
     cones.setMatrixAt(i, dummy.matrix); cones.setColorAt(i, coneCols[(t.r * 3) | 0]);
