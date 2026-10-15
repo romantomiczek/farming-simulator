@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří ve složce `dist/` statickou verzi, kterou jde nahrát na jakýkoli webhosting.
+Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v prohlížeči bez okna a projede hlavní funkce (jízda, sklizeň, prodej, kultivace, ukládání, předvolby grafiky, editor mapy); poprvé je potřeba `npx playwright install chromium`. Příkaz `npm run build` vytvoří ve složce `dist/` statickou verzi, kterou jde nahrát na jakýkoli webhosting.
 
 ## Ovládání
 
