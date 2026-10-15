@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Zlaté lány</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+</head>
+<body>
+<div id="app">
+  <canvas id="c" aria-label="Herní scéna – farma v údolí"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div id="hud">
+    <section class="panel hud-tl" aria-label="Peníze a čas">
+      <div class="money" id="moneyBox"><span id="money">150 000</span><small>Kč</small></div>
+      <div class="clock">
+        <b id="day">Den 1</b><span id="time">08:00</span>
+        <button id="speedBtn" class="chipbtn" title="Rychlost času (T)">1×</button>
+        <button id="soundBtn" class="chipbtn" title="Zvuk motoru">Zvuk: vyp.</button>
+        <button id="menuBtn" class="chipbtn" title="Menu (Esc)">Menu</button>
+      </div>
+    </section>
+
+    <section class="panel task" aria-live="polite">
+      <span class="eyebrow">Další krok</span>
+      <p id="task">Skliď zralou pšenici na poli 1.</p>
+    </section>
+
+    <section class="hud-tr">
+      <div class="panel perf" id="perf" hidden></div>
+      <div class="panel mapwrap"><canvas id="minimap" aria-label="Mapa farmy"></canvas></div>
+      <div class="panel prices">
+        <h3>Výkup u sil · Kč/l</h3>
+        <ul id="priceList"></ul>
+      </div>
+    </section>
+
+    <section class="panel vehicle" aria-label="Stroj">
+      <div class="vhead"><span class="vname" id="vName">Kombajn</span><span class="chip" id="vChip">Zvednuto</span></div>
+      <div class="speedrow"><span class="speed" id="vSpeed">0</span><small>km/h</small></div>
+      <dl class="kv" id="vKv"></dl>
+      <div id="vTank" hidden>
+        <div class="kv"><dt>Zásobník</dt><dd id="vTankTxt">0 / 9 000 l</dd></div>
+        <div class="bar"><i id="vTankBar"></i></div>
+      </div>
+      <div class="fieldline" id="vField" hidden></div>
+    </section>
+
+    <div class="prompt" id="prompt"></div>
+    <div id="toasts"></div>
+
+    <div id="touch" hidden>
+      <div class="tpad left"><button data-hold="KeyA" aria-label="Doleva">◀</button><button data-hold="KeyD" aria-label="Doprava">▶</button></div>
+      <div class="tright">
+        <div class="tacts">
+          <button data-tap="Space">Nářadí</button><button data-tap="KeyF">Akce F</button>
+          <button data-tap="Tab">Stroj</button><button data-tap="KeyC">Osivo</button>
+        </div>
+        <div class="pedals"><button data-hold="KeyS" aria-label="Brzda a couvání">▼</button><button data-hold="KeyW" aria-label="Plyn">▲</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="menu" class="overlay">
+    <div class="card" role="dialog" aria-labelledby="menuTitle">
+      <section id="menuMain" class="cardsec">
+        <h1 id="menuTitle">Zlaté lány</h1>
+        <p class="lede">Malé hospodářství v údolí. Pole 1 je zralé a kombajn stojí na cestě. Skliď, prodej zrno ve výkupu, zkultivuj strniště, zasej a za výdělek kupuj další pole.</p>
+        <div class="cycle" aria-label="Cyklus pole">
+          <div class="c1">Sklizeň</div><div class="c2">Kultivace</div><div class="c3">Setí</div><div class="c4">Růst</div>
+        </div>
+        <div class="controls">
+          <div><span class="k"><kbd>W</kbd><kbd>S</kbd></span>plyn, brzda, couvání</div>
+          <div><span class="k"><kbd>A</kbd><kbd>D</kbd></span>zatáčení</div>
+          <div><span class="k"><kbd>Mezerník</kbd></span>spustit / zvednout nářadí</div>
+          <div><span class="k"><kbd>Tab</kbd></span>přesednout do druhého stroje</div>
+          <div><span class="k"><kbd>F</kbd></span>prodej, výměna nářadí, koupě pole</div>
+          <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
+          <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>
+          <div><span class="k"><kbd>Q</kbd><kbd>E</kbd></span>otočit kameru (nebo táhni myší)</div>
+          <div><span class="k"><kbd>kolečko</kbd></span>přiblížení</div>
+          <div><span class="k"><kbd>Esc</kbd></span>menu a nastavení</div>
+        </div>
+        <div class="actions">
+          <button class="btn" id="playBtn">Hrát</button>
+          <button class="btn ghost" id="newBtn" hidden>Nová hra</button>
+        </div>
+        <div class="actions links">
+          <button class="link" id="gfxBtn">Nastavení grafiky</button>
+          <button class="link" id="exportBtn">Uložit do souboru</button>
+          <button class="link" id="importBtn">Načíst ze souboru</button>
+          <input type="file" id="importFile" accept=".json,application/json" hidden>
+        </div>
+        <p class="note" id="saveNote">Hra se průběžně ukládá v tomto prohlížeči.</p>
+      </section>
+
+      <section id="menuGfx" class="cardsec" hidden>
+        <h2>Nastavení grafiky</h2>
+        <div class="seg" role="radiogroup" aria-label="Kvalita grafiky" id="presetSeg"></div>
+        <p class="presetDesc" id="presetDesc"></p>
+        <label class="check"><input type="checkbox" id="fpsCheck"> Zobrazit měřič FPS</label>
+        <div class="gpu">
+          <span class="eyebrow">Grafická karta, kterou prohlížeč používá</span>
+          <p id="gpuName">neznámá</p>
+          <p id="gpuWarn" class="warnbox" hidden>Hra běží na integrované grafice Intel. Pokud má počítač i kartu NVIDIA, otevři ve Windows Nastavení → Systém → Obrazovka → Grafika, přidej svůj prohlížeč, zvol „Vysoký výkon“ a prohlížeč restartuj.</p>
+        </div>
+        <p class="note" id="aaNote" hidden>Vyhlazování hran se změní po obnovení stránky (F5).</p>
+        <div class="actions"><button class="btn" id="gfxBack">Hotovo</button></div>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

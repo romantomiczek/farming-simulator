@@ -1,0 +1,141 @@
+import * as THREE from 'three';
+import { M, mk, B, CY, bake, glassMat, lampMat, beaconMat } from '../render/materials.js';
+import { col } from '../core/util.js';
+
+// Low-poly vehicle models. Local +z is forward, +x is the driver's left.
+// Moving parts are separate groups; everything else is merged by bake().
+
+export function wheel(r, w, rimHex) {
+  const g = new THREE.Group(), spin = new THREE.Group();
+  g.add(spin);
+  const tire = mk(new THREE.CylinderGeometry(r, r, w, 16), '#2a2c2e', 0, 0, 0, spin); tire.rotation.z = Math.PI / 2;
+  const rim = mk(new THREE.CylinderGeometry(r * 0.56, r * 0.56, w + 0.04, 10), rimHex, 0, 0, 0, spin); rim.rotation.z = Math.PI / 2;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const l = B(w * 1.04, r * 0.16, r * 0.22, '#2a2c2e', 0, Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97, spin);
+    l.rotation.x = a;
+  }
+  g.userData = { spin, r };
+  return g;
+}
+
+/** Headlamps plus one spot light that only shines at night. */
+function addLights(g, y, z, xs) {
+  for (const x of xs) B(0.32, 0.18, 0.08, lampMat, x, y, z, g);
+  const sp = new THREE.SpotLight(0xfff1c8, 0, 48, 0.75, 0.6, 0);
+  sp.position.set(0, y, z);
+  const t = new THREE.Object3D(); t.position.set(0, 0, z + 18);
+  g.add(sp, t); sp.target = t;
+  return sp;
+}
+
+export function buildTractor() {
+  const g = new THREE.Group(), body = '#5f9c7c', dark = '#3a3f42', cream = '#efe2b8';
+  B(0.9, 0.55, 3.6, dark, 0, 0.85, 0.35, g);
+  B(1.1, 0.95, 2.0, body, 0, 1.45, 1.15, g);
+  B(1.16, 0.1, 2.06, '#4f8a6b', 0, 1.96, 1.15, g);
+  B(1.02, 0.55, 0.45, dark, 0, 0.92, 2.35, g);
+  B(0.9, 0.4, 0.06, '#2f3437', 0, 1.5, 2.16, g);
+  B(1.8, 0.35, 1.8, body, 0, 1.6, -0.55, g);
+  mk(new THREE.BoxGeometry(1.7, 1.45, 1.7), glassMat, 0, 2.5, -0.55, g, false);
+  B(1.88, 0.16, 1.92, body, 0, 3.3, -0.55, g);
+  for (const sx of [-0.83, 0.83]) for (const sz of [-1.36, 0.26]) B(0.1, 1.45, 0.1, dark, sx, 2.5, sz, g);
+  for (const sx of [-1, 1]) B(0.66, 0.16, 1.9, body, sx * 1.0, 1.86, -0.7, g);
+  CY(0.06, 0.06, 1.1, 6, dark, 0.42, 2.45, 1.85, g);
+  B(0.32, 0.26, 0.5, dark, 0, 0.7, -1.6, g);
+  const wheels = [], front = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.86, 0.6, cream); w.position.set(sx * 1.0, 0.86, -0.7); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * 0.84, 0.52, 1.55); g.add(p);
+    const w = wheel(0.52, 0.42, cream); p.add(w); wheels.push(w); front.push(p);
+  }
+  const spot = addLights(g, 2.0, 2.2, [-0.4, 0.4]);
+  B(0.16, 0.16, 0.16, beaconMat, 0.7, 3.46, -0.1, g);
+  bake(g);
+  return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(0.42, 3.05, 1.85) };
+}
+
+export function buildCultivator() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const y = '#e0a640', dark = '#3a3f42';
+  B(0.24, 0.24, 1.0, y, 0, 0.72, -0.4, lift);
+  B(4.2, 0.22, 0.25, y, 0, 0.85, -0.95, lift);
+  B(4.2, 0.22, 0.25, y, 0, 0.85, -1.75, lift);
+  for (const sx of [-1, 1]) B(0.18, 0.2, 1.1, y, sx * 2.0, 0.85, -1.35, lift);
+  B(1.6, 0.2, 0.2, y, 0, 0.85, -0.55, lift);
+  for (let i = 0; i < 9; i++) B(0.08, 0.8, 0.08, dark, -1.84 + i * 0.46, 0.45, i % 2 ? -0.95 : -1.75, lift);
+  const roller = new THREE.Group(); roller.position.set(0, 0.32, -2.4); lift.add(roller);
+  const rc = mk(new THREE.CylinderGeometry(0.3, 0.3, 4.1, 10), '#6a6f72', 0, 0, 0, roller); rc.rotation.z = Math.PI / 2;
+  for (const sx of [-1, 1]) B(0.12, 0.12, 0.8, y, sx * 2.0, 0.6, -2.05, lift);
+  bake(g);
+  return { group: g, lift, roller, up: 0.45, down: -0.2 };
+}
+
+export function buildSeeder() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const blue = '#4f78a8', dark = '#3a3f42';
+  B(0.24, 0.24, 1.0, dark, 0, 0.72, -0.4, lift);
+  B(4.0, 0.2, 0.25, dark, 0, 0.75, -0.9, lift);
+  B(3.8, 0.95, 1.05, blue, 0, 1.5, -1.15, lift);
+  B(3.9, 0.12, 1.15, '#6f97c4', 0, 2.03, -1.15, lift);
+  for (const sx of [-1.7, 1.7]) B(0.12, 0.8, 0.12, dark, sx, 0.95, -1.15, lift);
+  B(4.0, 0.16, 0.2, dark, 0, 0.55, -1.6, lift);
+  for (let i = 0; i < 12; i++) {
+    const d = mk(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 10), '#55595c', -1.83 + i * 0.333, 0.28, -1.65, lift);
+    d.rotation.z = Math.PI / 2;
+  }
+  const wheels = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.36, 0.22, '#d7dde2'); w.position.set(sx * 2.15, 0.36, -0.95); lift.add(w); wheels.push(w); }
+  bake(g);
+  return { group: g, lift, wheels, up: 0.4, down: -0.05 };
+}
+
+export function buildCombine() {
+  const g = new THREE.Group(), red = '#cf5a4a', dark = '#3a3f42', light = '#ebe4d2';
+  B(2.5, 2.2, 5.4, red, 0, 2.3, -0.5, g);
+  B(2.0, 0.7, 4.6, dark, 0, 0.95, -0.4, g);
+  B(2.35, 0.8, 2.6, '#dc6a58', 0, 3.8, -0.9, g);
+  B(2.3, 0.95, 1.3, red, 0, 3.85, -2.55, g);
+  B(1.6, 0.06, 0.9, '#2f3437', 0, 4.35, -2.55, g);
+  B(2.52, 0.12, 5.42, light, 0, 1.25, -0.5, g);
+  // grain heap in the open tank, scaled by fill level
+  const grainMat = new THREE.MeshStandardMaterial({ color: col('#e4bc52'), roughness: 1, flatShading: true });
+  const gg = new THREE.BoxGeometry(2.15, 1, 2.4); gg.translate(0, 0.5, 0);
+  const grain = mk(gg, grainMat, 0, 4.2, -0.9, g);
+  grain.userData.noBake = true; grain.visible = false;
+  mk(new THREE.BoxGeometry(1.9, 1.4, 1.45), glassMat, 0, 4.1, 1.5, g, false);
+  B(2.1, 0.15, 1.7, light, 0, 4.88, 1.5, g);
+  for (const sx of [-0.92, 0.92]) for (const sz of [0.82, 2.18]) B(0.09, 1.4, 0.09, dark, sx, 4.1, sz, g);
+  const fh = B(1.4, 1.0, 1.9, dark, 0, 1.35, 2.95, g); fh.rotation.x = 0.16;
+  CY(0.09, 0.09, 1.2, 6, dark, -0.8, 4.85, -2.7, g);
+  for (let k = 0; k < 5; k++) B(0.5, 0.05, 0.2, dark, -1.4, 0.7 + k * 0.5, 1.95, g);
+  B(0.18, 0.18, 0.18, beaconMat, 0.85, 5.04, 1.0, g); B(0.18, 0.18, 0.18, beaconMat, -0.85, 5.04, 1.0, g);
+  const wheels = [], rear = [];
+  for (const sx of [-1, 1]) { const w = wheel(1.05, 0.75, light); w.position.set(sx * 1.5, 1.05, 1.25); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * 1.2, 0.62, -2.75); g.add(p);
+    const w = wheel(0.62, 0.45, light); p.add(w); wheels.push(w); rear.push(p);
+  }
+  // header with a spinning reel
+  const header = new THREE.Group(); header.position.set(0, 0, 3.75); g.add(header);
+  const hl = new THREE.Group(); header.add(hl);
+  B(5.8, 0.35, 1.4, red, 0, 0.55, 0.3, hl);
+  B(5.8, 1.1, 0.15, red, 0, 1.0, -0.35, hl);
+  for (const sx of [-1, 1]) {
+    B(0.12, 0.9, 1.5, red, sx * 2.9, 0.85, 0.3, hl);
+    const d = mk(new THREE.ConeGeometry(0.22, 0.9, 4), light, sx * 2.9, 0.55, 1.25, hl); d.rotation.x = Math.PI / 2;
+  }
+  B(5.6, 0.08, 0.2, '#56595b', 0, 0.42, 1.0, hl);
+  const reel = new THREE.Group(); reel.position.set(0, 1.62, 0.45); hl.add(reel);
+  const ax = mk(new THREE.CylinderGeometry(0.07, 0.07, 5.5, 6), dark, 0, 0, 0, reel); ax.rotation.z = Math.PI / 2;
+  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; B(5.3, 0.08, 0.08, light, 0, Math.cos(a) * 0.55, Math.sin(a) * 0.55, reel); }
+  for (const sx of [-2.7, 0, 2.7]) for (let k = 0; k < 3; k++) { const s = B(0.05, 1.1, 0.05, dark, sx, 0, 0, reel); s.rotation.x = (k * Math.PI) / 3; }
+  for (const sx of [-1, 1]) { const arm = B(0.1, 0.1, 1.4, red, sx * 2.75, 1.45, 0.0, hl); arm.rotation.x = -0.2; }
+  // unloading pipe, folded backwards; swings out to the left (+x) when unloading
+  const pipe = new THREE.Group(); pipe.position.set(1.05, 4.05, -1.9); g.add(pipe);
+  const pc = mk(new THREE.CylinderGeometry(0.17, 0.17, 4.6, 8), red, 0, 0, -2.3, pipe); pc.rotation.x = Math.PI / 2;
+  B(0.36, 0.5, 0.36, dark, 0, -0.2, -4.6, pipe);
+  const spot = addLights(g, 4.75, 2.3, [-0.6, 0.6]);
+  bake(g);
+  return { group: g, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot, exhaust: new THREE.Vector3(-0.8, 5.5, -2.7) };
+}
