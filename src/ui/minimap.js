@@ -1,7 +1,7 @@
 import { FIELDS } from '../world/fields.js';
 import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
-import { BOUNDS, ROADS, PAD, POND, sellZone, baleZone } from '../world/layout.js';
+import { BOUNDS, ROADS, PAD, POND, sellZone, baleZone, fuelZone } from '../world/layout.js';
 import { bales } from '../world/bales.js';
 
 // North-up map of the valley. World +x is drawn to the left so the map matches the
@@ -29,6 +29,7 @@ export function sizeMinimap() {
   c.fillStyle = '#86b8c6'; c.beginPath(); c.arc(mapX(POND.x), mapY(POND.z), POND.r * sx, 0, 7); c.fill();
   c.strokeStyle = '#e0a83a'; c.lineWidth = 1.5 * sx; c.beginPath(); c.arc(mapX(sellZone.x), mapY(sellZone.z), sellZone.r * sx, 0, 7); c.stroke();
   c.strokeStyle = '#b07a4a'; c.beginPath(); c.arc(mapX(baleZone.x), mapY(baleZone.z), baleZone.r * sx, 0, 7); c.stroke();
+  c.strokeStyle = '#c8553f'; c.beginPath(); c.arc(mapX(fuelZone.x), mapY(fuelZone.z), fuelZone.r * sx, 0, 7); c.stroke();
 }
 
 export function drawMinimap() {
@@ -56,13 +57,16 @@ export function drawMinimap() {
   ctx.fillStyle = '#f2dc8c'; ctx.strokeStyle = 'rgba(36,49,42,.6)'; ctx.lineWidth = 1;
   for (const b of bales) { ctx.beginPath(); ctx.arc(mapX(b.x), mapY(b.z), Math.max(1.5, 0.9 * sx), 0, 7); ctx.fill(); ctx.stroke(); }
   // trailer: a small box along its heading
+  if (trailer.group.visible) {
   ctx.save();
   ctx.translate(mapX(trailer.x + Math.sin(trailer.h) * 0.8), mapY(trailer.z + Math.cos(trailer.h) * 0.8));
   ctx.rotate(Math.atan2(-Math.cos(trailer.h), -Math.sin(trailer.h)));
   ctx.fillStyle = '#c8794a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, sx * 0.8);
   ctx.fillRect(-2.8 * sx, -1.3 * sx, 5.6 * sx, 2.6 * sx); ctx.strokeRect(-2.8 * sx, -1.3 * sx, 5.6 * sx, 2.6 * sx);
   ctx.restore();
+  }
   for (const v of vehicles) {
+    if (!v.available) continue;
     const s = (v === G.active ? 7 : 5) * sx;
     ctx.save();
     ctx.translate(mapX(v.x), mapY(v.z));

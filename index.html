@@ -20,6 +20,7 @@
         <b id="day">Den 1</b><span id="time">08:00</span>
         <button id="speedBtn" class="chipbtn" title="Rychlost času (T)">1×</button>
         <button id="soundBtn" class="chipbtn" title="Zvuk motoru">Zvuk: vyp.</button>
+        <button id="officeBtn" class="chipbtn" title="Kancelář: obchod, zakázky, finance (K)">Kancelář</button>
         <button id="menuBtn" class="chipbtn" title="Menu (Esc)">Menu</button>
       </div>
     </section>
@@ -27,6 +28,7 @@
     <section class="panel task" aria-live="polite">
       <span class="eyebrow">Další krok</span>
       <p id="task">Skliď zralou pšenici na poli 1.</p>
+      <p id="jobLine" class="job" hidden></p>
     </section>
 
     <section class="hud-tr">
@@ -46,12 +48,17 @@
         <div class="kv"><dt id="vTankLabel">Zásobník</dt><dd id="vTankTxt">0 / 9 000 l</dd></div>
         <div class="bar"><i id="vTankBar"></i></div>
       </div>
+      <div>
+        <div class="kv"><dt>Nafta</dt><dd id="vFuelTxt">250 / 250 l</dd></div>
+        <div class="bar fuel"><i id="vFuelBar"></i></div>
+      </div>
       <div class="fieldline" id="vField" hidden></div>
     </section>
 
     <section class="panel shed" id="shedPanel" hidden aria-label="Kůlna">
       <span class="eyebrow">Kůlna · vyber klávesou</span>
       <ul id="shedList"></ul>
+      <p class="shedNote" id="shedNote"></p>
     </section>
 
     <div class="prompt" id="prompt"></div>
@@ -66,6 +73,22 @@
         </div>
         <div class="pedals"><button data-hold="KeyS" aria-label="Brzda a couvání">▼</button><button data-hold="KeyW" aria-label="Plyn">▲</button></div>
       </div>
+    </div>
+  </div>
+
+  <div id="office" class="overlay" hidden>
+    <div class="card wide" role="dialog" aria-labelledby="officeTitle">
+      <div class="officeHead">
+        <h2 id="officeTitle">Kancelář</h2>
+        <span class="officeMoney" id="officeMoney"></span>
+        <button class="btn ghost small" id="officeClose">Zavřít (K)</button>
+      </div>
+      <div class="seg tabs" role="tablist" id="officeTabs">
+        <button role="tab" data-tab="shop">Obchod</button>
+        <button role="tab" data-tab="jobs">Zakázky</button>
+        <button role="tab" data-tab="fin">Finance</button>
+      </div>
+      <div id="officeBody" class="officeBody"></div>
     </div>
   </div>
 
@@ -84,6 +107,8 @@
           <div><span class="k"><kbd>Tab</kbd></span>přesednout do dalšího stroje</div>
           <div><span class="k"><kbd>F</kbd></span>prodej, překládka do přívěsu, výměna nářadí, koupě pole</div>
           <div><span class="k"><kbd>1</kbd>–<kbd>6</kbd></span>výběr nářadí v kůlně</div>
+          <div><span class="k"><kbd>R</kbd></span>oprava stroje v kůlně</div>
+          <div><span class="k"><kbd>K</kbd></span>kancelář: obchod, zakázky, finance</div>
           <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
           <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>
           <div><span class="k"><kbd>Q</kbd><kbd>E</kbd></span>otočit kameru (nebo táhni myší)</div>

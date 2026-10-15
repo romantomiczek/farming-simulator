@@ -4,6 +4,7 @@ import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
 import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW } from '../game/crops.js';
 import { FIELD_DEFS, circles } from './layout.js';
+import { G } from '../game/state.js';
 
 const CP = 4; // canvas pixels per field cell
 const cropGeo = new THREE.BoxGeometry(1, 1, 1); cropGeo.translate(0, 0.5, 0);
@@ -181,7 +182,9 @@ export function drawSign(s) {
   c.font = '600 40px Figtree, "Segoe UI", sans-serif';
   const ha = fmt2((f.w * f.h) / 10000) + ' ha';
   c.fillText(f.owned ? 'Tvoje pole · ' + ha : 'Na prodej · ' + ha, 34, 168);
-  if (!f.owned) { c.font = '700 42px Figtree, "Segoe UI", sans-serif'; c.fillText(fmt(f.price) + ' Kč', 34, 220); }
+  const job = G.contracts?.active?.field === f.id;
+  if (job) { c.fillStyle = '#4d8a5d'; c.font = '700 40px Figtree, "Segoe UI", sans-serif'; c.fillText('Tvoje zakázka', 34, 220); }
+  else if (!f.owned) { c.font = '700 42px Figtree, "Segoe UI", sans-serif'; c.fillText(fmt(f.price) + ' Kč', 34, 220); }
   s.tex.needsUpdate = true;
 }
 export const drawSigns = () => signs.forEach(drawSign);

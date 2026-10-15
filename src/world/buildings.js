@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { terrainH } from './terrain.js';
-import { ROADS, PAD, POND, sellZone, baleZone, circles, addBox } from './layout.js';
+import { ROADS, PAD, POND, sellZone, baleZone, fuelZone, circles, addBox } from './layout.js';
 
 /** House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. */
 function gable(w, d, h, wall, roof, parent) {
@@ -91,6 +91,14 @@ export function buildFarm(scene) {
   circles.push({ x: -21.5, z: -46, r: 2.6 });
   B(3.2, 1.6, 1.6, '#7a9fb4', -42, 0.8, -46, st); addBox(-43.6, -40.4, -46.8, -45.2);
 
+  // diesel station: overhead tank on legs and a pump
+  { const fx = fuelZone.x + 4.2, fz = fuelZone.z;
+    const tank = CY(1.0, 1.0, 3.4, 14, '#c8553f', fx + 1.6, 2.6, fz, st); tank.rotation.x = Math.PI / 2;
+    for (const dz of [-1.2, 1.2]) for (const dx of [-0.6, 0.6]) CY(0.07, 0.07, 1.6, 6, '#6c777d', fx + 1.6 + dx, 0.8, fz + dz, st);
+    B(0.6, 1.5, 0.45, '#e8e4da', fx, 0.75, fz, st);
+    B(0.62, 0.4, 0.47, '#c8553f', fx, 1.35, fz, st);
+    circles.push({ x: fx + 0.8, z: fz, r: 1.6 }); }
+
   // wind turbine towers
   const rotors = [];
   for (const [x, z] of [[-150, 40], [150, 95], [138, -70], [-120, 190]]) {
@@ -120,6 +128,9 @@ function addZoneMarkers(scene) {
   const baleRing = new THREE.Mesh(new THREE.RingGeometry(baleZone.r - 0.5, baleZone.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#b07a4a'), transparent: true, opacity: 0.75 }));
   baleRing.rotation.x = -Math.PI / 2; baleRing.position.set(baleZone.x, 0.06, baleZone.z); scene.add(baleRing);
+  const fuelRing = new THREE.Mesh(new THREE.RingGeometry(fuelZone.r - 0.5, fuelZone.r, 40),
+    new THREE.MeshBasicMaterial({ color: col('#c8553f'), transparent: true, opacity: 0.75 }));
+  fuelRing.rotation.x = -Math.PI / 2; fuelRing.position.set(fuelZone.x, 0.06, fuelZone.z); scene.add(fuelRing);
   const sq = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.0, 4, 1),
     new THREE.MeshBasicMaterial({ color: col('#7fb2a4'), transparent: true, opacity: 0.7 }));
   sq.rotation.x = -Math.PI / 2; sq.rotation.z = Math.PI / 4; sq.position.set(12, 0.06, -34.5); sq.scale.set(1.35, 0.55, 1); scene.add(sq);

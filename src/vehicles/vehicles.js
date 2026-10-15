@@ -3,7 +3,7 @@ import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { circles, boxes, BOUNDS } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
-import { G } from '../game/state.js';
+import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler } from './models.js';
 
 /**
@@ -50,23 +50,23 @@ function makeVehicle(type) {
   const v = {
     type, x: 0, z: 0, h: 0, speed: 0, steer: 0, thr: 0, lowered: false, prevTool: null, harvestT: 0, puffT: 0,
     tank: { crop: -1, amount: 0, cap: 9000 }, seedCrop: 0, unloading: false, sold: 0, soldMoney: 0, soldCrop: 0,
-    moved: 0, movedCrop: 0, waiting: null, baleAcc: 0,
+    moved: 0, movedCrop: 0, waiting: null, baleAcc: 0, available: true,
   };
   if (type === 'tractor') {
-    Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c', home: [8.5, -36.5] }, buildTractor());
+    Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c', home: [8.5, -36.5], fuelCap: 250, fuelDrive: 0.05, fuelWork: 0.1 }, buildTractor());
   } else if (type === 'combine') {
     Object.assign(v, {
       name: 'Kombajn Klas 7', gen: 'kombajnu', harvester: true, r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4,
-      toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a', home: [-10, -8], chaff: col('#eadba6'),
+      toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a', home: [-10, -8], chaff: col('#eadba6'), fuelCap: 500, fuelDrive: 0.08, fuelWork: 0.16,
     }, buildCombine());
   } else {
     Object.assign(v, {
       name: 'Sklízeč cukrovky Bulva 6', gen: 'sklízeče', harvester: true, r: 3.2, wb: 4.6, vmax: 6.4, vwork: 2.5, acc: 1.6, brk: 5, vrev: 2.2,
-      toolW: 4.5, toolZ: 4.6, header: 'beet', mapCol: '#4d7c9e', home: [18, -27], chaff: col('#a98a66'),
+      toolW: 4.5, toolZ: 4.6, header: 'beet', mapCol: '#4d7c9e', home: [18, -27], chaff: col('#a98a66'), fuelCap: 600, fuelDrive: 0.09, fuelWork: 0.18,
     }, buildBeetHarvester());
     v.tank.cap = 20000;
   }
-  v.x = v.home[0]; v.z = v.home[1];
+  v.x = v.home[0]; v.z = v.home[1]; v.fuel = v.fuelCap;
   scene.add(v.group);
   return v;
 }
@@ -78,7 +78,7 @@ export const HARVESTERS = [combine, beeter];
 
 /** Puts a vehicle back at its start position (new game, or missing in an old save). */
 export function sendHome(v) {
-  Object.assign(v, { x: v.home[0], z: v.home[1], h: 0, speed: 0, steer: 0, lowered: false, unloading: false });
+  Object.assign(v, { x: v.home[0], z: v.home[1], h: 0, speed: 0, steer: 0, lowered: false, unloading: false, fuel: v.fuelCap });
   if (v.harvester) v.tank = { crop: -1, amount: 0, cap: v.tank.cap };
 }
 
@@ -159,7 +159,7 @@ function collide(v) {
     if (d < min && d > 1e-4) { v.x += (dx / d) * (min - d); v.z += (dz / d) * (min - d); hit = true; }
   };
   for (const c of circles) push(c);
-  for (const o of vehicles) if (o !== v) push(o);
+  for (const o of vehicles) if (o !== v && o.available) push(o);
   for (const b of boxes) {
     const cx = clamp(v.x, b.x0, b.x1), cz = clamp(v.z, b.z0, b.z1), dx = v.x - cx, dz = v.z - cz, d = Math.hypot(dx, dz);
     if (d >= v.r) continue;
@@ -179,8 +179,11 @@ function collide(v) {
 
 /** Bicycle-model driving. input = { thr: -1..1, st: -1..1 } (st > 0 turns left). */
 export function drive(v, dt, input) {
-  const thr = input ? input.thr : 0, st = input ? input.st : 0;
-  const vmax = v.lowered ? v.vwork : v.vmax;
+  let thr = input ? input.thr : 0;
+  const st = input ? input.st : 0;
+  if (v.fuel <= 0) thr = 0; // engine stalls without diesel
+  const cf = condFactor(G.cond[v.type] ?? 1), toolCf = v.type === 'tractor' ? condFactor(G.cond[v.impl] ?? 1) : 1;
+  const vmax = (v.lowered ? v.vwork * toolCf : v.vmax) * cf;
   const maxSteer = lerp(0.62, 0.24, clamp(Math.abs(v.speed) / v.vmax, 0, 1));
   v.steer += (st * maxSteer - v.steer) * Math.min(1, dt * 5);
   if (thr > 0) v.speed += (v.speed < 0 ? v.brk : v.acc) * dt;

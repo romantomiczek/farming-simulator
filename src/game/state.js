@@ -8,4 +8,13 @@ export const G = {
   playing: false,
   active: null, // the vehicle the player drives
   flashT: 0, // money highlight timer
+  loan: 0,
+  machines: {}, // catalog key → 'own' | 'lease' | null
+  cond: {}, // catalog key → condition 0..1 (1 = new)
+  lastDay: 0, // last day the daily costs were charged for
+  contracts: { offers: [], active: null },
 };
+
+/** Speed multiplier from wear: full speed down to 50 % condition, then down to 70 % at 0. */
+export const condFactor = c => (c >= 0.5 ? 1 : 0.7 + 0.6 * c);
+export const dayOf = min => Math.floor(min / 1440);

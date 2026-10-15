@@ -10,7 +10,10 @@ import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere } from './game/actions.js';
+import { upkeep, chargeDays } from './game/economy.js';
+import { generateOffers, checkContract } from './game/contracts.js';
+import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
 import { flushBales } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
 import { cam, bindCamera, updateCamera } from './render/camera.js';
@@ -42,9 +45,10 @@ cam.yaw = G.active.h;
 cam.t.set(G.active.x, 1, G.active.z);
 
 /* ---------- input & menu ---------- */
-const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime };
+const ACTIONS = { Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice() };
 bindInput(code => {
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
+  if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
   if (code === 'Escape' || code === 'KeyH') { showMenu(); return; }
   if (/^Digit[1-6]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();
@@ -59,6 +63,12 @@ initMenu({
   onExport: () => { saveLocal(); exportFile(); },
   onImport: async file => { const ok = await importFile(file); if (ok) cam.manual = -99; return ok; },
 });
+initOffice({
+  onOpen: () => { G.playing = false; releaseAll(); },
+  onClose: () => { if (!menuOpen()) G.playing = true; releaseAll(); },
+  onChange: saveLocal,
+});
+document.getElementById('officeBtn').onclick = () => openOffice();
 document.getElementById('speedBtn').onclick = cycleTime;
 document.getElementById('menuBtn').onclick = showMenu;
 document.getElementById('soundBtn').onclick = e => { e.currentTarget.textContent = toggleSound() ? 'Zvuk: zap.' : 'Zvuk: vyp.'; };
@@ -81,6 +91,8 @@ function tick(dt) {
     const gm = dt * TIME_SCALES[G.tsIdx];
     G.gameMin += gm;
     growFields(gm / 60);
+    upkeep(dt);
+    if (chargeDays()) { generateOffers(); saveLocal(); }
   }
   const input = G.playing ? driveInput() : null;
   for (const v of vehicles) {
@@ -101,7 +113,7 @@ function tick(dt) {
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
   updAudio(G.active, G.playing);
-  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); updSlowUI(); }
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; countFields(); checkContract(saveLocal); updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); }
   renderer.render(scene, camera);
 }

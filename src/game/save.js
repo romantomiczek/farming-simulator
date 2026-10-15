@@ -1,4 +1,6 @@
-import { G } from './state.js';
+import { G, dayOf } from './state.js';
+import { CATALOG, resetMachines, applyOwnership } from './machines.js';
+import { generateOffers } from './contracts.js';
 import { CROPS, S_STUB, S_SOWN, S_RIPE } from './crops.js';
 import { FIELDS, refreshField, flushFields, drawSigns, countFields } from '../world/fields.js';
 import { vehicles, combine, trailer, attachImpl, setHeader, sendHome, IMPL } from '../vehicles/vehicles.js';
@@ -7,8 +9,9 @@ import { bales, setBales, flushBales } from '../world/bales.js';
 const KEY = 'zlate-lany-v1';
 // 1 = first release, 2 = grain trailer, 3 = bonus bits, straw, bales, combine header.
 // Version 3 saves may hold 2 or 3 vehicles (the beet harvester came later); a missing one starts at home.
+// 4 = economy: owned/leased machines, condition, fuel, loan, contracts. Older saves keep every machine.
 // Older saves still load; missing data starts empty.
-const VERSION = 3;
+const VERSION = 4;
 
 const b64 = {
   enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); },
@@ -41,10 +44,16 @@ export function newGame() {
   trailer.tank = { crop: -1, amount: 0, cap: 14000 };
   trailer.bales = 0;
   setBales([]);
+  G.loan = 0;
+  G.contracts = { offers: [], active: null };
+  G.lastDay = dayOf(G.gameMin);
+  resetMachines(false);
   attachImpl('cultivator');
   setHeader('grain');
   G.active = combine;
+  applyOwnership();
   afterLoad();
+  generateOffers();
 }
 
 export function serialize() {
@@ -54,7 +63,8 @@ export function serialize() {
       owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir),
       growth: b64.enc(new Uint8Array(f.growth.buffer)), bonus: b64.enc(f.bonus), straw: b64.enc(f.straw),
     })),
-    veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc })),
+    veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel })),
+    loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
     trailer: { tank: trailer.tank, bales: trailer.bales },
     bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3) })),
   };
@@ -62,7 +72,7 @@ export function serialize() {
 
 /** Validates everything first and only then touches the game, so a bad file never half-loads. */
 export function applySave(d) {
-  if (!d || ![1, 2, VERSION].includes(d.v) || !Array.isArray(d.fields) || d.fields.length !== FIELDS.length || !Array.isArray(d.veh)) return false;
+  if (!d || ![1, 2, 3, VERSION].includes(d.v) || !Array.isArray(d.fields) || d.fields.length !== FIELDS.length || !Array.isArray(d.veh)) return false;
   const decoded = d.fields.map((s, k) => {
     const f = FIELDS[k];
     const out = {
@@ -85,6 +95,7 @@ export function applySave(d) {
     const s = d.veh[k];
     if (!s) { sendHome(v); return; }
     Object.assign(v, { x: +s.x || 0, z: +s.z || 0, h: +s.h || 0, speed: 0, lowered: false, unloading: false, seedCrop: (s.seedCrop | 0) % CROPS.length, baleAcc: s.baleAcc | 0 });
+    v.fuel = Number.isFinite(s.fuel) ? Math.max(0, Math.min(v.fuelCap, s.fuel)) : v.fuelCap;
     if (s.tank && v.harvester) v.tank = { crop: s.tank.crop | 0, amount: Math.max(0, +s.tank.amount || 0), cap: v.tank.cap };
   });
   const t = d.trailer?.tank;
@@ -92,10 +103,29 @@ export function applySave(d) {
   trailer.bales = Math.min(trailer.baleCap, Math.max(0, d.trailer?.bales | 0));
   trailer.tipping = false;
   setBales(d.bales);
+  if (d.v >= 4 && d.machines) {
+    G.machines = {}; G.cond = {};
+    for (const c of CATALOG) {
+      const m = d.machines[c.key];
+      G.machines[c.key] = m === 'own' || m === 'lease' ? m : null;
+      G.cond[c.key] = Math.max(0, Math.min(1, Number.isFinite(d.cond?.[c.key]) ? d.cond[c.key] : 1));
+    }
+    G.machines.tractor = 'own';
+    G.loan = Math.max(0, +d.loan || 0);
+    const ok = c => c && Number.isFinite(c.field) && Number.isFinite(c.target);
+    G.contracts = { offers: (d.contracts?.offers || []).filter(ok), active: ok(d.contracts?.active) ? d.contracts.active : null };
+  } else {
+    resetMachines(true);
+    G.loan = 0;
+    G.contracts = { offers: [], active: null };
+  }
+  G.lastDay = Number.isFinite(d.lastDay) ? d.lastDay : dayOf(G.gameMin);
   attachImpl(IMPL[d.veh[0]?.impl] ? d.veh[0].impl : 'cultivator');
   setHeader(d.veh[1]?.header === 'corn' ? 'corn' : 'grain');
   G.active = vehicles.find(v => v.type === d.active) || combine;
+  applyOwnership();
   afterLoad();
+  if (!G.contracts.active && !G.contracts.offers.length) generateOffers();
   return true;
 }
 

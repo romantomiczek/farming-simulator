@@ -10,6 +10,7 @@ import { sellZone, baleZone } from '../world/layout.js';
 import { bales, addBale, removeBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
 import { toast, warn } from '../ui/toast.js';
+import { contractAllows, contractCell } from './contracts.js';
 
 const inZone = (zone, p) => Math.hypot(p.x - zone.x, p.z - zone.z) < zone.r;
 export const inSell = p => inZone(sellZone, p);
@@ -22,7 +23,8 @@ export const inBaleZone = p => inZone(baleZone, p);
 function applyCell(v, x, z, k, dirBit, res) {
   const f = fieldAt(x, z);
   if (!f) return;
-  if (!f.owned) { res.notOwned = f; return; }
+  const job = !f.owned; // working the neighbour's field on a contract: free seed and fertiliser, harvest goes to him
+  if (job && !contractAllows(f, v)) { res.notOwned = f; return; }
   res.onField = true;
   const i = Math.floor(x - f.x0) + Math.floor(z - f.z0) * f.w, s = f.state[i];
   let changed = false, setDir = true;
@@ -36,17 +38,22 @@ function applyCell(v, x, z, k, dirBit, res) {
         break;
       case 'seeder':
         if (s === S_CULT) {
-          const cr = CROPS[v.seedCrop];
-          if (G.money < cr.seed) { res.blocked = 'money'; return; }
-          G.money -= cr.seed;
-          f.state[i] = S_SOWN; f.crop[i] = v.seedCrop; f.growth[i] = 0; f.stage[i] = 0;
+          const crop = job ? G.contracts.active.crop : v.seedCrop, cr = CROPS[crop];
+          if (!job) {
+            if (G.money < cr.seed) { res.blocked = 'money'; return; }
+            G.money -= cr.seed;
+          }
+          f.state[i] = S_SOWN; f.crop[i] = crop; f.growth[i] = 0; f.stage[i] = 0;
           changed = true;
         } else if (s === S_STUB) res.stub = true;
         break;
       case 'spreader':
         if (s !== S_RIPE && !(f.bonus[i] & B_FERT)) {
-          if (G.money < FERT_COST) { res.blocked = 'money'; return; }
-          G.money -= FERT_COST; f.bonus[i] |= B_FERT; changed = true; setDir = false;
+          if (!job) {
+            if (G.money < FERT_COST) { res.blocked = 'money'; return; }
+            G.money -= FERT_COST;
+          }
+          f.bonus[i] |= B_FERT; changed = true; setDir = false;
         }
         break;
       case 'baler':
@@ -56,16 +63,19 @@ function applyCell(v, x, z, k, dirBit, res) {
   } else if (s === S_RIPE) {
     const c = f.crop[i], cr = CROPS[c], tk = v.tank;
     if (cr.header !== v.header) { res.blocked = 'header'; res.needHeader = cr.header; return; }
-    if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
-    const y = cr.yield * yieldMult(f.bonus[i]);
-    if (tk.amount + y > tk.cap) { res.blocked = 'full'; return; }
-    tk.crop = c; tk.amount += y;
+    if (!job) {
+      if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
+      const y = cr.yield * yieldMult(f.bonus[i]);
+      if (tk.amount + y > tk.cap) { res.blocked = 'full'; return; }
+      tk.crop = c; tk.amount += y;
+    }
     f.state[i] = S_STUB; f.stage[i] = 0; f.bonus[i] = 0;
     f.straw[i] = cr.straw && Math.abs(k) < 0.9 ? 1 : 0;
     v.harvestT = 0.35;
     changed = true;
   }
   if (changed) {
+    if (job) contractCell();
     if (setDir) f.dir[i] = dirBit;
     drawCell(f, i); updCrop(f, i); drawMini(f, i);
     res.changed++;
@@ -93,7 +103,7 @@ export function work(v, dt) {
   }
   v.prevTool = { x: cx, z: cz };
 
-  if (res.notOwned && !res.onField) warn('own', 'Pole ' + res.notOwned.id + ' ti nepatří. Koupit ho můžeš u cedule u cesty.');
+  if (res.notOwned && !res.onField) warn('own', 'Pole ' + res.notOwned.id + ' ti nepatří. Koupit ho můžeš u cedule u cesty, nebo na něm vzít zakázku v Kanceláři (K).');
   if (res.blocked === 'money') {
     v.lowered = false;
     warn('money', v.impl === 'spreader' ? 'Došly peníze na hnojivo. Prodej úrodu.' : 'Došly peníze na osivo. Prodej úrodu.');

@@ -26,6 +26,8 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | Tab | přesednout do dalšího stroje (traktor → kombajn → sklízeč cukrovky) |
 | F | prodej zrna u sil, překládka z kombajnu do přívěsu, vysypání přívěsu, prodej balíků u stodoly, výměna nářadí v kůlně, koupě pole u cedule |
 | 1–6 | v kůlně: přímý výběr nářadí traktoru (1–6) nebo adaptéru kombajnu (1–2) |
+| R | v kůlně: oprava stroje a připojeného nářadí |
+| K | kancelář: obchod se stroji, zakázky, finance (čas se zastaví) |
 | C | změnit osivo |
 | T | rychlost času 1× / 5× / 20× |
 | Q / E, tažení myší | otočení kamery |
@@ -48,6 +50,20 @@ Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **�
 **Cukrovku** sklízí jen samojízdný **sklízeč cukrovky** (zásobník 20 000 l). Stojí u sil a přesedneš do něj klávesou Tab. Vykládá stejně jako kombajn: ve žlutém kruhu u sil, nebo dopravníkem vlevo do přívěsu.
 
 Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou.
+
+## Ekonomika
+
+**Kancelář (K)** má tři záložky. Dokud je otevřená, čas stojí.
+
+- **Obchod:** na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs. Pluh, rozmetadlo, lis, řádkový adaptér a sklízeč cukrovky koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den). Vlastní stroj prodáš za 55 % ceny podle stavu.
+- **Zakázky:** obděláváš sousedova pole 3 a 4 (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem.
+- **Finance:** úvěr až 1 000 000 Kč po 100 000 Kč s úrokem 0,4 % denně. Najdeš tu i nouzový dovoz 60 l nafty, když v poli dojde.
+
+**Nafta:** stroje ji spotřebovávají při jízdě a víc při práci. Tankuje se v červeném kruhu u čerpací stanice vedle kůlny (F, 36 Kč/l). Bez nafty se stroj nerozjede.
+
+**Opotřebení:** stroj i nářadí ztrácejí stav prací. Pod 50 % jezdí pomaleji a víc žerou. Opravíš je v kůlně klávesou R.
+
+Úroky a leasing se strhávají o půlnoci. Starší uložené hry si ponechají všechny stroje, které v nich už byly.
 
 ## Přívěs na zrno
 
@@ -93,6 +109,6 @@ prototyp/              původní jednosouborový prototyp
 1. **Základ:** projekt s moduly, nastavení grafiky, měřič FPS, ukládání do souboru (hotovo).
 2. **Logistika:** přívěs na zrno, překládka z kombajnu a vysypání ve výkupu (hotovo).
 3. **Polní práce:** orba, hnojení, sláma a balíky, kukuřice a slunečnice s řádkovým adaptérem, cukrovka se sklízečem (hotovo).
-4. **Ekonomika:** obchod se stroji, palivo a opotřebení, zakázky, úvěr.
+4. **Ekonomika:** obchod se stroji (nákup, pronájem, prodej), nafta a opotřebení, zakázky u souseda, úvěr (hotovo).
 5. **Svět:** větší mapa, více výkupů, roční období a počasí.
 6. **Pomocníci:** najatí řidiči.
