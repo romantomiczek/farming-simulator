@@ -122,6 +122,7 @@ const condTxt = v => {
 
 function toolKv(v) {
   if (v.type === 'forest') return '<dt>Dřevo</dt><dd>' + m3(v.logs) + ' / ' + v.logCap + ' m³</dd>' + condTxt(v);
+  if (v.type === 'jeep') return '<dt>Vůz</dt><dd>4×4 · až 80 km/h · <kbd>Mezerník</kbd> troubí</dd>' + condTxt(v);
   if (v.harvester) return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m</dd>' + condTxt(v);
   const c = CROPS[v.seedCrop];
   let kv = '<dt>Nářadí</dt><dd>' + implLabel(v.impl) + '</dd>';
@@ -161,7 +162,7 @@ export function updUI() {
   const working = v.lowered && v.speed > 0.3;
   const busy = (v.harvester && v.unloading) || (withTrailer && trailer.tipping);
   const chip = v.helper ? ['Pomocník', v.helper.wait ? 'warn' : 'on'] : busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
-  setText(ui.vChip, 'chip', withTrailer && !busy ? 'Přívěs' : chip[0]);
+  setText(ui.vChip, 'chip', v.type === 'jeep' ? '4×4' : withTrailer && !busy ? 'Přívěs' : chip[0]);
   ui.vChip.className = 'chip ' + chip[1];
   setText(ui.vSpeed, 'spd', String(Math.round(Math.abs(v.speed) * 3.6)));
   setHTML(ui.vKv, 'kv', toolKv(v));

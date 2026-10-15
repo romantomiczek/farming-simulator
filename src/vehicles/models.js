@@ -101,6 +101,46 @@ function addLights(g, y, z, xs) {
   return sp;
 }
 
+/** Open four-wheel-drive jeep: khaki body, canvas top over the rear, roll bar, spare wheel at the back. */
+export function buildJeep() {
+  const g = new THREE.Group(), body = '#7d8a54', bodyDk = '#626e40', canvas = '#d8cfae';
+  B(1.1, 0.3, 3.7, DARK, 0, 0.55, 0, g); // chassis
+  RB(1.78, 0.62, 3.9, 0.12, body, 0, 0.98, 0, g); // tub
+  RB(1.66, 0.34, 1.35, 0.1, body, 0, 1.38, 1.2, g); // bonnet
+  B(1.5, 0.04, 1.2, bodyDk, 0, 1.56, 1.2, g);
+  // grille with slots, bumper, round-ish lamps come from addLights
+  B(1.4, 0.56, 0.06, '#2f3437', 0, 1.1, 1.93, g);
+  for (let k = 0; k < 7; k++) B(0.06, 0.44, 0.04, STEEL, -0.45 + k * 0.15, 1.1, 1.97, g);
+  B(1.9, 0.16, 0.2, DARK, 0, 0.62, 2.04, g); B(1.9, 0.16, 0.2, DARK, 0, 0.62, -2.04, g);
+  // fenders over the wheels
+  for (const sx of [-1, 1]) for (const sz of [-1.3, 1.3]) B(0.38, 0.06, 0.95, bodyDk, sx * 0.95, 1.33, sz, g);
+  // windscreen frame and glass, roll bar, canvas top over the back seats
+  B(1.6, 0.06, 0.06, DARK, 0, 2.05, 0.5, g);
+  for (const sx of [-0.78, 0.78]) B(0.06, 0.66, 0.06, DARK, sx, 1.72, 0.5, g);
+  mk(new THREE.BoxGeometry(1.5, 0.6, 0.04), glassMat, 0, 1.72, 0.5, g, false);
+  for (const sx of [-0.8, 0.8]) B(0.07, 0.9, 0.07, DARK, sx, 1.75, -0.35, g);
+  B(1.67, 0.07, 0.07, DARK, 0, 2.2, -0.35, g);
+  RB(1.74, 0.14, 1.45, 0.05, canvas, 0, 2.25, -1.05, g);
+  for (const sx of [-0.85, 0.85]) B(0.04, 0.82, 1.4, canvas, sx, 1.82, -1.05, g);
+  // seats and steering wheel
+  for (const sx of [-0.4, 0.4]) { B(0.5, 0.12, 0.5, DARK, sx, 1.35, -0.05, g); B(0.5, 0.55, 0.1, DARK, sx, 1.62, -0.3, g); }
+  B(1.4, 0.12, 0.5, DARK, 0, 1.35, -1.05, g);
+  const sw = CY(0.17, 0.17, 0.04, 10, DARK, 0.4, 1.68, 0.25, g); sw.rotation.x = 1.0;
+  // spare wheel and tail lights at the back, jerrycan
+  const spare = wheel(0.4, 0.26, '#3a3f42', 'lug'); spare.rotation.y = Math.PI / 2; spare.position.set(0, 1.25, -2.08); g.add(spare);
+  for (const sx of [-1, 1]) B(0.14, 0.12, 0.06, TAIL, sx * 0.75, 1.05, -1.98, g);
+  RB(0.26, 0.4, 0.16, 0.03, '#c4473a', 0.7, 1.45, -1.9, g);
+  const wheels = [], front = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.42, 0.32, '#4f5458', 'lug'); w.position.set(sx * 0.86, 0.42, -1.3); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * 0.86, 0.42, 1.3); g.add(p);
+    const w = wheel(0.42, 0.32, '#4f5458', 'lug'); p.add(w); wheels.push(w); front.push(p);
+  }
+  const spot = addLights(g, 1.18, 1.96, [-0.6, 0.6]);
+  bake(g);
+  return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(-0.55, 0.5, -2.05) };
+}
+
 export function buildTractor() {
   const g = new THREE.Group(), body = '#5f9c7c', bodyDk = '#4f8a6b', cream = '#efe2b8';
   // frame, bonnet with vents and pinstripe, grille, front weights

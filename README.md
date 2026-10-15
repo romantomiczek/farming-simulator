@@ -22,8 +22,8 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | --- | --- |
 | W / S | plyn, brzda, couvání |
 | A / D | zatáčení |
-| Mezerník | spustit / zvednout nářadí |
-| Tab | přesednout do dalšího stroje, který vlastníš (traktor, kombajn, sklízeč cukrovky, harvestor) |
+| Mezerník | spustit / zvednout nářadí; v jeepu troubí |
+| Tab | přesednout do dalšího stroje, který vlastníš (traktor, kombajn, sklízeč cukrovky, harvestor, jeep) |
 | F | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
 | 1–8 | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2) |
 | R | v kůlně: oprava stroje a připojeného nářadí |
@@ -213,6 +213,10 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 7. **Obsah:** zvířata, skleníky, lesnictví a další stroje a vylepšení v obchodě.
 8. **Svět a atmosféra:** obloha, zlatá hodina, zvuk, zvířata v krajině, vítr, stopy kol, cíle a statistiky, nákup polí v Kanceláři.
 9. **Velký kraj:** mapa 1,2 × 1 km s terénem, řekou, rybníky, lesem, městečkem a železnicí, 23 polí a 3 louky, seno, doprava, velká mapa, vývojářský režim.
+
+## Jeep
+
+Jeep Lesák 4×4 (obchod, 290 000 Kč, dá se i pronajmout) jezdí až 80 km/h a hodí se na přejezdy po kraji: k polím na kopcích, do lesa nebo do městečka. Nic netáhne a nepracuje, pomocník ho neřídí. Tankuje se jako ostatní stroje, mezerník troubí.
 
 ## Louky a seno
 

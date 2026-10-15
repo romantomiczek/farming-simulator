@@ -103,6 +103,8 @@ export function playAt(kind, x, z, listener, range = 90) {
   } else if (kind === 'meow') {
     tone('sawtooth', 620, 880, t, 0.18, v * 0.6, null, A.filt('bandpass', 1100, 4));
     tone('sawtooth', 880, 520, t + 0.18, 0.35, v * 0.6, null, A.filt('bandpass', 1100, 4));
+  } else if (kind === 'honk') {
+    for (const f of [415, 523]) tone('square', f, f, t, 0.35, v * 0.9, null, A.filt('lowpass', 1800));
   } else if (kind === 'horn') {
     // two-tone train horn
     for (const [f, dt] of [[330, 0], [262, 0.55]]) tone('sawtooth', f, f * 0.99, t + dt, 0.5, v * 1.4, null, A.filt('lowpass', 1200));
@@ -122,10 +124,11 @@ export function updAudio(v, env) {
 
   // engine: idle ~ 13 Hz firing, rises with speed and throttle; harvesters run high while working
   const working = v.lowered && Math.abs(v.speed) > 0.3;
-  const big = v.type === 'combine' || v.type === 'beet' || v.type === 'forest';
+  const big = v.type === 'combine' || v.type === 'beet' || v.type === 'forest', car = v.type === 'jeep';
   const load = Math.max(0, v.thr) * 0.6 + (working ? 0.5 : 0) + (v.cutting ? 0.6 : 0);
-  const rpm = Math.min(1, Math.abs(v.speed) / 10 * 0.6 + load * 0.5 + (v.lowered && v.harvester ? 0.35 : 0));
-  const f = (big ? 11 : 13) + rpm * (big ? 15 : 19);
+  const rpm = Math.min(1, Math.abs(v.speed) / (car ? 22 : 10) * 0.6 + load * 0.5 + (v.lowered && v.harvester ? 0.35 : 0));
+  // the jeep's petrol engine runs higher than the diesels
+  const f = car ? 22 + rpm * 38 : (big ? 11 : 13) + rpm * (big ? 15 : 19);
   const engineOn = v.fuel > 0;
   set(A.o1.frequency, f * 2, t); set(A.o2.frequency, f * 2 * 1.007, t); set(A.sub.frequency, f, t); set(A.chug.frequency, f / 2, t);
   set(A.eLp.frequency, 260 + rpm * 900 + load * 300, t, 0.2);

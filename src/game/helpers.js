@@ -48,6 +48,7 @@ export function workLeft(f, v) {
 
 /** Can a helper take over vehicle v where it stands? { f } or { why }. */
 export function canHire(v) {
+  if (v.type === 'jeep') return { why: 'Jeep pomocník neřídí, ten je na přejezdy.' };
   const f = fieldAt(v.x, v.z);
   if (!f) return { why: 'Zajeď na pole, které má pomocník obdělat, a stiskni H.' };
   if (!f.owned && !contractAllows(f, v)) return { why: 'Na cizím poli může pomocník pracovat jen při zakázce s tímto nářadím.' };

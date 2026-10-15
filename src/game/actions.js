@@ -1,3 +1,4 @@
+import { playAt } from '../audio.js';
 import { fmt } from '../core/util.js';
 import { G, TIME_SCALES } from './state.js';
 import { CROPS, HEADERS } from './crops.js';
@@ -82,6 +83,7 @@ export function toggleTool() {
   }
   if (v.type === 'tractor' && v.impl === 'watertank') { toast('Cisternu naplníš klávesou F u rybníka a vodu vyleješ F u skleníků.'); return; }
   if (v.type === 'forest') { toast('Strom pokácíš klávesou F, když stojíš u vzrostlého stromu.'); return; }
+  if (v.type === 'jeep') { playAt('honk', v.x, v.z, v); return; }
   v.lowered = !v.lowered;
   v.prevTool = null;
   if (v.lowered && v.type === 'tractor' && v.impl === 'seeder' && G.money < CROPS[v.seedCrop].seed && !G.contracts.active) {

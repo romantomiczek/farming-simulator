@@ -4,7 +4,7 @@ import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { nearShapes, BOUNDS, movers } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep } from './models.js';
 import { forestColliders } from '../world/forest.js';
 import { pushBales } from '../world/bales.js';
 import { groundH } from '../world/terrain.js';
@@ -75,6 +75,11 @@ function makeVehicle(type) {
       name: 'Harvestor Les 8', gen: 'harvestoru', r: 2.6, wb: 3.8, vmax: 8.3, vwork: 3, acc: 2.2, brk: 6, vrev: 3, mapCol: '#e0b13a',
       home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: 18, cutting: null,
     }, buildForester());
+  } else if (type === 'jeep') {
+    Object.assign(v, {
+      name: 'Jeep Lesák 4×4', gen: 'jeepu', r: 1.6, wb: 2.6, vmax: 22.2, vwork: 0, acc: 4.6, brk: 9, vrev: 5, mapCol: '#d9a441',
+      home: [-27, -27], fuelCap: 70, fuelDrive: 0.022, fuelWork: 0,
+    }, buildJeep());
   }
   v.x = v.home[0]; v.z = v.home[1]; v.fuel = v.fuelCap; v.y = 0;
   v.group.rotation.order = 'YXZ'; // heading, then pitch and roll on slopes
@@ -85,7 +90,9 @@ export const tractor = makeVehicle('tractor');
 export const combine = makeVehicle('combine');
 export const beeter = makeVehicle('beet');
 export const forester = makeVehicle('forest');
-export const vehicles = [tractor, combine, beeter, forester];
+export const jeep = makeVehicle('jeep');
+// new vehicles go at the end: saves store them by position
+export const vehicles = [tractor, combine, beeter, forester, jeep];
 export const HARVESTERS = [combine, beeter];
 
 /** Puts a vehicle back at its start position (new game, or missing in an old save). */
@@ -291,6 +298,8 @@ export function visual(v, dt, tankCropColor) {
       if (im.wheels && (v.lowered || im === IMPL.baler || im === IMPL.watertank)) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
       if (im.discs && v.lowered) im.discs.forEach((d, i) => (d.rotation.y += (i ? 1 : -1) * dt * 18));
     }
+  } else if (v.type === 'jeep') {
+    // nothing to animate besides wheels and steering
   } else if (v.type === 'forest') {
     // crane turns toward the tree being cut, then swings back over the bunk
     const target = v.cutting ? v.cutting.ang : 0;

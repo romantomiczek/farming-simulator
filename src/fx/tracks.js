@@ -8,7 +8,7 @@ import { groundH } from '../world/terrain.js';
  * Wheel positions per vehicle type: [half track width, axle z] in the vehicle's local frame
  * (the big driving wheels, which leave the deepest ruts).
  */
-const AXLE = { tractor: [1.0, -0.7], combine: [1.5, 1.25], beet: [1.6, 1.4], forest: [1.2, 0] };
+const AXLE = { tractor: [1.0, -0.7], combine: [1.5, 1.25], beet: [1.6, 1.4], forest: [1.2, 0], jeep: [0.86, -1.3] };
 const DUST = col('#cdb995'), DUST_DARK = col('#a58f6e');
 
 function wheels(x, z, h, [hw, az], fn) {
