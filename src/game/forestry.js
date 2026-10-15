@@ -5,6 +5,7 @@ import { trees, volume, nearestMature, startFell, stepFell } from '../world/fore
 import { WOOD_BUYERS } from '../world/layout.js';
 import { toast } from '../ui/toast.js';
 import { stat, earn } from './goals.js';
+import { WOOD } from './balance.js';
 
 /** Felling with the harvester and selling wood at the sawmill or the timber yard. */
 export const REACH = 9; // metres from the harvester to a tree it can cut
@@ -12,7 +13,7 @@ export const REACH = 9; // metres from the harvester to a tree it can cut
 export const woodBuyerAt = v => WOOD_BUYERS.find(b => Math.hypot(v.x - b.x, v.z - b.z) < b.r) || null;
 export const inSawmill = v => !!woodBuyerAt(v);
 /** Kč per m³ at buyer b (default: the sawmill) at game minute t. */
-export const logPrice = (t, b = WOOD_BUYERS[0]) => Math.round(950 * b.mult * (1 + 0.08 * Math.sin((t / 1440) * 2 * Math.PI / 2.7 + b.phase)));
+export const logPrice = (t, b = WOOD_BUYERS[0]) => Math.round(WOOD.pricePerM3 * b.mult * (1 + 0.08 * Math.sin((t / 1440) * 2 * Math.PI / 2.7 + b.phase)));
 /** The buyer paying the most for wood right now: { b, p }. */
 export function bestWood(t) {
   let best = null;

@@ -3,6 +3,7 @@ import { G } from './state.js';
 import { has } from './machines.js';
 import { toast } from '../ui/toast.js';
 import { earn } from './goals.js';
+import { COWS, HENS, GREENHOUSE as GH } from './balance.js';
 
 /**
  * Animals and greenhouses. Storage lives in G.farm; production runs on game time
@@ -10,10 +11,10 @@ import { earn } from './goals.js';
  * eats = crop indexes accepted as fodder (unloaded with F at the building's ring).
  */
 export const BUILDINGS = {
-  cows: { name: 'Kravín', store: 'cowFeed', cap: 30000, eats: [1, 3, 5], use: 2 * 10, out: 'milk', make: 6 * 10, unit: 'l mléka', price: 9 },
-  hens: { name: 'Kurník', store: 'henFeed', cap: 8000, eats: [0, 1], use: 0.25 * 40, out: 'eggs', make: 0.1 * 40, unit: 'vajec', price: 15 },
+  cows: { name: 'Kravín', store: 'cowFeed', cap: COWS.feedStore, eats: [1, 3, 5], use: COWS.feedPerHour, out: 'milk', make: COWS.milkPerHour, unit: 'l mléka', price: COWS.milkPrice },
+  hens: { name: 'Kurník', store: 'henFeed', cap: HENS.feedStore, eats: [0, 1], use: HENS.feedPerHour, out: 'eggs', make: HENS.eggsPerHour, unit: 'vajec', price: HENS.eggPrice },
 };
-export const GREENHOUSE = { use: 40, make: 10, price: 24, capPer: 6000 }; // per greenhouse: l water/h, kg tomatoes/h
+export const GREENHOUSE = { use: GH.waterPerHour, make: GH.kgPerHour, price: GH.kgPrice, capPer: GH.waterStore }; // per greenhouse: l water/h, kg tomatoes/h
 
 export const emptyFarm = () => ({ cowFeed: 0, henFeed: 0, water: 0, milk: 0, eggs: 0, tomatoes: 0, hungry: {} });
 export const greenhouses = () => (has('greenhouse1') ? 1 : 0) + (has('greenhouse2') ? 1 : 0);

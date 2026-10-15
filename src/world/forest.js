@@ -4,13 +4,14 @@ import { M } from '../render/materials.js';
 import { rng, col } from '../core/util.js';
 import { FOREST_PLOTS } from './layout.js';
 import { groundH } from './terrain.js';
+import { WOOD } from '../game/balance.js';
 
 /**
  * Spruce plantations (north of the fields and two in the western forest). Each tree grows 0..1 over GROW_DAYS game days;
  * from MATURE it can be felled by the harvester, then a sapling is planted in its place.
  * Two instanced meshes (trunks, crowns); standing trees above 0.3 block vehicles.
  */
-const GROW_DAYS = 4;
+const GROW_DAYS = WOOD.growDays;
 export const MATURE = 0.85;
 const R = rng(31);
 export const trees = [];
@@ -25,7 +26,7 @@ for (const P of FOREST_PLOTS) {
   }
 }
 /** Wood volume of a tree in m³. */
-export const volume = t => +(2.2 * t.g * t.g * t.s).toFixed(2);
+export const volume = t => +(WOOD.treeM3 * t.g * t.g * t.s).toFixed(2);
 
 const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 1, 6).translate(0, 0.5, 0);
 const crownGeo = new THREE.ConeGeometry(1, 1, 7).translate(0, 0.5, 0);

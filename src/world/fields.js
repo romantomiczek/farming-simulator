@@ -8,6 +8,7 @@ import { FIELD_DEFS, ROADS, circles, inPoly, polyDist } from './layout.js';
 import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
 import { addWind } from '../render/wind.js';
+import { FIELD_PER_HA, MEADOW_PER_HA } from '../game/balance.js';
 
 const CP = 4; // canvas pixels per field cell
 // crop block without its bottom face (never visible): 10 triangles instead of 12
@@ -38,7 +39,7 @@ const _m = new THREE.Matrix4(), _s = new THREE.Matrix4(), _c = new THREE.Color()
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 /** Crops are drawn in square chunks of CHUNK cells; chunks far from the camera are hidden (see updFieldLOD). */
 const CHUNK = 64;
-const PRICE_PER_HA = 1900000, MEADOW_PER_HA = 900000;
+const PRICE_PER_HA = FIELD_PER_HA;
 /** Visual stage of regrowing meadow grass from its growth hours. */
 const grassStage = g => Math.min(3, Math.floor((g / GRASS.hours) * 4));
 

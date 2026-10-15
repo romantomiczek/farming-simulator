@@ -7,6 +7,7 @@ import { pushBales } from '../world/bales.js';
 import { contractAllows } from './contracts.js';
 import { isWet, season } from './weather.js';
 import { toast, warn } from '../ui/toast.js';
+import { HELPER_WAGE } from './balance.js';
 
 /**
  * Hired helpers drive a vehicle over one field on their own. The route is planned once:
@@ -14,7 +15,7 @@ import { toast, warn } from '../ui/toast.js';
  * The vehicle follows the route exactly at working speed; the normal work() code does the
  * field work, so everything (contracts, bonuses, straw, money) behaves as if the player drove.
  */
-export const WAGE = 600; // Kč per hour of work; an hour = 60 s real time, so time speed-up does not inflate it
+export const WAGE = HELPER_WAGE; // Kč per hour of work; an hour = 60 s real time, so time speed-up does not inflate it
 const PAD = 1.0; // how far inside the field edge the vehicle origin stays
 const OVERHANG = 1.0; // how far the machine may stick out past the field edge on headland passes
 const STUCK_S = 8; // seconds a helper waits at an obstacle before giving up

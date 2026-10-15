@@ -172,6 +172,17 @@ Proč zbývá výkon na detail:
 - Plodiny pole mimo záběr kamery a mimo oblast stínů se nekreslí vůbec.
 - HUD nepoužívá rozmazání pozadí ani CSS filtry přes plátno a sahá do DOM jen při změně hodnoty.
 
+## Vyvážení ekonomiky
+
+Čísla, která rozhodují o výdělcích (ceny polí, produkce zvířat a skleníků, dřevo, harvestor, mzda pomocníka), jsou v `src/game/balance.js`. Příkaz `npm run ekonomika` z nich spočítá tabulku tržeb, nákladů a návratnosti. Cíl: budovy a stroje se vrátí za 5–10 herních dnů, pole zůstávají hlavním příjmem (hektar se zaplatí asi za čtyři sklizně).
+
+| Investice | Cena | Zisk za herní den | Návratnost |
+| --- | --- | --- | --- |
+| Kravín | 650 000 Kč | asi 79 000 Kč | 8 dní |
+| Kurník | 140 000 Kč | asi 16 600 Kč | 8 dní |
+| Skleník | 180 000 Kč | asi 23 000 Kč | 8 dní |
+| Harvestor | 1 600 000 Kč | celý les asi 630 000 Kč, doroste za 2,5 dne | 6–7 dní |
+
 ## Vývojářský režim
 
 Panel pro ladění a testování otevřeš klávesou **F9** nebo tlačítkem **Dev** nahoře. Funguje při spuštění přes `npm run dev` (nebo `spustit.bat`). V sestavené verzi ho zapneš přidáním `?dev` za adresu.

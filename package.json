@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/smoke.mjs"
+    "test": "node tests/smoke.mjs",
+    "ekonomika": "node scripts/ekonomika.mjs"
   },
   "dependencies": {
     "three": "0.169.0"

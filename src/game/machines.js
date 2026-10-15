@@ -1,5 +1,6 @@
 import { G } from './state.js';
 import { vehicles, IMPL, IMPL_ORDER, tractor, combine, trailer, attachImpl, setHeader, applyUpgrades } from '../vehicles/vehicles.js';
+import { COWS, HENS, GREENHOUSE, WOOD } from './balance.js';
 
 /**
  * Everything the player can own. key matches the vehicle type or implement key;
@@ -20,11 +21,11 @@ export const CATALOG = [
   { key: 'trailer', name: 'Sklápěcí přívěs', kind: 'Nářadí', price: 150000, desc: '14 000 l zrna nebo 8 balíků.' },
   { key: 'watertank', name: 'Cisterna na vodu', kind: 'Nářadí', price: 70000, desc: '8 000 l vody z rybníka pro skleníky. V kůlně klávesa 7.' },
   { key: 'jeep', name: 'Jeep Lesák 4×4', kind: 'Osobní auto', price: 290000, desc: 'Rychlý terénní vůz, až 80 km/h. Nic netáhne a nepracuje, ale rychle tě doveze k poli, do lesa i do městečka. Mezerník troubí.' },
-  { key: 'forest', name: 'Harvestor Les 8', kind: 'Lesnictví', price: 2400000, desc: 'Kácí vzrostlé stromy v lese na severu a veze až 18 m³ dřeva na pilu.' },
-  { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: 650000, noLease: true, desc: 'Krávy žerou kukuřici, ječmen nebo cukrovku a dávají mléko. Mléko se prodá samo o půlnoci.' },
-  { key: 'hens', name: 'Kurník se 40 slepicemi', kind: 'Budovy', price: 140000, noLease: true, desc: 'Slepice žerou pšenici nebo ječmen a snášejí vejce. Vejce se prodají o půlnoci.' },
-  { key: 'greenhouse1', name: 'Skleník s rajčaty', kind: 'Budovy', price: 180000, noLease: true, desc: 'Pěstuje rajčata, potřebuje vodu z cisterny. Rajčata se prodají o půlnoci.' },
-  { key: 'greenhouse2', name: 'Druhý skleník', kind: 'Budovy', price: 180000, noLease: true, desc: 'Zdvojnásobí sklizeň rajčat i spotřebu vody.' },
+  { key: 'forest', name: 'Harvestor Les 8', kind: 'Lesnictví', price: WOOD.harvesterPrice, desc: 'Kácí vzrostlé stromy v lesních parcelách a veze až ' + WOOD.logCap + ' m³ dřeva na pilu nebo do dřevoskladu.' },
+  { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: COWS.price, noLease: true, desc: 'Krávy žerou kukuřici, ječmen nebo cukrovku a dávají mléko. Mléko se prodá samo o půlnoci.' },
+  { key: 'hens', name: 'Kurník se 40 slepicemi', kind: 'Budovy', price: HENS.price, noLease: true, desc: 'Slepice žerou pšenici nebo ječmen a snášejí vejce. Vejce se prodají o půlnoci.' },
+  { key: 'greenhouse1', name: 'Skleník s rajčaty', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Pěstuje rajčata, potřebuje vodu z cisterny. Rajčata se prodají o půlnoci.' },
+  { key: 'greenhouse2', name: 'Druhý skleník', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Zdvojnásobí sklizeň rajčat i spotřebu vody.' },
   { key: 'upTractor', name: 'Výkonnější motor traktoru', kind: 'Vylepšení', price: 260000, noLease: true, desc: 'Traktor jede až 50 km/h a pracuje o 10 % rychleji.' },
   { key: 'upCultivator', name: 'Široký kultivátor', kind: 'Vylepšení', price: 140000, noLease: true, desc: 'Záběr kultivátoru 6,3 m místo 4,2 m.' },
   { key: 'upCombine', name: 'Větší zásobník kombajnu', kind: 'Vylepšení', price: 220000, noLease: true, desc: '13 000 l místo 9 000 l.' },

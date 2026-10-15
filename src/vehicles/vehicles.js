@@ -8,6 +8,7 @@ import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCul
 import { forestColliders } from '../world/forest.js';
 import { pushBales } from '../world/bales.js';
 import { groundH } from '../world/terrain.js';
+import { WOOD } from '../game/balance.js';
 
 /**
  * Tractor attachments. Field tools ride rigidly on the hitch: width = working width,
@@ -73,7 +74,7 @@ function makeVehicle(type) {
   } else if (type === 'forest') {
     Object.assign(v, {
       name: 'Harvestor Les 8', gen: 'harvestoru', r: 2.6, wb: 3.8, vmax: 8.3, vwork: 3, acc: 2.2, brk: 6, vrev: 3, mapCol: '#e0b13a',
-      home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: 18, cutting: null,
+      home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: WOOD.logCap, cutting: null,
     }, buildForester());
   } else if (type === 'jeep') {
     Object.assign(v, {
