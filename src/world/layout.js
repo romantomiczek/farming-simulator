@@ -126,6 +126,11 @@ export const POND_FILL = { x: 64, z: -42, r: 18 };
 export const FOREST = { x0: 12, x1: 138, z0: 110, z1: 137 };
 export const FOREST_PLOTS = [FOREST, { x0: -262, x1: -200, z0: 78, z1: 132 }, { x0: -335, x1: -272, z0: -62, z1: -8 }];
 export const SAWMILL = { x: -20, z: 116, r: 7 };
+/** Who buys wood: the sawmill at the farm road and the timber yard in the town (pays more, further away). */
+export const WOOD_BUYERS = [
+  { id: 'saw', name: 'Pila', short: 'Pila', x: SAWMILL.x, z: SAWMILL.z, r: SAWMILL.r, mult: 1, phase: 0.9 },
+  { id: 'timber', name: 'Dřevosklad', short: 'Dřevosklad', x: 440, z: 26, r: 7.5, mult: 1.15, phase: 2.6 },
+];
 
 /** Diesel pump next to the end of the road: refuel here with F. */
 export const fuelZone = { x: -4.5, z: -38, r: 4.5 };

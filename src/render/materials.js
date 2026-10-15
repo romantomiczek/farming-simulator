@@ -37,6 +37,20 @@ export const glassMat = new THREE.MeshStandardMaterial({ color: col('#b7dbe0'), 
 export const lampMat = new THREE.MeshStandardMaterial({ color: col('#fff4d6'), emissive: col('#ffe2a0'), emissiveIntensity: 0 });
 export const beaconMat = new THREE.MeshStandardMaterial({ color: col('#f0a03a'), emissive: col('#ff9a2a'), emissiveIntensity: 0.4 });
 
+/**
+ * Moves every mesh inside nested groups of a static root up to the root (keeping its world
+ * transform), so bake() can merge all of them by material. Only for things that never move.
+ * The root must not be in the scene yet (identity transform).
+ */
+export function flatten(root) {
+  root.updateMatrixWorld(true);
+  const meshes = [];
+  root.traverse(o => { if (o.isMesh && o.parent !== root) meshes.push(o); });
+  for (const m of meshes) root.attach(m);
+  for (const g of [...root.children]) if (!g.isMesh && g.children.length === 0) root.remove(g);
+  return root;
+}
+
 const KEEP_ATTR = new Set(['position', 'normal', 'uv']);
 /**
  * Merges the leaf meshes of every group into one mesh per material (and shadow flag).

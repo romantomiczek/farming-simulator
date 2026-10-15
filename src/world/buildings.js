@@ -1,12 +1,15 @@
 import * as THREE from 'three';
-import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { M, mk, B, CY, flatPlane, bake, flatten } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y } from './terrain.js';
 import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, circles, addBox } from './layout.js';
 import { MARKETS } from '../game/markets.js';
+import { buildLandmarks } from './landmarks.js';
+import { WOOD_BUYERS } from './layout.js';
 
 /** House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. */
-function gable(w, d, h, wall, roof, parent) {
+export function gable(w, d, h, wall, roof, parent) {
   B(w, h, d, wall, 0, h / 2, 0, parent);
   const rh = d * 0.36;
   const s = new THREE.Shape();
@@ -27,7 +30,7 @@ function gable(w, d, h, wall, roof, parent) {
  * A strip along polyline pts, from offset a to offset b across it (negative = left), draped over
  * the ground (lift metres above it). Samples every ~2.5 m so it follows the terrain triangles.
  */
-function strip(pts, a, b, lift, hex, parent, yFn = groundH) {
+export function strip(pts, a, b, lift, hex, parent, yFn = groundH) {
   const pos = [];
   const pt = (x, z, nx, nz, o) => { const px = x + nx * o, pz = z + nz * o; return [px, yFn(px, pz) + lift, pz]; };
   for (let k = 1; k < pts.length; k++) {
@@ -115,11 +118,12 @@ function buildWater(st) {
 
 /** Builds the farmyard, roads, pond and wind turbines. Returns the turbine rotors to animate. */
 export function buildFarm(scene) {
-  const st = new THREE.Group();
+  // separate static roots, each merged by material: off-screen regions are culled as a whole
+  const st = new THREE.Group(), lines = new THREE.Group(), towers = new THREE.Group(), village = new THREE.Group();
 
   // ground decals
-  ROADS.forEach(r => road(r, st));
-  buildWater(st);
+  ROADS.forEach(r => road(r, lines));
+  buildWater(lines);
   flatPlane(PAD.x1 - PAD.x0, PAD.z1 - PAD.z0, '#d3cec3', (PAD.x0 + PAD.x1) / 2, 0.03, (PAD.z0 + PAD.z1) / 2, st);
   const rim = mk(new THREE.CircleGeometry(POND.r + 1.5, 28), M('#d8cfa6', { flatShading: false, roughness: 1 }), POND.x, 0.03, POND.z, st, false);
   rim.rotation.x = -Math.PI / 2;
@@ -189,21 +193,20 @@ export function buildFarm(scene) {
   for (const [x, z] of TURBINES) {
     const y0 = groundH(x, z) - 0.5;
     circles.push({ x, z, r: 1.6 });
-    CY(0.7, 1.4, 46, 10, '#f2f1ec', x, y0 + 23, z, st);
-    B(1.8, 1.8, 4.2, '#f2f1ec', x, y0 + 46.5, z, st);
+    CY(0.7, 1.4, 46, 10, '#f2f1ec', x, y0 + 23, z, towers);
+    B(1.8, 1.8, 4.2, '#f2f1ec', x, y0 + 46.5, z, towers);
     const r = new THREE.Group(); r.position.set(x, y0 + 46.5, z + 2.3); scene.add(r);
-    mk(new THREE.SphereGeometry(0.75, 8, 6), '#f2f1ec', 0, 0, 0, r);
-    for (let k = 0; k < 3; k++) {
-      const arm = new THREE.Group(); arm.rotation.z = (k * Math.PI * 2) / 3; r.add(arm);
-      B(0.9, 17, 0.25, '#f2f1ec', 0, 9, 0, arm);
-    }
-    bake(r);
+    // hub and three blades in one mesh: one draw call per rotor
+    const parts = [new THREE.SphereGeometry(0.75, 8, 6)];
+    for (let k = 0; k < 3; k++) parts.push(new THREE.BoxGeometry(0.9, 17, 0.25).translate(0, 9, 0).rotateZ((k * Math.PI * 2) / 3));
+    mk(mergeGeometries(parts.map(g => g.toNonIndexed())), '#f2f1ec', 0, 0, 0, r);
     rotors.push(r);
   }
 
-  buildVillage(st);
-  buildBuyers(st, scene);
-  scene.add(bake(st));
+  buildVillage(village);
+  buildBuyers(village, scene);
+  buildLandmarks(scene);
+  for (const g of [st, lines, towers, village]) scene.add(bake(flatten(g)));
   addZoneMarkers(scene);
   return { rotors };
 }
@@ -225,8 +228,12 @@ function buildVillage(st) {
   addBox(CHURCH.x - 6.2, CHURCH.x + 7.4, CHURCH.z - 3.6, CHURCH.z + 3.6);
 }
 
+/** Name boards on buildings; far ones are hidden (each is a draw call), see updLabels. */
+export const labels = [];
+export function updLabels(x, z) { for (const m of labels) m.visible = Math.hypot(m.position.x - x, m.position.z - z) < 220; }
+
 /** Text board for a building facade (kept out of bake: it has its own texture). */
-function label(scene, text, x, y, z, ry) {
+export function label(scene, text, x, y, z, ry) {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
   const c = cv.getContext('2d');
   c.fillStyle = '#24312a'; c.fillRect(0, 0, 512, 128);
@@ -235,6 +242,7 @@ function label(scene, text, x, y, z, ry) {
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
   m.position.set(x, y, z); m.rotation.y = ry; scene.add(m);
+  labels.push(m);
   document.fonts?.ready.then(() => { c.fillStyle = '#24312a'; c.fillRect(0, 0, 512, 128); c.fillStyle = '#fbf7ee'; c.fillText(text, 256, 68); tex.needsUpdate = true; });
 }
 
@@ -272,8 +280,12 @@ function addZoneMarkers(scene) {
   for (const m of MARKETS) {
     const ring = new THREE.Mesh(new THREE.RingGeometry(m.r - 0.5, m.r, 40),
       new THREE.MeshBasicMaterial({ color: col(m.color), transparent: true, opacity: 0.75 }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(m.x, 0.06, m.z); scene.add(ring);
+    ring.rotation.x = -Math.PI / 2; ring.position.set(m.x, groundH(m.x, m.z) + 0.06, m.z); scene.add(ring);
   }
+  const wb = WOOD_BUYERS[1];
+  const woodRing = new THREE.Mesh(new THREE.RingGeometry(wb.r - 0.5, wb.r, 40),
+    new THREE.MeshBasicMaterial({ color: col('#8a6a4a'), transparent: true, opacity: 0.75 }));
+  woodRing.rotation.x = -Math.PI / 2; woodRing.position.set(wb.x, groundH(wb.x, wb.z) + 0.06, wb.z); scene.add(woodRing);
   const baleRing = new THREE.Mesh(new THREE.RingGeometry(baleZone.r - 0.5, baleZone.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#b07a4a'), transparent: true, opacity: 0.75 }));
   baleRing.rotation.x = -Math.PI / 2; baleRing.position.set(baleZone.x, 0.06, baleZone.z); scene.add(baleRing);

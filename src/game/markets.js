@@ -12,6 +12,9 @@ export const MARKETS = [
   { id: 'mill', name: 'Mlýn Zlatý klas', short: 'Mlýn', x: 138, z: 58, r: 7, mult: { 0: 1.12, 1: 1.1 }, phase: 1.7, color: '#d9a441' },
   { id: 'oil', name: 'Olejna', short: 'Olejna', x: 205, z: 40, r: 7, mult: { 2: 1.12, 4: 1.14 }, phase: 3.1, color: '#c9b13a' },
   { id: 'sugar', name: 'Cukrovar a bioplynka', short: 'Cukrovar', x: 240, z: 58, r: 8, mult: { 5: 1.15, 3: 1.1 }, phase: 4.4, color: '#b79ec8' },
+  // in the town beyond the river: further to drive, better prices
+  { id: 'station', name: 'Nádraží – výkup obilí', short: 'Nádraží', x: 668, z: 30, r: 8, mult: { 0: 1.18, 1: 1.16, 2: 1.12 }, phase: 2.3, color: '#8fb0c4' },
+  { id: 'feed', name: 'Krmivárna', short: 'Krmivárna', x: 548, z: 28, r: 7.5, mult: { 3: 1.16, 1: 1.08, 5: 1.08 }, phase: 5.2, color: '#c49a6c' },
 ];
 
 /** Feed troughs of the animal buildings: unloading there fills the fodder store instead of selling. */

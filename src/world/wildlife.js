@@ -131,13 +131,13 @@ const allMeshes = [];
 function species(geo, n, legs) {
   const body = new THREE.InstancedMesh(geo, mat, n);
   allMeshes.push(body);
-  body.castShadow = true; body.receiveShadow = true; body.frustumCulled = false;
+  body.castShadow = true; body.receiveShadow = true; // culled with bounds refreshed in flush()
   scene.add(body);
   let legMesh = null;
   if (legs) {
     legMesh = new THREE.InstancedMesh(legs.geo, mat, n * 4);
     allMeshes.push(legMesh);
-    legMesh.castShadow = true; legMesh.frustumCulled = false;
+    legMesh.castShadow = true;
     scene.add(legMesh);
   }
   return {
@@ -156,7 +156,10 @@ function species(geo, n, legs) {
         legMesh.setMatrixAt(i * 4 + k, _l.premultiply(_m));
       });
     },
-    flush() { body.instanceMatrix.needsUpdate = true; if (legMesh) legMesh.instanceMatrix.needsUpdate = true; },
+    flush() {
+      body.instanceMatrix.needsUpdate = true; body.computeBoundingSphere();
+      if (legMesh) { legMesh.instanceMatrix.needsUpdate = true; legMesh.computeBoundingSphere(); }
+    },
   };
 }
 const quad = (len, w, hex, hx, hz, y, full, swing = 0.6) => ({
@@ -180,7 +183,7 @@ export function buildWildlife() {
   const deerS = species(MODELS.deer(), 5, quad(0.78, 0.08, '#7a5236', 0.12, 0.36, 0.8, 7, 0.7));
   const crowS = species(MODELS.crow(), 12);
   const wings = new THREE.InstancedMesh(wing(), mat, 24);
-  wings.castShadow = true; wings.frustumCulled = false; scene.add(wings); allMeshes.push(wings);
+  wings.castShadow = true; scene.add(wings); allMeshes.push(wings);
 
   const agent = (p, extra) => Object.assign({ x: p.x, z: p.z, h: R() * 6.28, tx: p.x, tz: p.z, v: 0, phase: R() * 6, wait: R() * 4, fleeing: 0 }, extra);
   const dog = agent({ x: -20, z: -24 }, { follow: null, barkT: 3 });
@@ -348,7 +351,7 @@ export function buildWildlife() {
             wings.setMatrixAt(i * 2 + k, _l.premultiply(_m));
           }
         });
-        crowS.flush(); wings.instanceMatrix.needsUpdate = true;
+        crowS.flush(); wings.instanceMatrix.needsUpdate = true; wings.computeBoundingSphere();
         if (R() < dt / 12) { const b = crows[(R() * crows.length) | 0]; playAt('crow', b.x, b.z, me); }
       }
 

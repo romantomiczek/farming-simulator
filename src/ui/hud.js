@@ -16,7 +16,7 @@ import { DIESEL, repairQuote, refuelLiters } from '../game/economy.js';
 import { CTYPES, progress } from '../game/contracts.js';
 import { WAGE, helpers, jobName, helperProgress, helperWaitText, canHire } from '../game/helpers.js';
 import { BUILDINGS, daysLeft, greenhouses } from '../game/farm.js';
-import { logPrice } from '../game/forestry.js';
+import { logPrice, bestWood, woodBuyerAt } from '../game/forestry.js';
 import { trees, volume, matureCount, nearestTree, MATURE } from '../world/forest.js';
 
 const $ = id => document.getElementById(id);
@@ -91,7 +91,7 @@ function fPrompt(a) {
     case 'refuel': { const l = refuelLiters(a.v); return l >= 1 ? 'Natankovat ' + fmt(l) + ' l nafty za ' + fmt(l * DIESEL) + ' Kč' : 'Na naftu nemáš peníze'; }
     case 'stopUnload': return 'Zastavit vykládku ' + a.h.gen;
     case 'fell': return 'Pokácet strom · ' + m3(volume(trees[a.i]));
-    case 'sellLogs': return 'Prodat ' + m3(G.active.logs) + ' dřeva za ' + fmt(G.active.logs * logPrice(G.gameMin)) + ' Kč';
+    case 'sellLogs': return 'Prodat ' + m3(G.active.logs) + ' dřeva za ' + fmt(G.active.logs * logPrice(G.gameMin, woodBuyerAt(G.active) || undefined)) + ' Kč';
     case 'fillWater': return 'Nabrat vodu z rybníka';
     case 'giveWater': return 'Vylít vodu do skleníků';
     case 'sell': if (a.m.feed) return 'Vyložit ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' do krmelce · ' + a.m.short;
@@ -238,7 +238,7 @@ export function updSlowUI() {
   });
   const bp = balePrice(G.gameMin), bd = bp - balePrice(G.gameMin - 60);
   h += '<li class="sep"><span>Balík slámy</span><span>' + fmt(bp) + '</span><span class="where">Stodola</span><span class="' + (bd >= 0 ? 'up' : 'down') + '">' + (bd >= 0 ? '▲' : '▼') + '</span></li>';
-  const lp = logPrice(G.gameMin), ld = lp - logPrice(G.gameMin - 60);
-  h += '<li><span>Dřevo m³</span><span>' + fmt(lp) + '</span><span class="where">Pila</span><span class="' + (ld >= 0 ? 'up' : 'down') + '">' + (ld >= 0 ? '▲' : '▼') + '</span></li>';
+  const { b: wb, p: lp } = bestWood(G.gameMin), ld = lp - logPrice(G.gameMin - 60, wb);
+  h += '<li><span>Dřevo m³</span><span>' + fmt(lp) + '</span><span class="where">' + wb.short + '</span><span class="' + (ld >= 0 ? 'up' : 'down') + '">' + (ld >= 0 ? '▲' : '▼') + '</span></li>';
   setHTML(ui.prices, 'prices', h);
 }
