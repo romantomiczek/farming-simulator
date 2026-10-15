@@ -2,7 +2,8 @@ import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_RIPE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
 import { fieldAt } from '../world/fields.js';
-import { vehicles, IMPL, toolLine } from '../vehicles/vehicles.js';
+import { vehicles, IMPL, toolLine, blockedAt } from '../vehicles/vehicles.js';
+import { pushBales } from '../world/bales.js';
 import { contractAllows } from './contracts.js';
 import { isWet, season } from './weather.js';
 import { toast, warn } from '../ui/toast.js';
@@ -15,6 +16,8 @@ import { toast, warn } from '../ui/toast.js';
  */
 export const WAGE = 600; // Kč per hour of work; an hour = 60 s real time, so time speed-up does not inflate it
 const PAD = 1.0; // how far inside the field edge the vehicle origin stays
+const OVERHANG = 1.0; // how far the machine may stick out past the field edge on headland passes
+const STUCK_S = 8; // seconds a helper waits at an obstacle before giving up
 const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler'];
 const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', harvest: 'sklizeň' };
 
@@ -102,12 +105,16 @@ function plan(v, f) {
       d = -d;
     }
   }
-  // headland passes: tool along the middle of each end strip, across the whole field
+  // headland passes: tool along the middle of each end strip, across the whole field. The machine
+  // may stick out at most OVERHANG past the field edge, so the header or the implement never
+  // reaches into a hedge or a building next to the field.
+  const front = v.harvester ? v.toolZ + 1 : 2.6, rear = v.harvester ? 3.4 : -Z + 1;
+  const inFront = Math.max(PAD, front - OVERHANG), inRear = Math.max(PAD, rear - OVERHANG);
   const ends = [e0 + H / 2, e1 - H / 2].sort((a, b) => Math.abs((alongX ? pos.x : pos.z) - a) - Math.abs((alongX ? pos.x : pos.z) - b));
   for (const al of ends) {
     const cur = alongX ? pos.z : pos.x, up = cur - c0 < c1 - cur; // drive towards the far side
-    go(P(al, up ? c0 + PAD : c1 - PAD), false);
-    go(P(al, up ? c1 - PAD : c0 + PAD), true);
+    go(P(al, up ? c0 + inRear : c1 - inRear), false);
+    go(P(al, up ? c1 - inFront : c0 + inFront), true);
   }
   return segs;
 }
@@ -174,30 +181,41 @@ export function helperTick(v, dt) {
   }
 
   const cf = condFactor(G.cond[v.type] ?? 1), toolCf = v.type === 'tractor' ? condFactor(G.cond[v.impl] ?? 1) : 1;
-  let seg = hp.path[hp.seg];
+  let seg = hp.path[hp.seg], segI = hp.seg, s = hp.s;
   const speed = seg.work ? v.vwork * cf * toolCf : seg.kind === 'arc' ? v.vwork * 0.7 * cf : Math.min(v.vmax, 6) * cf;
-  hp.s += speed * dt; hp.done += speed * dt;
-  while (hp.s >= seg.len) {
-    hp.s -= seg.len; hp.seg++;
-    if (hp.seg >= hp.path.length) { dismiss(v, 'Pomocník projel celé pole ' + hp.field.id + ' a je hotov.'); return; }
-    seg = hp.path[hp.seg];
+  s += speed * dt;
+  while (s >= seg.len) {
+    s -= seg.len; segI++;
+    if (segI >= hp.path.length) { dismiss(v, 'Pomocník projel celé pole ' + hp.field.id + ' a je hotov.'); return; }
+    seg = hp.path[segI];
   }
+  // where the route puts the vehicle next
+  let nx, nz, nh, steer = 0;
+  if (seg.kind === 'line') {
+    const t = s / seg.len;
+    nx = seg.a.x + (seg.b.x - seg.a.x) * t; nz = seg.a.z + (seg.b.z - seg.a.z) * t;
+    nh = v.h + angDiff(v.h, seg.h) * Math.min(1, dt * 4);
+  } else {
+    const phi = s / seg.r, { C, r, d, sg, U, S } = seg;
+    const sn = Math.sin(phi), cs = Math.cos(phi);
+    nx = C.x + (d * U.x * r * sn) - sg * S.x * r * cs;
+    nz = C.z + (d * U.z * r * sn) - sg * S.z * r * cs;
+    nh = Math.atan2(d * U.x * cs + sg * S.x * sn, d * U.z * cs + sg * S.z * sn);
+    steer = 0.45 * Math.sign(d * U.z * sg * S.x - d * U.x * sg * S.z); // > 0 = turning left
+  }
+  // never drive through a building, fence, tree or parked machine: wait, and give up if it stays
+  if (blockedAt(nx, nz, v.r * 0.85, v) && !blockedAt(v.x, v.z, v.r * 0.85, v)) {
+    v.speed = 0; v.thr = 0; hp.wait = 'blocked';
+    hp.stuck = (hp.stuck || 0) + dt;
+    if (hp.stuck > STUCK_S) dismiss(v, 'Pomocník narazil na překážku u pole ' + hp.field.id + ' a zastavil.');
+    return;
+  }
+  hp.stuck = 0;
+  hp.seg = segI; hp.s = s; hp.done += speed * dt;
   v.lowered = !!seg.work;
   v.speed = speed; v.thr = 1;
-  if (seg.kind === 'line') {
-    const t = hp.s / seg.len;
-    v.x = seg.a.x + (seg.b.x - seg.a.x) * t; v.z = seg.a.z + (seg.b.z - seg.a.z) * t;
-    v.h += angDiff(v.h, seg.h) * Math.min(1, dt * 4);
-    v.steer = 0;
-  } else {
-    const phi = hp.s / seg.r, { C, r, d, sg, U, S } = seg;
-    const sn = Math.sin(phi), cs = Math.cos(phi);
-    v.x = C.x + (d * U.x * r * sn) - sg * S.x * r * cs;
-    v.z = C.z + (d * U.z * r * sn) - sg * S.z * r * cs;
-    const tx = d * U.x * cs + sg * S.x * sn, tz = d * U.z * cs + sg * S.z * sn;
-    v.h = Math.atan2(tx, tz);
-    v.steer = 0.45 * Math.sign(d * U.z * sg * S.x - d * U.x * sg * S.z); // > 0 = turning left
-  }
+  v.x = nx; v.z = nz; v.h = nh; v.steer = steer;
+  pushBales(v.x, v.z, v.r);
 }
 
 /** Progress 0..1 of the planned route. */

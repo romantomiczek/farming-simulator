@@ -45,8 +45,8 @@ export function buildVegetation(scene) {
     }
     addBox(Math.min(x0, x1) - 1, Math.max(x0, x1) + 1, Math.min(z0, z1) - 1, Math.max(z0, z1) + 1);
   };
+  // hedges only on the outer sides; the northern ends of fields 3 and 4 border the forest track
   line(-73.5, -6, -73.5, 41); line(-73.5, 55, -73.5, 101); line(53, -6, 53, 41); line(61, 55, 61, 99);
-  line(-70, 103, -20, 103); line(0, 101, 58, 101);
 
   const trees = valley.concat(hills);
   const decid = trees.filter(t => !t.conifer), conif = trees.filter(t => t.conifer);

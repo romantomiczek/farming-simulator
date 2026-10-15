@@ -28,6 +28,17 @@ export function setBales(list) {
   dirty = true;
 }
 
+const BALE_R = 0.8;
+/** A vehicle (circle at x, z with radius r) shoves bales out of its way. */
+export function pushBales(x, z, r) {
+  for (const b of bales) {
+    const dx = b.x - x, dz = b.z - z, d = Math.hypot(dx, dz), m = r + BALE_R;
+    if (d >= m || d < 1e-4) continue;
+    b.x += (dx / d) * (m - d); b.z += (dz / d) * (m - d);
+    dirty = true;
+  }
+}
+
 export function flushBales() {
   if (!dirty) return;
   dirty = false;

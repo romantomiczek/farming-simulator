@@ -20,7 +20,7 @@ import { has, ownershipHooks } from './game/machines.js';
 import { upkeep, chargeDays } from './game/economy.js';
 import { generateOffers, checkContract } from './game/contracts.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
-import { flushBales } from './world/bales.js';
+import { flushBales, bales, addBale } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
 import { cam, bindCamera, updateCamera } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
@@ -153,7 +153,7 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed, fields: FIELDS, forest: forestTrees,
+    G, vehicles, trailer, renderer, attach: attachImpl, pick: pickInShed, fields: FIELDS, forest: forestTrees, bales, addBale,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
   };
 }

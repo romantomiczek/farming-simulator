@@ -51,7 +51,7 @@ Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **�
 
 **Cukrovku** sklízí jen samojízdný **sklízeč cukrovky** (zásobník 20 000 l). Na začátku ho nevlastníš: koupíš nebo pronajmeš ho v Kanceláři (K), pak stojí u sil a přesedneš do něj klávesou Tab. Vykládá stejně jako kombajn: v kruhu výkupu, který cukrovku bere (Cukrovar, Družstvo), nebo dopravníkem vlevo do přívěsu.
 
-Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou.
+Pšenice a ječmen nechávají za kombajnem řádek slámy. Slisuj ho dřív, než pole zkultivuješ nebo zoráš, jinak sláma zmizí. Přívěs naloží balíky sám, když kolem nich projedeš, a prodáš je v hnědém kruhu před stodolou. Balíky na poli stroje odstrkují.
 
 ## Svět
 
@@ -97,6 +97,7 @@ Zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přes
 - **Čekání:** sklízeč s plným zásobníkem čeká, až mu přistavíš přívěs a vyložíš ho (F). Za deště čeká, až plodiny oschnou.
 - **Konec:** skončí, když je pole hotové, dojde nafta nebo peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí.
 - **Zakázky:** na sousedově poli může pracovat, jen když tam máš zakázku s odpovídajícím nářadím.
+- **Překážky:** pomocník nikdy neprojede budovou, plotem, stromem ani zaparkovaným strojem. Když mu něco stojí v cestě déle než 8 sekund, skončí s hlášením.
 - **Ukládání:** pomocníci se do uložené hry neukládají. Po načtení je stačí najmout znovu.
 
 ## Ekonomika
@@ -168,7 +169,6 @@ prototyp/              původní jednosouborový prototyp
 
 ## Známá omezení a nápady
 
-- Přívěs a balíky nemají kolize, stroje jimi projedou. Pomocník může na konci pole s živým plotem plot lehce „projet“.
 - Zima je zatím jen bledší, bez sněhu na zemi.
 - Pomocníci se neukládají, po načtení hry je stačí najmout znovu.
 - Harvestor a lesní stromy pomocník neobsluhuje, kácí se jen ručně.

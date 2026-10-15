@@ -6,6 +6,7 @@ import { emit, SMOKE } from '../fx/particles.js';
 import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank } from './models.js';
 import { forestColliders } from '../world/forest.js';
+import { pushBales } from '../world/bales.js';
 
 /**
  * Tractor attachments. Field tools ride rigidly on the hitch: width = working width,
@@ -133,21 +134,60 @@ export function toolLine(v) {
 const hitchPos = () => [tractor.x + Math.sin(tractor.h) * HITCH_Z, tractor.z + Math.cos(tractor.h) * HITCH_Z];
 const MAX_ARTICULATION = 1.3; // rad, the drawbar stops a full jackknife
 
+/** The trailer's collision shape: two circles along the body (local z, radius). */
+const TRAILER_SHAPE = [[-0.9, 1.45], [2.3, 1.45]];
+export function trailerCircles(out = []) {
+  if (!trailer.group.visible) return out;
+  const s = Math.sin(trailer.h), c = Math.cos(trailer.h);
+  for (const [lz, r] of TRAILER_SHAPE) out.push({ x: trailer.x + s * lz, z: trailer.z + c * lz, r });
+  return out;
+}
+
+/** How deep a circle sinks into buildings, trees, fences and other vehicles (skip = vehicles to ignore). */
+function penetration(x, z, r, skip) {
+  let p = 0;
+  const circ = c => { const d = Math.hypot(x - c.x, z - c.z), m = c.r + r; if (d < m) p += m - d; };
+  for (const c of circles) circ(c);
+  treeBuf.length = 0;
+  for (const c of forestColliders(treeBuf)) circ(c);
+  for (const o of vehicles) if (o.available && !skip.includes(o)) circ(o);
+  if (!skip.includes(trailer)) for (const c of trailerCircles([])) circ(c);
+  for (const b of boxes) {
+    if (b.off) continue;
+    const d = Math.hypot(x - clamp(x, b.x0, b.x1), z - clamp(z, b.z0, b.z1));
+    if (d < r) p += r - d;
+  }
+  return p;
+}
+/** True if a circle would sit noticeably inside a fixed obstacle or another vehicle. */
+export const blockedAt = (x, z, r, self) => penetration(x, z, r, self === tractor && tractor.impl === 'trailer' ? [self, trailer] : [self]) > 0.3;
+const trailerBuf = [];
+const trailerNow = () => { trailerBuf.length = 0; return trailerCircles(trailerBuf); };
+const trailerPen = () => trailerNow().reduce((a, c) => a + penetration(c.x, c.z, c.r, [tractor, trailer]), 0);
+
 /** Centre of the trailer body in world space (for zone checks). */
 export const trailerCenter = () => ({ x: trailer.x + Math.sin(trailer.h) * 0.8, z: trailer.z + Math.cos(trailer.h) * 0.8 });
 
 /** Drags the trailer axle behind the hitch (follows the tractor, also in reverse). */
 export function updateTrailer(dt, cropColor) {
   if (tractor.impl === 'trailer') {
+    const before = trailerPen(), old = { x: trailer.x, z: trailer.z, h: trailer.h };
     const [hx, hz] = hitchPos();
     const dx = hx - trailer.x, dz = hz - trailer.z;
     if (Math.hypot(dx, dz) > 1e-3) trailer.h = Math.atan2(dx, dz);
     const rel = angDiff(tractor.h, trailer.h);
     if (Math.abs(rel) > MAX_ARTICULATION) trailer.h = tractor.h + Math.sign(rel) * MAX_ARTICULATION;
     const nx = hx - Math.sin(trailer.h) * TRAILER_L, nz = hz - Math.cos(trailer.h) * TRAILER_L;
-    const ds = (nx - trailer.x) * Math.sin(trailer.h) + (nz - trailer.z) * Math.cos(trailer.h);
+    let ds = (nx - trailer.x) * Math.sin(trailer.h) + (nz - trailer.z) * Math.cos(trailer.h);
     trailer.x = nx; trailer.z = nz;
+    // the trailer would run into something: undo this frame's move of tractor and trailer
+    if (tractor.prev && trailerPen() > before + 1e-4) {
+      Object.assign(trailer, old);
+      tractor.x = tractor.prev.x; tractor.z = tractor.prev.z; tractor.h = tractor.prev.h; tractor.speed = 0;
+      ds = 0;
+    }
     for (const w of trailer.wheels) w.userData.spin.rotation.x += ds / w.userData.r;
+    for (const c of trailerNow()) pushBales(c.x, c.z, c.r);
   }
   trailer.group.position.set(trailer.x, 0, trailer.z);
   trailer.group.rotation.y = trailer.h;
@@ -170,6 +210,8 @@ function collide(v) {
   treeBuf.length = 0;
   for (const c of forestColliders(treeBuf)) push(c);
   for (const o of vehicles) if (o !== v && o.available) push(o);
+  // a parked trailer, or the trailer of another vehicle, is an obstacle too (not for the tractor towing it)
+  if (!(v === tractor && tractor.impl === 'trailer')) for (const c of trailerNow()) push(c);
   for (const b of boxes) {
     if (b.off) continue;
     const cx = clamp(v.x, b.x0, b.x1), cz = clamp(v.z, b.z0, b.z1), dx = v.x - cx, dz = v.z - cz, d = Math.hypot(dx, dz);
@@ -186,12 +228,14 @@ function collide(v) {
   if (x !== v.x || z !== v.z) hit = true;
   v.x = x; v.z = z;
   if (hit) v.speed *= 0.6;
+  pushBales(v.x, v.z, v.r);
 }
 
 const treeBuf = [];
 
 /** Bicycle-model driving. input = { thr: -1..1, st: -1..1 } (st > 0 turns left). */
 export function drive(v, dt, input) {
+  v.prev = { x: v.x, z: v.z, h: v.h };
   let thr = input ? input.thr : 0;
   const st = input ? input.st : 0;
   if (v.fuel <= 0) thr = 0; // engine stalls without diesel
