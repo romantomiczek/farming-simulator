@@ -163,11 +163,11 @@ const ha = m2 => String((m2 / 10000).toFixed(2)).replace('.', ',') + ' ha';
 function fieldsHTML() {
   let out = '<h3 class="grp">Pozemky</h3>';
   for (const f of FIELDS) {
-    const parts = [[S_RIPE, 'zralé'], [S_SOWN, 'oseto'], [S_CULT, 'připraveno'], [S_STUB, 'strniště']]
+    const parts = (f.meadow ? [[S_RIPE, 'k posečení'], [S_STUB, 'dorůstá']] : [[S_RIPE, 'zralé'], [S_SOWN, 'oseto'], [S_CULT, 'připraveno'], [S_STUB, 'strniště']])
       .filter(([k]) => f.cnt[k] / f.area >= 0.05).map(([k, name]) => name + ' ' + pct(f.cnt[k] / f.area));
     const state = f.owned ? '<span class="chip on">Tvoje</span>' : '<span class="chip">Soused</span>';
     const buyBtn = f.owned ? '' : `<div class="ract">${btn('field', f.id, 'Koupit · ' + fmt(f.price) + ' Kč', G.money < f.price)}</div>`;
-    out += `<div class="row"><div class="rmain"><b>Pole ${f.id} · ${ha(f.area)}</b><span>${parts.join(' · ') || '—'}</span></div><div class="rstate">${state}</div>${buyBtn}</div>`;
+    out += `<div class="row"><div class="rmain"><b>${f.meadow ? 'Louka' : 'Pole'} ${f.id} · ${ha(f.area)}${f.q !== 1 ? ' · půda ' + Math.round(f.q * 100) + ' %' : ''}</b><span>${parts.join(' · ') || '—'}</span></div><div class="rstate">${state}</div>${buyBtn}</div>`;
   }
   return out;
 }
@@ -191,6 +191,7 @@ function goalsHTML() {
       <div><span>Oseto</span><b>${ha(S.sown)}</b></div>
       <div><span>Pohnojeno</span><b>${ha(S.fert)}</b></div>
       <div><span>Balíky slámy</span><b>${fmt(S.bales)}</b></div>
+      <div><span>Balíky sena</span><b>${fmt(S.hay)}</b></div>
       <div><span>Pokácené stromy</span><b>${fmt(S.trees)}</b></div>
       <div><span>Zakázky</span><b>${fmt(S.contracts)}</b></div>
     </div>`;

@@ -3,7 +3,7 @@ import { renderer, scene } from '../render/core.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
-import { CROPS, SOIL, SOIL_PLOW, STRAW, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW } from '../game/crops.js';
+import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, HAY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW } from '../game/crops.js';
 import { FIELD_DEFS, ROADS, circles, inPoly, polyDist } from './layout.js';
 import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
@@ -38,7 +38,9 @@ const _m = new THREE.Matrix4(), _s = new THREE.Matrix4(), _c = new THREE.Color()
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 /** Crops are drawn in square chunks of CHUNK cells; chunks far from the camera are hidden (see updFieldLOD). */
 const CHUNK = 64;
-const PRICE_PER_HA = 1900000;
+const PRICE_PER_HA = 1900000, MEADOW_PER_HA = 900000;
+/** Visual stage of regrowing meadow grass from its growth hours. */
+const grassStage = g => Math.min(3, Math.floor((g / GRASS.hours) * 4));
 
 /** Sale sign for a new field: by the edge nearest to a road, facing it. */
 function autoSign(f) {
@@ -75,7 +77,8 @@ export const FIELDS = FIELD_DEFS.map(def => {
     for (let i = 0; i < f.n; i++) f.mask[i] = inPoly(f.x0 + (i % f.w) + 0.5, f.z0 + ((i / f.w) | 0) + 0.5, f.poly) ? 1 : 0;
     f.area = f.mask.reduce((a, b) => a + b, 0);
   }
-  f.price = def.price ?? Math.round(((f.area / 10000) * PRICE_PER_HA * f.q) / 10000) * 10000;
+  f.meadow = !!def.meadow;
+  f.price = def.price ?? Math.round(((f.area / 10000) * (f.meadow ? MEADOW_PER_HA : PRICE_PER_HA) * f.q) / 10000) * 10000;
   f.sign = def.sign || autoSign(f);
   f.cnt = [0, 0, 0, 0]; f.prog = 0; f.strawCnt = 0; f.fertShare = 0;
 
@@ -165,6 +168,13 @@ export function drawCell(f, i) {
   const v = Math.floor(j * 3.999), ctx = f.ctx, along = f.dir[i] === 0;
   f.texDirty = true;
   if (s === S_NONE) { ctx.clearRect(px, py, CP, CP); return; }
+  if (f.meadow) {
+    // grass, or the hay swath the mower left
+    ctx.fillStyle = f.straw[i] ? HAY.base : GRASS.ground[v]; ctx.fillRect(px, py, CP, CP);
+    ctx.fillStyle = f.straw[i] ? HAY.line : GRASS.line[v];
+    if (along) ctx.fillRect(px + 1 + (v & 1), py, 1, CP); else ctx.fillRect(px, py + 1 + (v & 1), CP, 1);
+    return;
+  }
   if (f.straw[i]) {
     // straw windrow left by the combine
     ctx.fillStyle = STRAW.base; ctx.fillRect(px, py, CP, CP);
@@ -221,7 +231,8 @@ export function drawMini(f, i) {
   f.miniDirty = true;
   if (s === S_NONE) { d[o + 3] = 0; return; }
   let rgb;
-  if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[4];
+  if (f.meadow) rgb = f.straw[i] ? HAY.rgb : GRASS.rgb[s === S_RIPE ? 4 : grassStage(f.growth[i])];
+  else if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[4];
   else if (s === S_SOWN && f.stage[i] > 0) rgb = CROPS[f.crop[i]].rgb[f.stage[i]];
   else if (f.straw[i]) rgb = STRAW.rgb;
   else if (s === S_CULT && f.bonus[i] & B_PLOW) rgb = SOIL_PLOW.rgb;
@@ -231,11 +242,11 @@ export function drawMini(f, i) {
 
 export function updCrop(f, i) {
   const s = f.state[i];
-  const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+  const st = f.meadow ? (s === S_RIPE ? 4 : s === S_STUB && !f.straw[i] ? grassStage(f.growth[i]) : 0) : s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
   const [ch, k] = chunkOf(f, i);
   ch.dirty = true; f.cropDirty = true;
   if (st === 0) { ch.mesh.setMatrixAt(k, ZERO); return; }
-  const cr = CROPS[f.crop[i]], j = f.jit[i];
+  const cr = f.meadow ? GRASS : CROPS[f.crop[i]], j = f.jit[i];
   const row = (f.dir[i] === 0 ? i % f.w : (i / f.w) | 0) & 1;
   const hgt = cr.h[st] * (0.95 + j * 0.08 + row * 0.03), fw = cr.fw[st];
   const sx = f.dir[i] === 0 ? fw : 1, sz = f.dir[i] === 0 ? 1 : fw;
@@ -263,6 +274,13 @@ function paintAll(f) {
     const s = f.state[i];
     if (s === S_NONE) continue; // stays transparent
     const px = (i % f.w) * CP, py = ((i / f.w) | 0) * CP, j = f.jit[i], v = Math.floor(j * 3.999), along = f.dir[i] === 0;
+    if (f.meadow) {
+      const hay = f.straw[i];
+      fill(px, py, rgb(hay ? HAY.base : GRASS.ground[v]));
+      const ln = rgb(hay ? HAY.line : GRASS.line[v]);
+      if (along) col(px + 1 + (v & 1), py, ln); else row(px, py + 1 + (v & 1), ln);
+      continue;
+    }
     if (f.straw[i]) {
       fill(px, py, rgb(STRAW.base));
       if (along) col(px + 1 + (v & 1), py, rgb(STRAW.line)); else row(px, py + 1 + (v & 1), rgb(STRAW.line));
@@ -310,6 +328,7 @@ export function flushFields() {
 export function growFields(dh) {
   if (dh <= 0) return;
   for (const f of FIELDS) {
+    if (f.meadow) { growMeadow(f, dh); continue; }
     if (!f.cnt[S_SOWN] && f.counted) continue; // nothing growing here
     const st = f.state, gr = f.growth;
     for (let i = 0; i < f.n; i++) {
@@ -326,6 +345,19 @@ export function growFields(dh) {
 
 const HOURS = CROPS.map(c => c.hours), IS_BEET = CROPS.map(c => c.header === 'beet');
 /** Recounts cell states, growth progress, straw, fertiliser and ripe beet of one field. */
+/** Mowed grass grows back (not under a hay swath that still lies there). */
+function growMeadow(f, dh) {
+  if (!f.cnt[S_STUB] && f.counted) return;
+  const st = f.state, gr = f.growth;
+  for (let i = 0; i < f.n; i++) {
+    if (st[i] !== S_STUB || f.straw[i]) continue;
+    const before = grassStage(gr[i]);
+    gr[i] += dh;
+    if (gr[i] >= GRASS.hours) { st[i] = S_RIPE; f.stage[i] = 4; updCrop(f, i); drawMini(f, i); }
+    else if (grassStage(gr[i]) !== before) { updCrop(f, i); drawMini(f, i); }
+  }
+}
+
 export function countField(f) {
   const c = [0, 0, 0, 0], st = f.state, cr = f.crop;
   let pg = 0, straw = 0, fert = 0, ripeBeet = 0;
@@ -376,10 +408,10 @@ export function drawSign(s) {
   c.fillStyle = f.owned ? '#f4ecd8' : '#f3d27a'; c.fillRect(0, 0, 512, 256);
   c.strokeStyle = 'rgba(36,49,42,.35)'; c.lineWidth = 8; c.strokeRect(10, 10, 492, 236);
   c.fillStyle = '#24312a'; c.font = '800 92px "Bricolage Grotesque", "Trebuchet MS", sans-serif'; c.textBaseline = 'alphabetic';
-  c.fillText('Pole ' + f.id, 34, 112);
+  c.fillText((f.meadow ? 'Louka ' : 'Pole ') + f.id, 34, 112);
   c.font = '600 40px Figtree, "Segoe UI", sans-serif';
   const ha = fmt2(f.area / 10000) + ' ha';
-  c.fillText(f.owned ? 'Tvoje pole · ' + ha : 'Na prodej · ' + ha, 34, 168);
+  c.fillText((f.owned ? (f.meadow ? 'Tvoje louka · ' : 'Tvoje pole · ') : 'Na prodej · ') + ha, 34, 168);
   const job = G.contracts?.active?.field === f.id;
   if (job) { c.fillStyle = '#4d8a5d'; c.font = '700 40px Figtree, "Segoe UI", sans-serif'; c.fillText('Tvoje zakázka', 34, 220); }
   else if (!f.owned) { c.font = '700 42px Figtree, "Segoe UI", sans-serif'; c.fillText(fmt(f.price) + ' Kč', 34, 220); }

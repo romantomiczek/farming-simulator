@@ -18,8 +18,8 @@ export const WAGE = 600; // Kč per hour of work; an hour = 60 s real time, so t
 const PAD = 1.0; // how far inside the field edge the vehicle origin stays
 const OVERHANG = 1.0; // how far the machine may stick out past the field edge on headland passes
 const STUCK_S = 8; // seconds a helper waits at an obstacle before giving up
-const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler'];
-const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', harvest: 'sklizeň' };
+const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'mower'];
+const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', mower: 'sečení', harvest: 'sklizeň' };
 
 export const helpers = () => vehicles.filter(v => v.helper);
 export const jobName = v => WHAT[v.harvester ? 'harvest' : v.impl];
@@ -28,6 +28,8 @@ export const jobName = v => WHAT[v.harvester ? 'harvest' : v.impl];
 function needs(f, v, i) {
   const s = f.state[i];
   if (s === S_NONE) return false;
+  if (f.meadow) return v.type === 'tractor' && ((v.impl === 'mower' && s === S_RIPE) || (v.impl === 'baler' && !!f.straw[i]));
+  if (v.impl === 'mower') return false;
   if (v.harvester) return s === S_RIPE && CROPS[f.crop[i]].header === v.header;
   switch (v.impl) {
     case 'cultivator': return s === S_STUB;

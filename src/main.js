@@ -73,7 +73,7 @@ bindInput(code => {
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
   if (code === 'Escape' && bigMapOpen()) { toggleBigMap(false); return; }
   if (code === 'Escape') { showMenu(); return; }
-  if (/^Digit[1-7]$/.test(code)) { pickInShed(+code.slice(5)); return; }
+  if (/^Digit[1-8]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();
 });
 bindCamera(canvas);

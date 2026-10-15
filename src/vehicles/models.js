@@ -440,6 +440,22 @@ export function buildSpreader() {
 }
 
 /** Round baler: pickup in front, bale chamber behind, single axle. */
+/** Rear disc mower: 3 m cutter bar with discs under a red guard, A-frame headstock. */
+export function buildMower() {
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const red = '#c4473a';
+  B(0.24, 0.24, 0.9, DARK, 0, 0.72, -0.4, lift);
+  for (const sx of [-1, 1]) rod([sx * 0.42, 0.55, -0.15], [sx * 0.6, 0.8, -0.9], 0.05, DARK, lift);
+  RB(3.1, 0.12, 0.6, 0.03, IRON, 0, 0.12, -1.25, lift); // cutter bar
+  // discs (hidden under the guard, so they stay still and merge with the rest)
+  for (let i = 0; i < 6; i++) CY(0.24, 0.24, 0.08, 10, STEEL, -1.25 + i * 0.5, 0.22, -1.25, lift);
+  RB(3.2, 0.5, 0.95, 0.08, red, 0, 0.55, -1.3, lift); // guard
+  B(3.0, 0.06, 0.1, '#e8e4da', 0, 0.81, -0.86, lift);
+  B(0.3, 0.6, 0.3, red, 0, 0.9, -0.75, lift); // gearbox
+  bake(g);
+  return { group: g, lift, up: 0.55, down: -0.05 };
+}
+
 export function buildBaler() {
   const g = new THREE.Group();
   const cream = '#e7dfcf', orange = '#e08a3a';

@@ -25,6 +25,7 @@ const b64 = {
 
 function stageOf(f, i) {
   const s = f.state[i];
+  if (f.meadow) return s === S_RIPE ? 4 : 0;
   if (s === S_RIPE) return 4;
   if (s === S_SOWN) return Math.min(3, Math.floor((f.growth[i] / CROPS[f.crop[i]].hours) * 4));
   return 0;
@@ -41,7 +42,7 @@ export function newGame() {
   vehicles.forEach(v => { v.helper = null; sendHome(v); });
   Object.assign(vehicles[0], { seedCrop: 0, baleAcc: 0 });
   trailer.tank = { crop: -1, amount: 0, cap: 14000 };
-  trailer.bales = 0;
+  trailer.bales = 0; trailer.hay = 0;
   setBales([]);
   G.loan = 0;
   G.contracts = { offers: [], active: null };
@@ -69,8 +70,8 @@ export function serialize() {
     veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl, header: v.header, baleAcc: v.baleAcc, fuel: v.fuel, helper: serializeHelper(v) })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
     farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), logs: forester.logs, water: TOOLS.watertank.water,
-    trailer: { tank: trailer.tank, bales: trailer.bales },
-    bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3) })),
+    trailer: { tank: trailer.tank, bales: trailer.bales, hay: trailer.hay || 0 },
+    bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3), hay: b.hay ? 1 : 0 })),
   };
 }
 
@@ -106,6 +107,7 @@ export function applySave(d) {
   const t = d.trailer?.tank;
   trailer.tank = t ? { crop: t.crop | 0, amount: Math.max(0, +t.amount || 0), cap: 14000 } : { crop: -1, amount: 0, cap: 14000 };
   trailer.bales = Math.min(trailer.baleCap, Math.max(0, d.trailer?.bales | 0));
+  trailer.hay = Math.min(trailer.bales, Math.max(0, d.trailer?.hay | 0));
   trailer.tipping = false;
   setBales(d.bales);
   if (d.v >= 4 && d.machines) {

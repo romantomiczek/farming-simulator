@@ -13,7 +13,7 @@ import { toast } from '../ui/toast.js';
 export const emptyStats = () => ({
   harvest: CROPS.map(() => 0), // litres harvested for yourself, per crop
   cult: 0, plough: 0, sown: 0, fert: 0, // m² worked (own fields and contracts)
-  bales: 0, trees: 0, wood: 0, contracts: 0,
+  bales: 0, hay: 0, mown: 0, trees: 0, wood: 0, contracts: 0,
   earned: 0, // Kč from sales and contracts (not loans, not selling machines)
 });
 
@@ -39,6 +39,7 @@ export const GOALS = [
   { id: 'sow', title: 'Zaseto', desc: 'Osej 0,4 ha.', target: 4000, cur: () => G.stats.sown, fmt: ha, reward: 30000 },
   { id: 'contract', title: 'Dobrý soused', desc: 'Dokonči zakázku pro souseda.', target: 1, cur: () => G.stats.contracts, fmt: fmt, reward: 25000 },
   { id: 'bales', title: 'Sláma pod střechou', desc: 'Slisuj 10 balíků slámy.', target: 10, cur: () => G.stats.bales, fmt: fmt, reward: 30000 },
+  { id: 'hay', title: 'Seno na zimu', desc: 'Kup žací lištu, poseč louku a slisuj 5 balíků sena.', target: 5, cur: () => G.stats.hay, fmt: fmt, reward: 45000 },
   { id: 'field', title: 'Další pole', desc: 'Kup třetí pole (u cedule klávesou F nebo v Kanceláři).', target: 3, cur: owned, fmt: fmt, reward: 60000 },
   { id: 'animals', title: 'Hospodář', desc: 'Kup kravín nebo kurník.', target: 1, cur: () => (has('cows') || has('hens') ? 1 : 0), fmt: fmt, reward: 40000 },
   { id: 'fert', title: 'Výživa', desc: 'Pohnoj 0,6 ha.', target: 6000, cur: () => G.stats.fert, fmt: ha, reward: 25000 },
@@ -48,7 +49,8 @@ export const GOALS = [
   { id: 'fields5', title: 'Velkostatek', desc: 'Vlastni 5 polí.', target: 5, cur: owned, fmt: fmt, reward: 150000 },
   { id: 'year', title: 'Celý rok', desc: 'Hospodař celý rok (12 dní).', target: 12, cur: () => dayOf(G.gameMin), fmt: n => fmt(n) + ' d', reward: 100000 },
   { id: 'million', title: 'Milion z polí', desc: 'Vydělej prodejem celkem 1 000 000 Kč.', target: 1000000, cur: () => G.stats.earned, fmt: kc, reward: 150000 },
-  { id: 'fieldsAll', title: 'Celé údolí', desc: 'Vlastni všech 8 polí.', target: 8, cur: owned, fmt: fmt, reward: 400000 },
+  { id: 'fields12', title: 'Statkář', desc: 'Vlastni 12 polí nebo luk.', target: 12, cur: owned, fmt: fmt, reward: 400000 },
+  { id: 'fieldsAll', title: 'Celý kraj', desc: 'Vlastni všech 26 polí a luk.', target: 26, cur: owned, fmt: fmt, reward: 1500000 },
 ];
 export const ACTIVE_COUNT = 3;
 

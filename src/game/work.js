@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { lerp, fmt, plural } from '../core/util.js';
 import { G } from './state.js';
 import {
-  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, S_NONE,
+  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, hayPrice, S_NONE,
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { IMPL, BALE_CELLS, HARVESTERS, toolLine, tractor, trailer, trailerCenter } from '../vehicles/vehicles.js';
@@ -34,6 +34,24 @@ function applyCell(v, x, z, k, dirBit, res) {
   const i = Math.floor(x - f.x0) + Math.floor(z - f.z0) * f.w, s = f.state[i];
   if (s === S_NONE) return; // grass outside a shaped field
   let changed = false, setDir = true;
+  if (f.meadow) {
+    // meadows: only the mower and the baler do anything here
+    const tool = v.type === 'tractor' ? v.impl : null;
+    if (tool === 'mower' && s === S_RIPE) {
+      f.state[i] = S_STUB; f.growth[i] = 0; f.stage[i] = 0;
+      f.straw[i] = Math.abs(k) < 0.9 ? 1 : 0; // the swath lies in the middle of the cut
+      changed = true; stat('mown');
+    } else if (tool === 'baler' && f.straw[i]) {
+      f.straw[i] = 0; v.baleAcc++; v.hayAcc = (v.hayAcc || 0) + 1; changed = true; setDir = false;
+    } else if (tool !== 'mower' && tool !== 'baler') { res.meadow = f; return; }
+    if (changed) {
+      if (setDir) f.dir[i] = dirBit;
+      drawCell(f, i); updCrop(f, i); drawMini(f, i);
+      res.changed++;
+    }
+    res.onField = true;
+    return;
+  }
   if (v.type === 'tractor') {
     switch (v.impl) {
       case 'cultivator':
@@ -65,6 +83,9 @@ function applyCell(v, x, z, k, dirBit, res) {
         break;
       case 'baler':
         if (f.straw[i]) { f.straw[i] = 0; v.baleAcc++; changed = true; setDir = false; }
+        break;
+      case 'mower':
+        res.noGrass = true;
         break;
     }
   } else if (s === S_RIPE) {
@@ -126,13 +147,18 @@ export function work(v, dt) {
   if (res.blocked === 'wet') warn('wet', 'Za deště a hodinu po něm se nesklízí, plodiny musí oschnout.');
   if (res.blocked === 'winter') { v.lowered = false; warn('winter', 'V zimě se nesije. Počkej na jaro.'); }
   if (res.stub && !res.changed) warn('stub', 'Secí stroj potřebuje zkultivovanou nebo zoranou půdu.', '');
+  if (res.meadow && !res.changed) warn('meadow', 'Louka ' + res.meadow.id + ': tady se jen seče žací lištou a lisuje seno. Polní nářadí ani kombajn tu nic neudělají.');
+  if (res.noGrass && !res.changed) warn('noGrass', 'Žací lišta seče jen louky (u řeky a u rybníků).');
 
   // baler: drop a bale behind the chamber every BALE_CELLS of straw
   if (v.type === 'tractor' && v.impl === 'baler') {
     while (v.baleAcc >= BALE_CELLS) {
       v.baleAcc -= BALE_CELLS;
       const bz = -1.75 - 4.2;
-      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h)) { stat('bales'); warn('bale', 'Lis vyhodil balík slámy.', ''); }
+      // a bale is hay when most of what went in came from a meadow
+      const hay = (v.hayAcc || 0) >= BALE_CELLS / 2;
+      v.hayAcc = Math.max(0, (v.hayAcc || 0) - BALE_CELLS);
+      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h, hay)) { stat(hay ? 'hay' : 'bales'); warn('bale', hay ? 'Lis vyhodil balík sena.' : 'Lis vyhodil balík slámy.', ''); }
     }
   }
 
@@ -270,7 +296,7 @@ export function updateLogistics(dt, onDone) {
       if (Math.hypot(b.x - tc.x, b.z - tc.z) > 3.4) continue;
       if (t.tank.amount > 0) { warn('baleGrain', 'V přívěsu je zrno. Balíky naložíš až do prázdného přívěsu.'); break; }
       if (t.bales >= t.baleCap) { warn('baleFull', 'Přívěs je plný balíků. Odvez je ke stodole.'); break; }
-      removeBale(i); t.bales++;
+      removeBale(i); t.bales++; if (b.hay) t.hay = (t.hay || 0) + 1;
       warn('baleLoad', 'V přívěsu: ' + plural(t.bales, 'balík', 'balíky', 'balíků') + ' z ' + t.baleCap + '.', '');
     }
   }
@@ -286,11 +312,19 @@ export function stopTipping(onDone) {
 }
 
 /** Sells all bales from the trailer at the barn. */
+/** What the bales in the trailer fetch at the barn now: straw and hay are priced apart. */
+export function baleValue() {
+  const hay = trailer.hay || 0, straw = trailer.bales - hay;
+  return { straw, hay, money: Math.round(straw * balePrice(G.gameMin) + hay * hayPrice(G.gameMin)) };
+}
 export function sellBales(onDone) {
-  const n = trailer.bales, pr = balePrice(G.gameMin);
-  if (!n) return;
-  G.money += n * pr; earn(n * pr); G.flashT = 0.4;
-  trailer.bales = 0;
-  toast('Prodáno ' + plural(n, 'balík', 'balíky', 'balíků') + ' slámy za ' + fmt(n * pr) + ' Kč', 'good');
+  const { straw, hay, money } = baleValue();
+  if (!straw && !hay) return;
+  G.money += money; earn(money); G.flashT = 0.4;
+  trailer.bales = 0; trailer.hay = 0;
+  const parts = [];
+  if (straw) parts.push(plural(straw, 'balík', 'balíky', 'balíků') + ' slámy');
+  if (hay) parts.push(plural(hay, 'balík', 'balíky', 'balíků') + ' sena');
+  toast('Prodáno ' + parts.join(' a ') + ' za ' + fmt(money) + ' Kč', 'good');
   onDone?.();
 }

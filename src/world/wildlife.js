@@ -66,13 +66,19 @@ const MODELS = {
     box([0.08, 0.07, 0.06], [0, 1.52, 0.72], '#2a2420'),
     box([0.06, 0.14, 0.04], [-0.08, 1.7, 0.5], '#7a5236'), box([0.06, 0.14, 0.04], [0.08, 1.7, 0.5], '#7a5236'),
   ]),
+  heron: () => merge([
+    box([0.26, 0.3, 0.6], [0, 1.0, 0], '#9aa3a8'), box([0.2, 0.12, 0.3], [0, 0.95, -0.36], '#6f777c', 0.4),
+    box([0.08, 0.5, 0.08], [0, 1.35, 0.3], '#c8cfd2', -0.35), box([0.1, 0.1, 0.16], [0, 1.6, 0.42], '#e8ecee'),
+    box([0.03, 0.03, 0.22], [0, 1.6, 0.6], '#d9b44a'), box([0.04, 0.12, 0.18], [0, 1.66, 0.32], '#2a2c2e'),
+    box([0.03, 0.85, 0.03], [-0.06, 0.43, 0], '#8a7a58'), box([0.03, 0.85, 0.03], [0.06, 0.43, 0], '#8a7a58'),
+  ]),
   crow: () => merge([
     box([0.13, 0.12, 0.3], [0, 0.12, 0], '#1f2226'), box([0.1, 0.1, 0.1], [0, 0.18, 0.18], '#1f2226'),
     box([0.04, 0.03, 0.08], [0, 0.17, 0.26], '#55504a'), box([0.12, 0.02, 0.14], [0, 0.12, -0.2], '#1f2226'),
   ]),
 };
 const leg = (len, w, hex) => box([w, len, w], [0, -len / 2, 0], hex);
-const wing = () => box([0.34, 0.02, 0.16], [0.17, 0, 0], '#25282c');
+const wing = (hex = '#25282c') => box([0.34, 0.02, 0.16], [0.17, 0, 0], hex);
 
 /* ---------- shared helpers ---------- */
 function blocked(x, z) {
@@ -125,7 +131,7 @@ function fleeFrom(a, x, z, dist, R) {
 
 /* ---------- species: instanced body (+ legs) with a gait ---------- */
 const _m = new THREE.Matrix4(), _l = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1);
-const _e = new THREE.Euler();
+const _e = new THREE.Euler(), _q2m = new THREE.Matrix4();
 
 const allMeshes = [];
 function species(geo, n, legs) {
@@ -173,22 +179,31 @@ export function buildWildlife() {
   const YARD = { x0: -44, x1: 24, z0: -50, z1: -12 };
   const CATS = { x0: -42, x1: -20, z0: -46, z1: -12 };
   const VALLEY = { x0: HOME.x0 + 4, x1: HOME.x1 - 4, z0: HOME.z0 + 4, z1: HOME.z1 - 4 };
-  const FOX_AREAS = [{ x0: -125, x1: -96, z0: -80, z1: 130 }, { x0: -50, x1: 150, z0: 132, z1: 160 }];
-  const DEER_DAY = { x0: 70, x1: 250, z0: -125, z1: -98 }, DEER_DUSK = { x0: 70, x1: 250, z0: -96, z1: -55 };
+  // open farmland where hares live and crows land: the home valley, the northern hills, the east, the south
+  const OPEN = [VALLEY, { x0: -125, x1: 300, z0: 150, z1: 470 }, { x0: 370, x1: 740, z0: 180, z1: 520 }, { x0: -110, x1: 300, z0: -200, z1: -100 }, { x0: 400, x1: 720, z0: -190, z1: -50 }];
+  const FOX_AREAS = [{ x0: -200, x1: -130, z0: -250, z1: 100 }, { x0: -200, x1: -130, z0: 150, z1: 450 }, { x0: -50, x1: 150, z0: 132, z1: 160 }];
+  // roe deer: in the western forest by day, out on its edge at dawn and dusk
+  const DEER_DAY = { x0: -340, x1: -220, z0: 150, z1: 380 }, DEER_DUSK = { x0: -205, x1: -130, z0: 150, z1: 330 };
 
   const dogS = species(MODELS.dog(), 1, quad(0.4, 0.08, '#6e4630', 0.1, 0.25, 0.42, 6, 0.8));
   const catS = [species(MODELS.cat(), 1, quad(0.2, 0.05, '#6a6258', 0.06, 0.14, 0.22, 2.5)), species(MODELS.ginger(), 1, quad(0.2, 0.05, '#b8763e', 0.06, 0.14, 0.22, 2.5))];
-  const hareS = species(MODELS.hare(), 10);
-  const foxS = species(MODELS.fox(), 2, quad(0.32, 0.06, '#2e2620', 0.07, 0.22, 0.34, 5, 0.75));
+  const hareS = species(MODELS.hare(), 16);
+  const foxS = species(MODELS.fox(), 3, quad(0.32, 0.06, '#2e2620', 0.07, 0.22, 0.34, 5, 0.75));
   const deerS = species(MODELS.deer(), 5, quad(0.78, 0.08, '#7a5236', 0.12, 0.36, 0.8, 7, 0.7));
   const crowS = species(MODELS.crow(), 12);
   const wings = new THREE.InstancedMesh(wing(), mat, 24);
+  // grey herons at the fish ponds; their wings are the crow wing, scaled up
+  const heronS = species(MODELS.heron(), 3);
+  const heronWings = new THREE.InstancedMesh(wing('#8f989d'), mat, 6);
+  heronWings.castShadow = true; scene.add(heronWings); allMeshes.push(heronWings);
+  const shore = (p, a) => ({ x: p.x + Math.cos(a) * p.rx * 0.93, z: p.z + Math.sin(a) * p.rz * 0.93 });
+  const herons = PONDS.map((p, k) => { const a = R() * 6.28, s = shore(p, a); return { ...s, y: 0, h: R() * 6.28, pond: k, ang: a, state: 'stand', wait: R() * 10, flap: 0, v: 0, tx: s.x, tz: s.z }; });
   wings.castShadow = true; scene.add(wings); allMeshes.push(wings);
 
   const agent = (p, extra) => Object.assign({ x: p.x, z: p.z, h: R() * 6.28, tx: p.x, tz: p.z, v: 0, phase: R() * 6, wait: R() * 4, fleeing: 0 }, extra);
   const dog = agent({ x: -20, z: -24 }, { follow: null, barkT: 3 });
   const cats = [agent(pickIn(R, CATS)), agent(pickIn(R, CATS))];
-  const hares = Array.from({ length: 10 }, () => agent(pickIn(R, VALLEY, true), { s: 0.9 + R() * 0.25 }));
+  const hares = Array.from({ length: 16 }, (_, k) => { const area = OPEN[k % OPEN.length]; return agent(pickIn(R, area, true), { s: 0.9 + R() * 0.25, area }); });
   const foxes = FOX_AREAS.map(r => agent(pickIn(R, r), { area: r }));
   const herd = { ...pickIn(R, DEER_DAY), tx: 0, tz: 0, wait: 0 };
   const deer = Array.from({ length: 5 }, (_, k) => agent({ x: herd.x + (R() - 0.5) * 8, z: herd.z + (R() - 0.5) * 8 }, { s: k === 0 ? 1.1 : 0.85 + R() * 0.15, ox: (R() - 0.5) * 10, oz: (R() - 0.5) * 10 }));
@@ -209,7 +224,7 @@ export function buildWildlife() {
 
   return {
     /** For tests and debugging. */
-    agents: { dog, cats, hares, foxes, deer, crows, flock },
+    agents: { dog, cats, hares, foxes, deer, crows, flock, herons },
     /** Shows or hides every animal (developer panel). */
     setVisible(on) { for (const m of allMeshes) m.visible = on; },
     /** ctx = { vehicles, active, hour, cows, hens } */
@@ -254,8 +269,9 @@ export function buildWildlife() {
         if (a.fleeing > 0) {
           a.fleeing -= dt;
           if (R() < dt * 1.5) a.h += (R() - 0.5) * 1.4; // jink
-          if (moveTo(a, dt, 9.5, 9)) a.fleeing = 0;
-        } else wander(a, dt, VALLEY, 1.6, [2, 9], true);
+          // blocked while bolting (a house, a fence): try another direction instead of freezing
+          if (moveTo(a, dt, 9.5, 9)) { if (a.v === 0 && a.fleeing > 0.5) fleeFrom(a, a.x - Math.sin(a.h + 2) * 5, a.z - Math.cos(a.h + 2) * 5, 15, R); else a.fleeing = 0; }
+        } else wander(a, dt, a.area, 1.6, [2, 9], true);
         a.phase += dt * (a.v > 0.1 ? 6 + a.v * 0.8 : 0);
         const hop = a.v > 0.1 ? Math.abs(Math.sin(a.phase)) * (0.12 + a.v * 0.03) : 0;
         hareS.put(i, a, hop, a.v > 0.1 ? -Math.cos(a.phase) * 0.25 : 0);
@@ -307,7 +323,7 @@ export function buildWildlife() {
           flock.x = w.x - Math.sin(w.h) * 14; flock.z = w.z - Math.cos(w.h) * 14;
         } else if ((flock.t -= dt) <= 0) {
           flock.mode = flock.mode === 'sit' || flock.mode === 'follow' ? 'circle' : 'sit';
-          if (flock.mode === 'sit') { const p = pickIn(R, VALLEY, true); flock.x = p.x; flock.z = p.z; }
+          if (flock.mode === 'sit') { const p = pickIn(R, OPEN[(R() * OPEN.length) | 0], true); flock.x = p.x; flock.z = p.z; }
           flock.t = flock.mode === 'sit' ? 40 + R() * 60 : 15 + R() * 20;
         }
         crows.forEach((b, i) => {
@@ -354,6 +370,42 @@ export function buildWildlife() {
         crowS.flush(); wings.instanceMatrix.needsUpdate = true; wings.computeBoundingSphere();
         if (R() < dt / 12) { const b = crows[(R() * crows.length) | 0]; playAt('crow', b.x, b.z, me); }
       }
+
+      /* herons: wade along the shore, fly to another pond when a machine comes close */
+      herons.forEach((a, i) => {
+        if (a.state === 'stand') {
+          const t = threat(a, vehicles, 30);
+          if (t) {
+            a.state = 'fly'; a.pond = (a.pond + 1 + ((R() * (PONDS.length - 1)) | 0)) % PONDS.length;
+            a.ang = R() * 6.28; const s = shore(PONDS[a.pond], a.ang); a.tx = s.x; a.tz = s.z;
+          } else if ((a.wait -= dt) <= 0) {
+            a.ang += (R() - 0.5) * 0.5; const s = shore(PONDS[a.pond], a.ang);
+            a.tx = s.x; a.tz = s.z; a.wait = 8 + R() * 20;
+          }
+          const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
+          if (d > 0.2) { a.h = Math.atan2(dx, dz); const s = Math.min(d, 0.35 * dt); a.x += (dx / d) * s; a.z += (dz / d) * s; }
+          a.y = Math.max(0, a.y - 4 * dt);
+        } else {
+          const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
+          a.h += angDiff(a.h, Math.atan2(dx, dz)) * Math.min(1, dt * 2);
+          const sp = Math.min(9, 2 + d * 0.5);
+          a.x += Math.sin(a.h) * sp * dt; a.z += Math.cos(a.h) * sp * dt;
+          a.y += clamp((d > 25 ? 14 : 0) - a.y, -4 * dt, 5 * dt);
+          a.flap += dt * 5;
+          if (d < 1.5 && a.y < 0.2) { a.state = 'stand'; a.y = 0; a.wait = 5 + R() * 10; }
+        }
+        heronS.put(i, a);
+        const air = a.state === 'fly' && a.y > 0.3, flap = air ? Math.sin(a.flap) * 0.5 : -0.2;
+        heronS.body.getMatrixAt(i, _m);
+        for (let k = 0; k < 2; k++) {
+          _l.makeRotationZ(flap);
+          _l.scale(_s.set(air ? 2.6 : 0.9, 1, air ? 1.8 : 1.2));
+          if (k) _l.premultiply(_q2m.makeRotationY(Math.PI));
+          _l.premultiply(_q2m.makeTranslation(k ? -0.12 : 0.12, 1.1, -0.05));
+          heronWings.setMatrixAt(i * 2 + k, _l.premultiply(_m));
+        }
+      });
+      heronS.flush(); heronWings.instanceMatrix.needsUpdate = true; heronWings.computeBoundingSphere();
 
       /* the farm animals' voices */
       if ((callT -= dt) <= 0) {

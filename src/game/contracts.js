@@ -58,7 +58,7 @@ export function generateOffers() {
   countFields();
   const day = dayOf(G.gameMin), offers = [];
   for (const f of FIELDS) {
-    if (f.owned || G.contracts.active?.field === f.id) continue;
+    if (f.owned || f.meadow || G.contracts.active?.field === f.id) continue; // no contracts on meadows
     const share = k => f.cnt[k] / f.area;
     if (share(S_RIPE) > 0.5) offers.push(offer('harvest', f, dominantCrop(f, S_RIPE)));
     else if (share(S_STUB) > 0.5) { offers.push(offer('cultivate', f)); offers.push(offer('plough', f)); }

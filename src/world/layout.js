@@ -16,6 +16,7 @@ export const HOME = { x0: -108, x1: 262, z0: -98, z1: 148 };
  * lanes: direction helpers drive in ('z' by default, 'x' where a building stands at the field end).
  * q = soil quality (yield multiplier); poly = outline when the field is not a rectangle
  * (cells outside it are grass); price is per field, computed from area and quality when missing.
+ * meadow = grassland for hay instead of a field for crops.
  */
 export const FIELD_DEFS = [
   { id: 1, x0: -70, z0: -5, w: 50, h: 45, owned: true, price: 0, sign: [-17.5, -3, Math.PI / 2], start: { s: 'ripe', crop: 0 } },
@@ -44,6 +45,10 @@ export const FIELD_DEFS = [
   { id: 20, x0: -100, z0: -190, w: 70, h: 60, q: 0.95, start: { s: 'cult' } },
   { id: 21, x0: 30, z0: -175, w: 150, h: 55, q: 1.0, start: { s: 'ripe', crop: 0, dir: 1 }, lanes: 'x' },
   { id: 22, x0: 200, z0: -200, w: 80, h: 85, q: 1.05, start: { s: 'sown', crop: 3, growth: 2 } },
+  // meadows (hay): mowed with the mower, the grass grows back by itself
+  { id: 24, x0: 228, z0: -335, w: 67, h: 75, meadow: true, q: 0.7, start: { s: 'ripe' } },
+  { id: 25, x0: 358, z0: -235, w: 54, h: 180, meadow: true, q: 0.8, start: { s: 'ripe' } },
+  { id: 26, x0: 134, z0: -288, w: 86, h: 40, meadow: true, q: 0.7, start: { s: 'ripe' } },
 ];
 
 /**
@@ -101,7 +106,7 @@ export const HOUSES = [
 ];
 export const CHURCH = { x: 184, z: 64 };
 /** Meadows along the river and by the ponds (hay). */
-export const MEADOW_AREAS = [{ x0: 215, x1: 295, z0: -335, z1: -260 }, { x0: 360, x1: 415, z0: -235, z1: -55 }, { x0: 110, x1: 220, z0: -300, z1: -248 }];
+export const MEADOW_AREAS = FIELD_DEFS.filter(f => f.meadow).map(f => ({ x0: f.x0 - 4, x1: f.x0 + f.w + 4, z0: f.z0 - 4, z1: f.z0 + f.h + 4 }));
 /** Rectangles kept free of trees (village, buyers, town, meadows). */
 export const NO_TREES = [
   { x0: 143, x1: 192, z0: 52, z1: 136 }, { x0: 128, x1: 150, z0: 52, z1: 78 },

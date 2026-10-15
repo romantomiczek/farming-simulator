@@ -4,7 +4,7 @@ import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { nearShapes, BOUNDS } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower } from './models.js';
 import { forestColliders } from '../world/forest.js';
 import { pushBales } from '../world/bales.js';
 import { groundH } from '../world/terrain.js';
@@ -26,8 +26,9 @@ export const IMPL = {
     tank: { crop: -1, amount: 0, cap: 14000 }, bales: 0, baleCap: 8, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0,
   }),
   watertank: Object.assign(buildWaterTank(), { key: 'watertank', name: 'Cisterna na vodu', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5], water: 0, waterCap: 8000 }),
+  mower: Object.assign(buildMower(), { key: 'mower', name: 'Žací lišta', width: 3.0, workZ: -1.25, speed: 4.6, park: [12, -49], dust: col('#9cbf6a') }),
 };
-export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower'];
 export const trailer = IMPL.trailer;
 const HITCH_Z = -1.75;
 /** Distance from the trailer axle to its drawbar eye. */

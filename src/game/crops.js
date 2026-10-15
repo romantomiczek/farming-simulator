@@ -67,3 +67,21 @@ export function balePrice(t) {
   const d = t / 1440;
   return 1500 * (1 + 0.1 * Math.sin((d * 2 * Math.PI) / 4.1 + 1.3));
 }
+/** Kč per round bale of hay (worth more than straw, swings on its own). */
+export function hayPrice(t) {
+  const d = t / 1440;
+  return 2200 * (1 + 0.12 * Math.sin((d * 2 * Math.PI) / 3.6 + 4.0));
+}
+
+/**
+ * Meadow grass (not a crop you sow, so not in CROPS): grows 0..4 like a crop over `hours`
+ * game hours after mowing, is mowed with the mower into a hay swath, which the baler presses.
+ */
+export const GRASS = {
+  name: 'Tráva', hours: 10,
+  colors: ['#7fa653', '#86ad4f', '#7aa64a', '#6e9c44', '#5f8f3c'], h: [0.04, 0.1, 0.22, 0.36, 0.5], fw: [1, 1, 1, 1, 1],
+  ground: ['#7e9f4c', '#86a653', '#7a9b48', '#8aa957'], line: ['#6e8f40', '#76963f', '#6a8b3c', '#7a9a49'],
+};
+GRASS.cols = GRASS.colors.map(col); GRASS.rgb = GRASS.colors.map(hexRgb);
+/** Hay swath left by the mower. */
+export const HAY = { base: '#c2b866', line: '#a09748', rgb: hexRgb('#c2b866') };
