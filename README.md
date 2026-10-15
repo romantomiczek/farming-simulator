@@ -155,6 +155,7 @@ src/
   fx/                  částice (prach, plevy, kouř), déšť a sníh
   ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky
 prototyp/              původní jednosouborový prototyp
+godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), viz godot-demo/README.md
 ```
 
 ## Hotové fáze
