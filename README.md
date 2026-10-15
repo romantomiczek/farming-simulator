@@ -24,12 +24,21 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm run build` vytvoří v
 | A / D | zatáčení |
 | Mezerník | spustit / zvednout nářadí |
 | Tab | přesednout do druhého stroje |
-| F | prodej zrna u sil, výměna nářadí v kůlně, koupě pole u cedule |
+| F | prodej zrna u sil, překládka z kombajnu do přívěsu, vysypání přívěsu, výměna nářadí v kůlně, koupě pole u cedule |
 | C | změnit osivo |
 | T | rychlost času 1× / 5× / 20× |
 | Q / E, tažení myší | otočení kamery |
 | kolečko | přiblížení |
 | Esc | menu, nastavení grafiky, uložení do souboru |
+
+## Přívěs na zrno
+
+1. V kůlně připoj klávesou F přívěs (kultivátor → secí stroj → přívěs).
+2. Postav přívěs vlevo od kombajnu, pod jeho výsypnou rouru.
+3. Stiskni F v kombajnu nebo v traktoru. Zrno se přeloží, přívěs pojme 14 000 l.
+4. Zajeď s přívěsem do žlutého kruhu u sil a stiskni F. Korba se zvedne a zrno se prodá.
+
+Vykládka kombajnu běží dál, i když přesedneš do druhého stroje (Tab). Když přívěs během vykládky odjede, kombajn počká s vysunutou rourou, dokud se přívěs nevrátí. Vykládku zastavíš znovu klávesou F.
 
 ## Výkon
 
@@ -64,7 +73,7 @@ prototyp/              původní jednosouborový prototyp
 ## Plán
 
 1. **Základ:** projekt s moduly, nastavení grafiky, měřič FPS, ukládání do souboru (hotovo).
-2. **Logistika:** přívěs na zrno a odvoz do výkupu.
+2. **Logistika:** přívěs na zrno, překládka z kombajnu a vysypání ve výkupu (hotovo).
 3. **Polní práce:** orba, hnojení, sláma a balíky, další plodiny.
 4. **Ekonomika:** obchod se stroji, palivo a opotřebení, zakázky, úvěr.
 5. **Svět:** větší mapa, více výkupů, roční období a počasí.

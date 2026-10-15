@@ -1,10 +1,10 @@
 import { G } from './state.js';
 import { CROPS, S_STUB, S_SOWN, S_RIPE } from './crops.js';
 import { FIELDS, refreshField, flushFields, drawSigns, countFields } from '../world/fields.js';
-import { vehicles, tractor, combine, attachImpl } from '../vehicles/vehicles.js';
+import { vehicles, tractor, combine, trailer, attachImpl, IMPL } from '../vehicles/vehicles.js';
 
 const KEY = 'zlate-lany-v1';
-const VERSION = 1;
+const VERSION = 2; // 2 = grain trailer; version 1 saves still load
 
 const b64 = {
   enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); },
@@ -34,6 +34,7 @@ export function newGame() {
   FIELDS.forEach((f, k) => (f.owned = k < 2));
   Object.assign(combine, { x: -10, z: -8, h: 0, speed: 0, lowered: false, unloading: false, tank: { crop: -1, amount: 0, cap: 9000 } });
   Object.assign(tractor, { x: 8.5, z: -36.5, h: 0, speed: 0, lowered: false, seedCrop: 0 });
+  trailer.tank = { crop: -1, amount: 0, cap: 14000 };
   attachImpl('cultivator');
   G.active = combine;
   afterLoad();
@@ -47,12 +48,13 @@ export function serialize() {
       growth: b64.enc(new Uint8Array(f.growth.buffer)),
     })),
     veh: vehicles.map(v => ({ x: v.x, z: v.z, h: v.h, tank: v.tank, seedCrop: v.seedCrop, impl: v.impl })),
+    trailer: { tank: trailer.tank },
   };
 }
 
 /** Validates everything first and only then touches the game, so a bad file never half-loads. */
 export function applySave(d) {
-  if (!d || d.v !== VERSION || !Array.isArray(d.fields) || d.fields.length !== FIELDS.length || !Array.isArray(d.veh)) return false;
+  if (!d || (d.v !== 1 && d.v !== VERSION) || !Array.isArray(d.fields) || d.fields.length !== FIELDS.length || !Array.isArray(d.veh)) return false;
   const decoded = d.fields.map((s, k) => {
     const f = FIELDS[k];
     const out = { owned: !!s.owned, state: b64.dec(s.state), crop: b64.dec(s.crop), dir: b64.dec(s.dir), growth: b64.dec(s.growth) };
@@ -72,7 +74,10 @@ export function applySave(d) {
     Object.assign(v, { x: +s.x || 0, z: +s.z || 0, h: +s.h || 0, speed: 0, lowered: false, unloading: false, seedCrop: s.seedCrop | 0 });
     if (s.tank) v.tank = { crop: s.tank.crop | 0, amount: +s.tank.amount || 0, cap: 9000 };
   });
-  attachImpl(d.veh[0]?.impl === 'seeder' ? 'seeder' : 'cultivator');
+  const t = d.trailer?.tank;
+  trailer.tank = t ? { crop: t.crop | 0, amount: Math.max(0, +t.amount || 0), cap: 14000 } : { crop: -1, amount: 0, cap: 14000 };
+  trailer.tipping = false;
+  attachImpl(IMPL[d.veh[0]?.impl] ? d.veh[0].impl : 'cultivator');
   G.active = d.active === 'tractor' ? tractor : combine;
   afterLoad();
   return true;

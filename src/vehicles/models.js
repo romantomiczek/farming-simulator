@@ -90,6 +90,38 @@ export function buildSeeder() {
   return { group: g, lift, wheels, up: 0.4, down: -0.05 };
 }
 
+/**
+ * Grain trailer with a tipping body. Origin = centre of the tandem axle on the ground,
+ * +z points to the drawbar eye (4.2 m ahead), which sits on the tractor hitch.
+ */
+export function buildTrailer() {
+  const g = new THREE.Group(), body = '#c8794a', dark = '#3a3f42', trim = '#e8a46f';
+  B(1.0, 0.25, 5.8, dark, 0, 0.72, 0.8, g);
+  B(0.2, 0.2, 1.2, dark, 0, 0.66, 3.7, g);
+  CY(0.12, 0.12, 0.1, 8, dark, 0, 0.62, 4.2, g);
+  const wheels = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-0.62, 0.62]) { const w = wheel(0.55, 0.4, '#d7dde2'); w.position.set(sx * 1.15, 0.55, sz); g.add(w); wheels.push(w); }
+    B(0.5, 0.08, 2.5, dark, sx * 1.15, 1.18, 0, g);
+  }
+  // tipping body hinged at the rear edge
+  const tip = new THREE.Group(); tip.position.set(0, 0.95, -2.0); g.add(tip);
+  B(2.4, 0.12, 5.6, body, 0, 0.06, 2.8, tip);
+  for (const sx of [-1, 1]) {
+    B(0.1, 1.3, 5.6, body, sx * 1.2, 0.71, 2.8, tip);
+    B(0.12, 0.12, 5.64, trim, sx * 1.22, 1.3, 2.8, tip);
+  }
+  B(2.4, 1.3, 0.1, body, 0, 0.71, 5.55, tip);
+  B(2.4, 1.3, 0.1, body, 0, 0.71, 0.05, tip);
+  B(2.5, 0.12, 0.14, trim, 0, 1.3, 5.55, tip);
+  const grainMat = new THREE.MeshStandardMaterial({ color: col('#e4bc52'), roughness: 1, flatShading: true });
+  const gg = new THREE.BoxGeometry(2.25, 1, 5.4); gg.translate(0, 0.5, 0);
+  const grain = mk(gg, grainMat, 0, 0.12, 2.8, tip);
+  grain.userData.noBake = true; grain.visible = false;
+  bake(g);
+  return { group: g, tip, grain, grainMat, wheels };
+}
+
 export function buildCombine() {
   const g = new THREE.Group(), red = '#cf5a4a', dark = '#3a3f42', light = '#ebe4d2';
   B(2.5, 2.2, 5.4, red, 0, 2.3, -0.5, g);

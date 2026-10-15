@@ -1,5 +1,5 @@
 import { FIELDS } from '../world/fields.js';
-import { vehicles } from '../vehicles/vehicles.js';
+import { vehicles, trailer } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import { BOUNDS, ROADS, PAD, POND, sellZone } from '../world/layout.js';
 
@@ -51,6 +51,13 @@ export function drawMinimap() {
     ctx.fillStyle = 'rgba(36,49,42,.75)'; ctx.fillText(String(f.id), x + w / 2 + 0.8, y + h / 2 + 0.8);
     ctx.fillStyle = '#fff'; ctx.fillText(String(f.id), x + w / 2, y + h / 2);
   }
+  // trailer: a small box along its heading
+  ctx.save();
+  ctx.translate(mapX(trailer.x + Math.sin(trailer.h) * 0.8), mapY(trailer.z + Math.cos(trailer.h) * 0.8));
+  ctx.rotate(Math.atan2(-Math.cos(trailer.h), -Math.sin(trailer.h)));
+  ctx.fillStyle = '#c8794a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, sx * 0.8);
+  ctx.fillRect(-2.8 * sx, -1.3 * sx, 5.6 * sx, 2.6 * sx); ctx.strokeRect(-2.8 * sx, -1.3 * sx, 5.6 * sx, 2.6 * sx);
+  ctx.restore();
   for (const v of vehicles) {
     const s = (v === G.active ? 7 : 5) * sx;
     ctx.save();

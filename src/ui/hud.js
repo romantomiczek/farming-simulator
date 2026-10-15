@@ -2,15 +2,15 @@ import { fmt, fmt2 } from '../core/util.js';
 import { G, TIME_SCALES } from '../game/state.js';
 import { CROPS, STATE_NAMES, S_STUB, S_CULT, S_SOWN, S_RIPE, price } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
-import { IMPL, tractor, combine } from '../vehicles/vehicles.js';
-import { inSell } from '../game/work.js';
-import { inShed, nearSign, otherImpl } from '../game/actions.js';
+import { IMPL, tractor, combine, trailer } from '../vehicles/vehicles.js';
+import { hasTrailer } from '../game/work.js';
+import { fAction } from '../game/actions.js';
 
 const $ = id => document.getElementById(id);
 const ui = {
   money: $('money'), moneyBox: $('moneyBox'), day: $('day'), time: $('time'), speed: $('speedBtn'), task: $('task'),
   prices: $('priceList'), vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'),
-  vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
+  vTankLabel: $('vTankLabel'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
 };
 
 // Only touch the DOM when a value actually changed: layout work is expensive on weak machines.
@@ -18,13 +18,22 @@ const last = {};
 function setText(el, key, txt) { if (last[key] !== txt) { last[key] = txt; el.textContent = txt; } }
 function setHTML(el, key, html) { if (last[key] !== html) { last[key] = html; el.innerHTML = html; } }
 
+const full = tank => tank.amount >= tank.cap - 10;
+const tankText = tank => fmt(tank.amount) + ' / ' + fmt(tank.cap) + ' l' + (tank.crop >= 0 && tank.amount > 0 ? ' · ' + CROPS[tank.crop].name : '');
+
 function taskText() {
   const owned = FIELDS.filter(f => f.owned), sum = k => owned.reduce((a, f) => a + f.cnt[k], 0);
   const ripe = owned.filter(f => f.cnt[S_RIPE] > 0).map(f => f.id);
   let t;
-  if (combine.tank.amount >= combine.tank.cap - 10) t = 'Zásobník kombajnu je plný. Zajeď do žlutého kruhu u sil a stiskni F.';
+  if (full(combine.tank)) {
+    t = hasTrailer()
+      ? 'Zásobník kombajnu je plný. Přistav přívěs vlevo od kombajnu pod rouru a stiskni F, nebo jeď k silům.'
+      : 'Zásobník kombajnu je plný. Zajeď do žlutého kruhu u sil a stiskni F. Rychlejší je připojit v kůlně přívěs.';
+  } else if (full(trailer.tank)) t = 'Přívěs je plný. Odvez ho do žlutého kruhu u sil a vysyp klávesou F.';
+  else if (combine.unloading && combine.waiting === 'reach') t = 'Kombajn vykládá. Najeď přívěsem vlevo od kombajnu pod výsypnou rouru.';
   else if (ripe.length) t = 'Skliď zralé plodiny kombajnem na poli ' + ripe.join(' a ') + '. Spusť lištu mezerníkem.';
-  else if (combine.tank.amount > 0) t = 'Prodej zrno z kombajnu ve výkupu u sil (F).';
+  else if (combine.tank.amount > 0) t = hasTrailer() ? 'Přelož zrno z kombajnu do přívěsu (F), nebo ho prodej u sil.' : 'Prodej zrno z kombajnu ve výkupu u sil (F).';
+  else if (trailer.tank.amount > 0) t = 'Odvez zrno v přívěsu k silům a vysyp ho klávesou F.';
   else if (sum(S_STUB) > 0) t = tractor.impl === 'cultivator' ? 'Zkultivuj strniště traktorem. Tab přepne stroj.' : 'Na strniště potřebuješ kultivátor. Vyměníš ho v kůlně klávesou F.';
   else if (sum(S_CULT) > 0) t = tractor.impl === 'seeder' ? 'Zasej zkultivovanou půdu. Osivo změníš klávesou C.' : 'Připoj v kůlně secí stroj (F) a zasej.';
   else if (sum(S_SOWN) > 0) t = 'Plodiny rostou. Klávesa T zrychlí čas.';
@@ -32,6 +41,20 @@ function taskText() {
   const cheapest = FIELDS.filter(f => !f.owned).sort((a, b) => a.price - b.price)[0];
   if (cheapest && G.money >= cheapest.price) t += ' Máš na koupi pole ' + cheapest.id + '.';
   return t;
+}
+
+function fPrompt(a) {
+  if (!a) return null;
+  switch (a.kind) {
+    case 'stopCombine': return 'Zastavit vykládku kombajnu';
+    case 'sellCombine': return 'Prodat ' + fmt(combine.tank.amount) + ' l ' + CROPS[combine.tank.crop].gen + ' za ' + fmt(combine.tank.amount * price(combine.tank.crop, G.gameMin)) + ' Kč';
+    case 'overload': return 'Přeložit ' + fmt(combine.tank.amount) + ' l ' + CROPS[combine.tank.crop].gen + ' do přívěsu';
+    case 'tip': return 'Vysypat a prodat ' + fmt(trailer.tank.amount) + ' l za ' + fmt(trailer.tank.amount * price(trailer.tank.crop, G.gameMin)) + ' Kč';
+    case 'stopTip': return 'Zastavit vysypávání';
+    case 'swap': return 'Vyměnit za ' + IMPL[a.impl].name.toLowerCase();
+    case 'buy': return 'Koupit pole ' + a.sign.f.id + ' za ' + fmt(a.sign.f.price) + ' Kč';
+  }
+  return null;
 }
 
 /** Every frame: money, clock, vehicle panel and key prompts. */
@@ -44,23 +67,30 @@ export function updUI() {
   setText(ui.speed, 'ts', TIME_SCALES[G.tsIdx] + '×');
 
   const v = G.active;
+  const withTrailer = v.type === 'tractor' && v.impl === 'trailer';
   setText(ui.vName, 'vname', v.name);
   const working = v.lowered && v.speed > 0.3;
-  const chip = v.unloading ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
-  setText(ui.vChip, 'chip', chip[0]);
+  const busy = (v.type === 'combine' && v.unloading) || (withTrailer && trailer.tipping);
+  const chip = busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
+  setText(ui.vChip, 'chip', withTrailer && !busy ? 'Přívěs' : chip[0]);
   ui.vChip.className = 'chip ' + chip[1];
   setText(ui.vSpeed, 'spd', String(Math.round(Math.abs(v.speed) * 3.6)));
   let kv;
   if (v.type === 'tractor') {
     const im = IMPL[v.impl], c = CROPS[v.seedCrop];
-    kv = '<dt>Nářadí</dt><dd>' + im.name + ' ' + String(im.width).replace('.', ',') + ' m</dd>';
+    kv = withTrailer
+      ? '<dt>Nářadí</dt><dd>Sklápěcí přívěs</dd>'
+      : '<dt>Nářadí</dt><dd>' + im.name + ' ' + String(im.width).replace('.', ',') + ' m</dd>';
     if (v.impl === 'seeder') kv += '<dt>Osivo <kbd>C</kbd></dt><dd>' + c.name + ' · ' + c.seed + ' Kč/m²</dd>';
   } else kv = '<dt>Nářadí</dt><dd>Žací lišta 5,4 m</dd>';
   setHTML(ui.vKv, 'kv', kv);
-  ui.vTank.hidden = v.type !== 'combine';
-  if (v.type === 'combine') {
-    setText(ui.vTankTxt, 'tank', fmt(v.tank.amount) + ' / ' + fmt(v.tank.cap) + ' l' + (v.tank.crop >= 0 && v.tank.amount > 0 ? ' · ' + CROPS[v.tank.crop].name : ''));
-    ui.vTankBar.style.width = ((v.tank.amount / v.tank.cap) * 100).toFixed(1) + '%';
+
+  const tank = v.type === 'combine' ? v.tank : withTrailer ? trailer.tank : null;
+  ui.vTank.hidden = !tank;
+  if (tank) {
+    setText(ui.vTankLabel, 'tlabel', v.type === 'combine' ? 'Zásobník' : 'Přívěs');
+    setText(ui.vTankTxt, 'tank', tankText(tank));
+    ui.vTankBar.style.width = ((tank.amount / tank.cap) * 100).toFixed(1) + '%';
   }
 
   const f = fieldAt(v.x, v.z);
@@ -74,15 +104,12 @@ export function updUI() {
   }
 
   const pr = [];
-  if (v.type === 'combine' && inSell(v) && v.tank.amount > 0) {
-    pr.push(['F', v.unloading ? 'Zastavit vykládku' : 'Prodat ' + fmt(v.tank.amount) + ' l ' + CROPS[v.tank.crop].gen + ' za ' + fmt(v.tank.amount * price(v.tank.crop, G.gameMin)) + ' Kč']);
-  }
-  if (v.type === 'tractor' && inShed(v)) pr.push(['F', 'Vyměnit za ' + IMPL[otherImpl()].name.toLowerCase()]);
-  const s = nearSign(v);
-  if (s) pr.push(['F', 'Koupit pole ' + s.f.id + ' za ' + fmt(s.f.price) + ' Kč']);
-  if (f && f.owned && !v.lowered) pr.push(['Mezerník', 'Spustit ' + (v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : 'žací lištu')]);
+  const fa = fPrompt(fAction());
+  if (fa) pr.push(['F', fa]);
+  if (combine.unloading && combine.waiting === 'reach') pr.push(['', 'Najeď přívěsem pod rouru kombajnu']);
+  if (f && f.owned && !v.lowered && !withTrailer) pr.push(['Mezerník', 'Spustit ' + (v.type === 'tractor' ? IMPL[v.impl].name.toLowerCase() : 'žací lištu')]);
   if (f && f.owned && v.lowered && Math.abs(v.speed) < 0.3) pr.push(['W', 'Jeď, nářadí pracuje jen v pohybu']);
-  if (v.type === 'combine' && v.tank.amount >= v.tank.cap - 10 && !inSell(v)) pr.push(['', 'Zásobník je plný']);
+  if (v.type === 'combine' && full(v.tank) && !fa) pr.push(['', 'Zásobník je plný']);
   setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
 }
 
