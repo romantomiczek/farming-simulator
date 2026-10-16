@@ -146,6 +146,16 @@ try {
   });
   check('vozový park', park.t2 && park.hitched && park.rows === park.pieces, 'druhý traktor na odstavné ploše s přívěsem · ' + park.rows + ' řádků v Kanceláři');
 
+  // level of detail: the parked second tractor far from the camera uses the simplified model, near it the detailed one
+  const lod = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), z = window.__zl, t2 = V.vehicles.filter(v => v.type === 'tractor')[1];
+    const nearShown = () => t2.group.children.some(o => o.isMesh && o.visible);
+    V.updLOD({ x: t2.x + 500, y: 50, z: t2.z }, 70); const far = t2.lodFar && !nearShown();
+    V.updLOD({ x: t2.x + 10, y: 10, z: t2.z }, 70); const near = !t2.lodFar && nearShown();
+    return { far, near, tris: V.farStats().tractor };
+  });
+  check('vzdálené stroje', lod.far && lod.near && lod.tris < 8000, 'zjednodušený traktor ' + lod.tris + ' △');
+
   // an hour of game time at full speed: traffic, animals, growth, helpers' world
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });
   check('hodina herního času', true);

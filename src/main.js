@@ -5,7 +5,7 @@ import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
 import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD } from './world/fields.js';
-import { vehicles, tools, drive, visual, updateTrailers, attachTool } from './vehicles/vehicles.js';
+import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
@@ -151,6 +151,7 @@ function tick(dt) {
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
   updateCamera(dt, G.active);
+  updLOD(camera.position, quality().machineLod);
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
   updEnv(cam.t, G.gameMin, vehicles, G.active, WX);
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season());

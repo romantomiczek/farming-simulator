@@ -16,6 +16,10 @@ const skyEnv = { horizon: sky, zenith: zen, sunDir: sunVisual, sunCol: C_GLOW, d
 let lastT = performance.now();
 const PI = Math.PI;
 
+/** Headlight spots shared by all machines: a fixed number, so buying machines never adds lights (and shader work). */
+const SPOTS = [0, 1, 2].map(() => { const s = new THREE.SpotLight(0xfff1c8, 0, 48, 0.75, 0.6, 0); scene.add(s, s.target); return s; });
+const lit = [];
+
 /**
  * Day/night cycle: sun from 5:00 to 21:00, warm light at dawn and dusk, moonlight at night.
  * wx = { rain, cloud } 0..1 dims the sun, greys the sky and pulls the fog in.
@@ -50,7 +54,20 @@ export function updEnv(target, gameMin, vehicles, active, wx) {
   scene.fog.near = Math.min(fogBase.near, scene.fog.far * 0.45);
   const night = 1 - day;
   lampMat.emissiveIntensity = night * 1.6;
-  for (const v of vehicles) v.spot.intensity = (v === active ? night * 2.2 : night * 0.8) * PI;
+  // the few spot lights go to the machine you drive and the nearest ones working or driving
+  lit.length = 0;
+  if (night > 0.05) {
+    for (const v of vehicles) if (v === active || v.helper || Math.abs(v.speed) > 0.5) lit.push(v);
+    lit.sort((a, b) => (a === active ? -1 : b === active ? 1 : Math.hypot(a.x - target.x, a.z - target.z) - Math.hypot(b.x - target.x, b.z - target.z)));
+  }
+  SPOTS.forEach((s, i) => {
+    const v = lit[i];
+    s.intensity = v ? (v === active ? night * 2.2 : night * 0.8) * PI : 0;
+    if (!v) return;
+    v.group.updateWorldMatrix(true, false);
+    s.position.copy(v.spot.pos).applyMatrix4(v.group.matrixWorld);
+    s.target.position.copy(v.spot.target).applyMatrix4(v.group.matrixWorld);
+  });
   return day;
 }
 

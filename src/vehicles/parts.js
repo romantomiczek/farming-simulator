@@ -11,6 +11,12 @@ import { M, mk, B, CY, lampMat } from '../render/materials.js';
  * roughness, so the extra surfaces cost triangles only.
  */
 
+/**
+ * LOD.low = true while the simplified model of a machine is built (seen from afar): plain boxes,
+ * coarse wheels, no hoses, lamps, mirrors, wipers, steps or cab interior. See vehicles.js farModel().
+ */
+export const LOD = { low: false };
+
 /* ---------- surfaces ---------- */
 export const DARK = '#3a3f42', TYRE = '#26282a', STEEL = '#b9bfc2', IRON = '#56595b', TAIL = '#c4332a', AMBER = '#e8902a';
 /** Glossy machine paint. */
@@ -26,11 +32,12 @@ export const amberMat = M(AMBER, { roughness: 0.2, metalness: 0.1, flatShading: 
 
 /** Box with rounded edges (smooth with paint, faceted with flat materials). */
 export const RB = (w, h, d, r, mat, x, y, z, p, seg = 2) =>
-  mk(new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2, h / 2, d / 2) * 0.99), mat, x, y, z, p);
+  mk(LOD.low ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2, h / 2, d / 2) * 0.99), mat, x, y, z, p);
 
 const _up = new THREE.Vector3(0, 1, 0);
 /** Round bar from a to b ([x, y, z]). */
 export function rod(a, b, t, mat, p, seg = 8) {
+  if (LOD.low) seg = 4;
   const A = new THREE.Vector3(...a), D = new THREE.Vector3(...b).sub(A);
   const m = mk(new THREE.CylinderGeometry(t, t, D.length(), seg), mat, A.x + D.x / 2, A.y + D.y / 2, A.z + D.z / 2, p);
   m.quaternion.setFromUnitVectors(_up, D.normalize());
@@ -38,6 +45,7 @@ export function rod(a, b, t, mat, p, seg = 8) {
 }
 /** Hydraulic ram from a to b: barrel (2/3) and chromed piston rod. */
 export function ram(a, b, r, mat, p) {
+  if (LOD.low) { rod(a, b, r, mat, p); return; }
   const m = a.map((v, i) => v + (b[i] - v) * 0.62);
   rod(a, m, r, mat, p);
   rod(m, b, r * 0.55, CHROME, p);
@@ -45,6 +53,7 @@ export function ram(a, b, r, mat, p) {
 }
 /** Flexible hose through the points (smooth curve). */
 export function hose(pts, r, p, mat = M('#1e2022', { roughness: 0.7, flatShading: false })) {
+  if (LOD.low) return null;
   const c = new THREE.CatmullRomCurve3(pts.map(q => new THREE.Vector3(...q)));
   return mk(new THREE.TubeGeometry(c, Math.max(8, pts.length * 5), r, 6, false), mat, 0, 0, 0, p);
 }
@@ -55,14 +64,14 @@ export function hose(pts, r, p, mat = M('#1e2022', { roughness: 0.7, flatShading
  */
 export function profile(pts, width, bevel, mat, x, p, curve = 8) {
   const sh = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y)));
-  const t = Math.min(bevel, width / 3);
-  const geo = new THREE.ExtrudeGeometry(sh, { depth: width - 2 * t, bevelEnabled: t > 0, bevelThickness: t, bevelSize: t, bevelSegments: 3, curveSegments: curve });
+  const t = LOD.low ? 0 : Math.min(bevel, width / 3);
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: width - 2 * t, bevelEnabled: t > 0, bevelThickness: t, bevelSize: t, bevelSegments: 3, curveSegments: LOD.low ? 1 : curve });
   geo.rotateY(-Math.PI / 2); geo.translate(width / 2 - t, 0, 0);
   return mk(geo, mat, x, 0, 0, p);
 }
 /** Curved mudguard over a wheel: arc from angle a0 to a1 (0 = forward, π/2 = up) of radius r around (cy, cz). */
 export function fender(p, mat, x, cy, cz, r, a0, a1, width, thick = 0.07) {
-  const pts = [], n = 16;
+  const pts = [], n = LOD.low ? 4 : 16;
   for (let k = 0; k <= n; k++) { const a = a0 + ((a1 - a0) * k) / n; pts.push([cz + Math.cos(a) * (r + thick), cy + Math.sin(a) * (r + thick)]); }
   for (let k = n; k >= 0; k--) { const a = a0 + ((a1 - a0) * k) / n; pts.push([cz + Math.cos(a) * r, cy + Math.sin(a) * r]); }
   return profile(pts, width, Math.min(0.03, thick / 2), mat, x, p, 4);
@@ -177,6 +186,7 @@ export const ATLAS = { mat: decalMat, white: [(CELLS.white[0] + 16) / 1024, 1 - 
  * tilt leans it back (for sloping surfaces), flip mirrors it.
  */
 export function decal(name, w, h, x, y, z, ry, p, tilt = 0, flip = false) {
+  if (LOD.low && w * h < 0.15) return null; // small labels vanish in the distance
   const [cx, cy, cw, ch] = CELLS[name], geo = new THREE.PlaneGeometry(w, h), uv = geo.attributes.uv;
   for (let i = 0; i < uv.count; i++) {
     const u = flip ? 1 - uv.getX(i) : uv.getX(i), v = uv.getY(i);
@@ -247,6 +257,12 @@ function treadGeo(r, w, kind) {
 export function wheel(r, w, rimHex, tread = 'road') {
   const g = new THREE.Group(), spin = new THREE.Group();
   g.add(spin);
+  g.userData = { spin, r };
+  if (LOD.low) {
+    mk(new THREE.CylinderGeometry(r, r, w, 12), RUBBER, 0, 0, 0, spin).rotation.z = Math.PI / 2;
+    mk(new THREE.CylinderGeometry(r * 0.6, r * 0.6, w + 0.02, 8), P(rimHex), 0, 0, 0, spin).rotation.z = Math.PI / 2;
+    return g;
+  }
   const ri = r * 0.6, rim = P(rimHex), dark = F('#2f3335');
   mk(tyreGeo(r, w, ri), RUBBER, 0, 0, 0, spin);
   mk(treadGeo(r, w, tread), RUBBER, 0, 0, 0, spin);
@@ -274,13 +290,13 @@ export function wheel(r, w, rimHex, tread = 'road') {
   }
   // valve stem
   mk(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 5), dark, w * 0.2, ri * 0.85, 0, spin).rotation.z = Math.PI / 2;
-  g.userData = { spin, r };
   return g;
 }
 
 /* ---------- lamps ---------- */
 /** Headlamp: dark housing, chrome bezel and a lens that glows at night. */
 export function headlamp(p, x, y, z, w = 0.3, h = 0.18, ry = 0) {
+  if (LOD.low) { const b = B(w + 0.06, h + 0.06, 0.08, lampMat, x, y, z, p); b.rotation.y = ry; return b; }
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.static = true; p.add(g);
   RB(w + 0.08, h + 0.08, 0.1, 0.03, F('#2a2d2f'), 0, 0, -0.04, g);
   RB(w + 0.03, h + 0.03, 0.03, 0.012, CHROME, 0, 0, 0.012, g);
@@ -289,6 +305,7 @@ export function headlamp(p, x, y, z, w = 0.3, h = 0.18, ry = 0) {
 }
 /** Rear lamp cluster: tail light, indicator and reflector in a housing, facing −z. */
 export function tailCluster(p, x, y, z, ry = 0) {
+  if (LOD.low) return B(0.34, 0.12, 0.06, tailMat, x, y, z, p);
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.static = true; p.add(g);
   RB(0.36, 0.14, 0.08, 0.02, F('#2a2d2f'), 0, 0, 0.03, g);
   B(0.15, 0.1, 0.03, tailMat, -0.08, 0, -0.012, g);
@@ -297,6 +314,7 @@ export function tailCluster(p, x, y, z, ry = 0) {
 }
 /** Square work light on a bracket, facing ry. */
 export function workLight(p, x, y, z, ry = 0, tilt = 0.15) {
+  if (LOD.low) return null;
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.set(tilt, ry, 0, 'YXZ'); g.userData.static = true; p.add(g);
   RB(0.2, 0.15, 0.1, 0.025, F('#2a2d2f'), 0, 0, 0, g);
   B(0.16, 0.11, 0.02, lampMat, 0, 0, 0.051, g);
@@ -304,6 +322,7 @@ export function workLight(p, x, y, z, ry = 0, tilt = 0.15) {
 }
 /** Amber beacon on a round base. */
 export function beacon(p, x, y, z, mat) {
+  if (LOD.low) { B(0.2, 0.25, 0.2, mat, x, y + 0.12, z, p); return; }
   CY(0.11, 0.13, 0.05, 12, F('#2a2d2f'), x, y + 0.025, z, p);
   CY(0.085, 0.1, 0.17, 12, mat, x, y + 0.13, z, p);
   mk(new THREE.SphereGeometry(0.085, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), mat, x, y + 0.215, z, p);
@@ -312,6 +331,7 @@ export function beacon(p, x, y, z, mat) {
 /* ---------- cab ---------- */
 /** Mirrors on two-part arms, one per side; half = half cab width at the arm, facing forward. */
 export function mirrors(p, half, y, z) {
+  if (LOD.low) return;
   for (const sx of [-1, 1]) {
     rod([sx * half, y, z], [sx * (half + 0.36), y + 0.06, z + 0.12], 0.022, F(), p);
     rod([sx * (half + 0.36), y + 0.06, z + 0.12], [sx * (half + 0.48), y - 0.02, z + 0.16], 0.022, F(), p);
@@ -321,6 +341,7 @@ export function mirrors(p, half, y, z) {
 }
 /** Driver's seat with armrest, steering column, dashboard, wheel, joystick console and pedals. y = cab floor. */
 export function cabInside(p, y, z, w = 1.6) {
+  if (LOD.low) return;
   const seat = F('#2c3033'), trim = F('#45494c');
   RB(0.54, 0.14, 0.5, 0.06, seat, 0, y + 0.48, z - 0.2, p);
   RB(0.52, 0.66, 0.13, 0.06, seat, 0, y + 0.86, z - 0.47, p).rotation.x = -0.12;
@@ -342,6 +363,7 @@ export function cabInside(p, y, z, w = 1.6) {
 }
 /** Thin frame bars around a glass pane centred at (x, y, z), w × h, facing ry. */
 export function glassFrame(p, mat, w, h, x, y, z, ry, t = 0.045) {
+  if (LOD.low) return null;
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.static = true; p.add(g);
   B(w, t, t, mat, 0, h / 2, 0, g); B(w, t, t, mat, 0, -h / 2, 0, g);
   B(t, h, t, mat, w / 2, 0, 0, g); B(t, h, t, mat, -w / 2, 0, 0, g);
@@ -349,6 +371,7 @@ export function glassFrame(p, mat, w, h, x, y, z, ry, t = 0.045) {
 }
 /** Windscreen wiper lying on the glass: pivot at (x, y, z), arm length L at angle a from vertical. */
 export function wiper(p, x, y, z, L, a, ry = 0) {
+  if (LOD.low) return;
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.set(0, ry, a); g.userData.static = true; p.add(g);
   CY(0.03, 0.03, 0.04, 8, F('#202325'), 0, 0, 0, g).rotation.x = Math.PI / 2;
   B(0.025, L, 0.02, F('#202325'), 0, L / 2, 0.015, g);
@@ -356,6 +379,7 @@ export function wiper(p, x, y, z, L, a, ry = 0) {
 }
 /** Steps with checker plates and a grab rail, hung from a bracket at x (outer edge), stepping up from y0 to y1. */
 export function steps(p, x, y0, y1, z, n, depth = 0.26, width = 0.42) {
+  if (LOD.low) return;
   const s = Math.sign(x) || 1;
   for (let k = 0; k < n; k++) {
     const y = y0 + ((y1 - y0) * k) / Math.max(1, n - 1);

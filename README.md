@@ -177,6 +177,7 @@ Grafika není stažená na nejslabší počítač. Čtyři předvolby (Menu → 
 
 Proč zbývá výkon na detail:
 
+- **Vozový park:** stroj nebo nářadí dál od kamery než 70 / 90 / 120 / 160 m (Nízká / Střední / Vysoká / Ultra) se kreslí zjednodušeným modelem (kolem 1,5–6,5 tisíce trojúhelníků místo 45 tisíc) a všechny takové kusy jednoho druhu jedním voláním. Stroj, který řídíš, a jeho nářadí zůstávají vždy podrobné. S 36 kusy na dvoře to dělá na Nízké 87 volání a 381 tisíc trojúhelníků místo 234 volání a 1,16 milionu. Noční reflektory jsou jen tři a dostanou je stroj, který řídíš, a nejbližší stroje v práci, takže další stroje neubírají výkon světly.
 - Stroje a budovy se při startu slučují: díly obyčejné barvy do jednoho tvaru s barvou, drsností a kovovostí ve vrcholech, sklo a světla zvlášť (`bake()` v `src/render/materials.js`). Lesklý lak, guma, ocel i nápisy z atlasu (`src/vehicles/parts.js`) jednoho stroje tak jdou jedním vykreslovacím voláním, podrobnější stroje (kolem 45 tisíc trojúhelníků místo 10 tisíc) stojí jen trojúhelníky.
 - Terén a stromy mají úrovně detailu podle vzdálenosti od kamery; hranice nastavuje předvolba (`terrainFine`, `treeNear`… v `src/core/settings.js`). Vzdálený terén má mřížku 10 nebo 20 m, jízda se vždy řídí jemnou mřížkou 5 m. Na Nízké a Střední se vzdálené stromy v hratelné oblasti jen vizuálně zředí, překážkou zůstávají všechny.
 - Prázdné části polí (strniště, oranice) se nekreslí vůbec.

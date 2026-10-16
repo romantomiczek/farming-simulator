@@ -14,14 +14,11 @@ export { wheel };
 const NO_SNOW = { snow: false, atlas: ATLAS }; // machines stay clean in winter; names and stripes merge with the paint
 const BLACK = '#2a2d2f';
 
-/** Night spot light (no lamp mesh; the lamps are modelled on each machine). */
-function spotAt(g, y, z) {
-  const sp = new THREE.SpotLight(0xfff1c8, 0, 48, 0.75, 0.6, 0);
-  sp.position.set(0, y, z);
-  const t = new THREE.Object3D(); t.position.set(0, 0, z + 18);
-  g.add(sp, t); sp.target = t;
-  return sp;
-}
+/**
+ * Where the machine's headlights shine from (local y, z). The scene has a few spot lights that
+ * environment.js gives to the machines nearest the camera, so more machines never mean more lights.
+ */
+const spotAt = (g, y, z) => ({ pos: new THREE.Vector3(0, y, z), target: new THREE.Vector3(0, 0, z + 18) });
 
 /**
  * Cab of a self-propelled machine or tractor: glass with rounded corner posts, frames, a door on

@@ -3,7 +3,9 @@ import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { nearShapes, BOUNDS, movers, PARK } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
-import { flatPlane } from '../render/materials.js';
+import { flatPlane, glassMat, lampMat, beaconMat } from '../render/materials.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep } from './models.js';
 import { CROPS } from '../game/crops.js';
@@ -227,6 +229,7 @@ export function setHeader(v, key) {
   v.lowered = false;
   v.headerLift.add(on); on.position.set(0, 0, 0); on.rotation.set(0, 0, 0);
   scene.add(off); off.position.set(v.headerPark[0], 0, v.headerPark[1]); off.rotation.set(0, 0, 0);
+  if (v.lodFar) setFar(v, true);
 }
 
 /* ---------- tractor attachments ---------- */
@@ -326,6 +329,115 @@ function updateTrailer(t, dt) {
   t.grain.scale.y = Math.max(0.02, fill * 1.15);
   if (t.tank.crop >= 0) t.grainMat.color.copy(CROPS[t.tank.crop].heapCol);
   t.baleMeshes.forEach((m, i) => (m.visible = i < t.bales));
+}
+
+/* ---------- level of detail ---------- */
+/**
+ * Seen from further than the preset's machineLod distance (from the camera), a machine or implement is drawn with a
+ * simplified model of its kind (built once with LOD.low, everything merged into one geometry), and
+ * all far pieces of one kind share one instanced mesh: a big fleet costs one draw call per kind.
+ * The machine you drive and its implement always keep the detailed model. Loads (grain, bales, logs)
+ * keep showing at any distance.
+ */
+const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep };
+const KEEP = new Set(['position', 'normal', 'uv', 'color', 'surf']);
+/** Lamps, glass and beacons become plain colours in the far model: [hex, roughness, metalness]. */
+const FAR_PLAIN = new Map([[glassMat, ['#4b6470', 0.15, 0.3]], [lampMat, ['#fff4d6', 0.3, 0]], [beaconMat, ['#f0a03a', 0.3, 0]]]);
+const farGeo = new Map(), farSets = new Map(), _c = new THREE.Color();
+let farMat = null, whiteUV = [0, 0];
+
+function farModel(kind) {
+  if (farGeo.has(kind)) return farGeo.get(kind);
+  LOD.low = true;
+  let m;
+  try { m = (TOOL_SPEC[kind]?.build || VEHICLE_BUILD[kind])(); } finally { LOD.low = false; }
+  if (m.cornHdr) m.cornHdr.parent?.remove(m.cornHdr); // the grain header stays on, the row header is the spare one
+  m.group.updateMatrixWorld(true);
+  const geos = [];
+  m.group.traverse(o => {
+    if (!o.isMesh || o.userData.noBake) return;
+    const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+    for (const k of Object.keys(g.attributes)) if (!KEEP.has(k)) g.deleteAttribute(k);
+    if (o.material.vertexColors) {
+      if (!farMat) { farMat = o.material; const uv = g.attributes.uv; whiteUV = [uv.getX(0), uv.getY(0)]; }
+    } else {
+      const n = g.attributes.position.count, [hex, rough, metal] = FAR_PLAIN.get(o.material) || ['#' + o.material.color.getHexString(), o.material.roughness ?? 0.8, 0];
+      _c.set(hex).convertSRGBToLinear();
+      g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(n * 3).map((_, i) => [_c.r, _c.g, _c.b][i % 3]), 3));
+      g.setAttribute('surf', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, i) => (i % 2 ? metal : rough)), 2));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, i) => whiteUV[i % 2]), 2));
+    }
+    geos.push(g);
+  });
+  m.group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+  if (m.cornHdr) m.cornHdr.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+  const geo = mergeGeometries(geos);
+  geos.forEach(g => g.dispose());
+  farGeo.set(kind, geo);
+  return geo;
+}
+
+/** The instanced mesh that draws the far pieces of one kind (grows when needed). */
+function farSet(kind, need) {
+  let s = farSets.get(kind);
+  if (s && s.cap >= need) return s;
+  const geo = farModel(kind), cap = Math.max(4, need * 2);
+  if (s) { scene.remove(s.mesh); s.mesh.dispose(); }
+  const mesh = new THREE.InstancedMesh(geo, farMat, cap);
+  mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.count = 0;
+  scene.add(mesh);
+  s = { mesh, cap, n: 0 };
+  farSets.set(kind, s);
+  return s;
+}
+
+/** The meshes of piece p's detailed model (not its loads, not an implement hitched to it, not a parked header). */
+function nearMeshes(p, out = []) {
+  const walk = o => {
+    if (o !== p.group && tools.some(t => t.group === o)) return;
+    if (o.isMesh) { if (!o.userData.noBake) out.push(o); return; }
+    for (const c of o.children) walk(c);
+  };
+  walk(p.group);
+  return out;
+}
+function setFar(p, far) {
+  p.lodFar = far;
+  for (const m of nearMeshes(p)) m.visible = !far;
+  if (p.type === 'combine') { // the spare header in the yard is always detailed
+    const spare = p.header === 'corn' ? p.grainHdr : p.cornHdr;
+    spare.traverse(o => { if (o.isMesh && !o.userData.noBake) o.visible = true; });
+  }
+}
+
+const posOf = p => (p.type || p.key === 'trailer' ? p : p.on || p.group.position);
+const lodKind = p => p.type || p.key;
+/**
+ * Every frame after the camera moved: picks the detailed or the far model for every piece and
+ * writes the far pieces into their kind's instanced mesh. eye = camera position, dist = machineLod (metres from the camera).
+ */
+/** Triangles of each kind's far model (for the developer panel and measurements). */
+export const farStats = () => Object.fromEntries([...farGeo].map(([k, g]) => [k, g.attributes.position.count / 3]));
+
+export function updLOD(eye, dist) {
+  const counts = new Map();
+  const decide = p => {
+    const q = posOf(p), d = Math.hypot(q.x - eye.x, q.z - eye.z, eye.y);
+    const far = p !== G.active && !(p.on && p.on === G.active) && d > dist + (p.lodFar ? -4 : 0);
+    if (far !== !!p.lodFar) setFar(p, far);
+    if (far) counts.set(lodKind(p), (counts.get(lodKind(p)) || 0) + 1);
+  };
+  vehicles.forEach(decide); tools.forEach(decide);
+  for (const [kind, s] of farSets) { s.n = 0; if (!counts.has(kind)) { s.mesh.count = 0; s.mesh.visible = false; } }
+  for (const [kind, n] of counts) farSet(kind, n);
+  const put = p => {
+    if (!p.lodFar) return;
+    const s = farSets.get(lodKind(p));
+    p.group.updateWorldMatrix(true, false);
+    s.mesh.setMatrixAt(s.n++, p.group.matrixWorld);
+  };
+  vehicles.forEach(put); tools.forEach(put);
+  for (const [kind, s] of farSets) if (counts.has(kind)) { s.mesh.count = s.n; s.mesh.visible = true; s.mesh.instanceMatrix.needsUpdate = true; }
 }
 
 /* ---------- driving ---------- */
