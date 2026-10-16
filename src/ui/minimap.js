@@ -1,8 +1,8 @@
 import { FIELDS } from '../world/fields.js';
-import { vehicles, tools } from '../vehicles/vehicles.js';
+import { vehicles, tools, parkExtent, parkHooks, labelOf } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import {
-  BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
+  BOUNDS, ROADS, PAD, PARK, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
   RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS, SHEEP_PEN, PIG_PEN, DAIRY, BUYER_AT,
 } from '../world/layout.js';
 import { treeDots } from '../world/vegetation.js';
@@ -49,6 +49,7 @@ function drawStatic(c, sc) {
   for (const g of GREENHOUSES) rect(g.x - 3.5, g.x + 3.5, g.z - 8, g.z + 8, '#d7ece8');
   rect(SAWMILL.x - 24, SAWMILL.x - 8, SAWMILL.z + 3, SAWMILL.z + 13, '#b9a07c');
   rect(PAD.x0, PAD.x1, PAD.z0, PAD.z1, '#ddd8ce');
+  rect(PARK.x0, parkExtent(), PARK.z0, PARK.z1, '#d4ccb9');
   rect(-39, -25, -41, -31, '#c4614e'); rect(-38.5, -29.5, -22.5, -15.5, '#efe6d6'); rect(4, 20, -45, -35, '#a7afb0');
   for (const [x, z, w, d] of HOUSES) rect(x - d / 2, x + d / 2, z - w / 2, z + w / 2, '#e9ddc8');
   rect(CHURCH.x - 6, CHURCH.x + 7, CHURCH.z - 3.5, CHURCH.z + 3.5, '#f2ebdf');
@@ -73,6 +74,8 @@ function drawLabels(c, sc, fontPx) {
   for (const w of WOOD_BUYERS) c.fillText(w.short, bx(w.x), by(w.z) - w.r * sc - fontPx * 0.4);
   c.fillText('Mlékárna', bx(DAIRY.x), by(DAIRY.z) - DAIRY.r * sc - fontPx * 0.4);
 }
+
+parkHooks.push(() => { if (W) sizeMinimap(); }); // the machine park grew or shrank
 
 export function sizeMinimap() {
   const r = mm.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
@@ -137,7 +140,7 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
     c.restore();
     if (opts.names) {
       c.font = '700 ' + Math.round(opts.font * 0.8) + 'px Figtree, sans-serif'; c.fillStyle = '#24312a';
-      c.fillText(u.name.split(' ')[0] + (u.helper ? ' · pomocník' : ''), mx(u.x), my(u.z) - r - opts.font * 0.6);
+      c.fillText(u.name.split(' ')[0] + (labelOf(u).match(/ #\d+$/)?.[0] || '') + (u.helper ? ' · pomocník' : ''), mx(u.x), my(u.z) - r - opts.font * 0.6);
     }
   }
 }

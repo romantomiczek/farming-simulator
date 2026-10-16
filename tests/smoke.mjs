@@ -118,7 +118,7 @@ try {
   const farm = await page.evaluate(async () => {
     const z = window.__zl, M = await import('/src/game/machines.js'), A = await import('/src/game/actions.js');
     const V = await import('/src/vehicles/vehicles.js'), L = await import('/src/world/layout.js'), F = await import('/src/game/farm.js');
-    for (const k of ['cows', 'sheep', 'pigs', 'mixer', 'trailer', 'watertank']) M.buy(k);
+    for (const k of ['cows', 'sheep', 'pigs', 'mixer', 'trailer', 'watertank']) if (!M.has(k)) M.buy(k);
     const t = V.firstOf('tractor'); z.G.active = t;
     z.attach('trailer', t); const tr = t.tool;
     const place = (x, zz) => { Object.assign(t, { x, z: zz, h: 0, speed: 0 }); Object.assign(tr, { x, z: zz - 5, h: 0 }); z.step(3, 0.02); };
@@ -134,6 +134,17 @@ try {
   });
   check('zvířata a mlékárna', farm.hay === 'feedHay' && farm.sheep === 3000 && farm.milk === 2000 && farm.sell === 'sellMilk' && farm.paid === 24000,
     'seno ovcím ' + farm.sheep + ' l · mléko se směsí ' + farm.milk + ' l · mlékárna ' + farm.paid + ' Kč');
+
+  // the fleet: a second tractor and trailer park in the machine park, the office lists every piece
+  const park = await page.evaluate(async () => {
+    const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), L = await import('/src/world/layout.js'), O = await import('/src/ui/office.js');
+    M.buy('tractor'); M.buy('trailer');
+    const t2 = V.vehicles.filter(v => v.type === 'tractor')[1], tr2 = V.tools.filter(t => t.key === 'trailer').pop();
+    O.openOffice('fleet'); const rows = document.querySelectorAll('#officeBody .row').length; O.closeOffice();
+    const inPark = (x, z) => x > L.PARK.x0 && z > L.PARK.z0 && z < L.PARK.z1;
+    return { t2: inPark(t2.x, t2.z), hitched: tr2.on === t2, rows, pieces: V.vehicles.length + V.tools.length };
+  });
+  check('vozový park', park.t2 && park.hitched && park.rows === park.pieces, 'druhý traktor na odstavné ploše s přívěsem · ' + park.rows + ' řádků v Kanceláři');
 
   // an hour of game time at full speed: traffic, animals, growth, helpers' world
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });

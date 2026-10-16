@@ -15,7 +15,8 @@ import { COWS } from './balance.js';
 import { earn } from './goals.js';
 import { inSawmill, treeInReach, fell, sellLogs } from './forestry.js';
 import { POND_FILL, GREENHOUSE_WATER, MILK_LOAD, DAIRY } from '../world/layout.js';
-import { trailerCenter, vehicles, tools, towed, firstOf, HARVESTERS, IMPL_ORDER, toolInfo, attachTool, setHeader } from '../vehicles/vehicles.js';
+import { trailerCenter, vehicles, tools, towed, firstOf, HARVESTERS, IMPL_ORDER, toolInfo, attachTool, setHeader, labelOf } from '../vehicles/vehicles.js';
+import { keys } from '../core/input.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
 import { cam } from '../render/camera.js';
@@ -101,12 +102,15 @@ export function toggleTool() {
   }
 }
 
-export function switchVehicle() {
+/** Tab: the next machine within NEAR metres (all of them when none is near); Shift+Tab: the next of all machines. */
+const NEAR = 150;
+export function switchVehicle(all = keys.ShiftLeft || keys.ShiftRight) {
   // a running unload keeps going, so you can hop into the tractor and drive under the pipe
-  const i = vehicles.indexOf(G.active);
-  G.active = vehicles[(i + 1) % vehicles.length];
+  const a = G.active, near = vehicles.filter(v => v === a || Math.hypot(v.x - a.x, v.z - a.z) < NEAR);
+  const list = all || near.length < 2 ? vehicles : near;
+  G.active = list[(list.indexOf(a) + 1) % list.length];
   cam.manual = -99; // swing the camera behind the new vehicle
-  toast('Sedíš v: ' + G.active.name);
+  toast('Sedíš v: ' + labelOf(G.active) + (!all && near.length < 2 && vehicles.length > 1 ? ' · v okolí žádný jiný stroj nestojí' : ''));
 }
 
 export function cycleSeed() {

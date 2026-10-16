@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
-import { nearShapes, BOUNDS, movers } from '../world/layout.js';
+import { nearShapes, BOUNDS, movers, PARK } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
+import { flatPlane } from '../render/materials.js';
 import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep } from './models.js';
 import { CROPS } from '../game/crops.js';
@@ -55,8 +56,45 @@ export const firstOf = type => vehicles.find(v => v.type === type) || null;
 export const trailers = () => tools.filter(t => t.key === 'trailer');
 /** The trailer v tows, or null. */
 export const towed = v => (v?.tool?.key === 'trailer' ? v.tool : null);
-/** Parking spot for the n-th piece of a kind: the original place, further ones in a row behind it. */
-const spot = (p, n) => [p[0], p[1] - n * 8];
+/* ---------- parking ---------- */
+/**
+ * Every piece has a parking place: slot -1 = the kind's own place by the shed (the first piece),
+ * slot 0, 1, … = places in the machine park (PARK), one row for machines and two for implements.
+ */
+const vSlot = i => [PARK.x0 + PARK.vStep / 2 + 1 + i * PARK.vStep, PARK.vz];
+const tSlot = i => [PARK.x0 + PARK.tStep / 2 + Math.floor(i / 2) * PARK.tStep, PARK.tz[i % 2] + 3];
+/** Free place for a piece of kind key in list (wanted = place from a save, used when free). */
+function pickSlot(list, kindOf, key, wanted) {
+  const taken = new Set(list.map(p => p.slot));
+  const primaryFree = !list.some(p => kindOf(p) === key && p.slot === -1);
+  if (wanted === -1 && primaryFree) return -1;
+  if (Number.isInteger(wanted) && wanted >= 0 && !taken.has(wanted)) return wanted;
+  if (wanted == null && primaryFree) return -1;
+  let i = 0;
+  while (taken.has(i)) i++;
+  return i;
+}
+/** Gravel under the machine park, as far east as the places in use. */
+const parkPad = flatPlane(1, PARK.z1 - PARK.z0, '#d4ccb9', 0, 0.035, (PARK.z0 + PARK.z1) / 2, scene);
+export const parkExtent = () => Math.max(PARK.minX,
+  ...vehicles.filter(v => v.slot >= 0).map(v => vSlot(v.slot)[0] + PARK.vStep / 2),
+  ...tools.filter(t => t.slot >= 0).map(t => tSlot(t.slot)[0] + PARK.tStep / 2));
+let padX = 0;
+function updParkPad() {
+  const x1 = parkExtent();
+  if (x1 === padX) return;
+  padX = x1;
+  parkPad.scale.x = x1 - PARK.x0; parkPad.position.x = (PARK.x0 + x1) / 2;
+  parkHooks.forEach(f => f());
+}
+/** Called when the park grows or shrinks (the minimap redraws its ground). */
+export const parkHooks = [];
+
+/** Display name of a piece: its model, numbered when there are several of the kind. */
+export function labelOf(p) {
+  const same = p.type ? vehicles.filter(x => x.type === p.type) : tools.filter(x => x.key === p.key);
+  return p.name + (same.length > 1 ? ' #' + (same.indexOf(p) + 1) : '');
+}
 
 function makeTool(key) {
   const s = TOOL_SPEC[key];
@@ -66,15 +104,18 @@ function makeTool(key) {
   return im;
 }
 
-/** A new implement or trailer in the yard. o = { id, own, cond }. */
+/** A new implement or trailer on its parking place. o = { id, own, cond, slot }. */
 export function addTool(key, o = {}) {
   const im = makeTool(key);
   im.id = o.id || newId(key); noteId(im.id);
   im.own = o.own === 'lease' ? 'lease' : 'own'; im.cond = Number.isFinite(o.cond) ? o.cond : 1;
-  im.park = spot(TOOL_SPEC[key].park, tools.filter(t => t.key === key).length);
+  im.slot = pickSlot(tools, t => t.key, key, o.slot);
+  im.park = im.slot < 0 ? [...TOOL_SPEC[key].park] : tSlot(im.slot);
+  if (im.slot >= 0 && key === 'trailer') im.park[1] += 0.5;
   tools.push(im);
   parkTool(im);
   applyUpgradesTo(im);
+  updParkPad();
   return im;
 }
 
@@ -84,6 +125,7 @@ export function removeTool(im) {
   parkTool(im);
   scene.remove(im.group); dispose(im.group);
   tools.splice(tools.indexOf(im), 1);
+  updParkPad();
 }
 
 /** Puts an implement back on its parking spot (detached from any tractor). */
@@ -137,19 +179,20 @@ function makeVehicle(type) {
   return v;
 }
 
-/** A new machine at its home spot. o = { id, own, cond }. */
+/** A new machine on its parking place. o = { id, own, cond, slot }. */
 export function addVehicle(type, o = {}) {
   const v = makeVehicle(type);
   v.id = o.id || newId(type); noteId(v.id);
   v.own = o.own === 'lease' ? 'lease' : 'own'; v.cond = Number.isFinite(o.cond) ? o.cond : 1;
-  const n = vehicles.filter(x => x.type === type).length;
-  v.home = spot(v.home, n);
+  v.slot = pickSlot(vehicles, x => x.type, type, o.slot);
+  if (v.slot >= 0) v.home = vSlot(v.slot);
   v.x = v.home[0]; v.z = v.home[1];
   scene.add(v.group);
   vehicles.push(v);
   if (v.harvester) HARVESTERS.push(v);
-  if (v.type === 'combine') { v.headerPark = [-17 - 7 * n, -27]; setHeader(v, 'grain'); }
+  if (v.type === 'combine') { v.headerPark = v.slot < 0 ? [-17, -27] : [v.home[0], v.home[1] - 9.5]; setHeader(v, 'grain'); }
   applyUpgradesTo(v);
+  updParkPad();
   return v;
 }
 
@@ -159,6 +202,7 @@ export function removeVehicle(v) {
   scene.remove(v.group); dispose(v.group);
   vehicles.splice(vehicles.indexOf(v), 1);
   if (v.harvester) HARVESTERS.splice(HARVESTERS.indexOf(v), 1);
+  updParkPad();
 }
 
 /** Removes every machine and implement (new game, loading). */

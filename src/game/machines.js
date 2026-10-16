@@ -86,8 +86,6 @@ export function applyOwnership() {
     v.cornHdr.visible = has('cornHeader');
     if (!has('cornHeader') && v.header === 'corn') setHeader(v, 'grain');
   }
-  // a tractor that lost its tool takes a free one
-  for (const v of vehicles) if (v.type === 'tractor' && !v.tool) { const t = tools.find(x => !x.on); if (t) attachTool(v, t); }
   if (!vehicles.includes(G.active)) G.active = firstOf('combine') || vehicles[0];
   applyUpgrades({ tractor: has('upTractor'), cultivator: has('upCultivator'), combine: has('upCombine'), trailer: has('upTrailer') });
   ownershipHooks.forEach(f => f());
@@ -130,35 +128,39 @@ function pay(amount) {
 function addPiece(key, own) {
   if (!isToolKey(key)) return addVehicle(key, { own });
   const t = addTool(key, { own });
-  const v = vehicles.find(x => x.type === 'tractor' && !x.tool && !x.helper);
+  // a tractor without a tool, standing on its place, takes the new one right away
+  const v = vehicles.find(x => x.type === 'tractor' && !x.tool && !x.helper && Math.hypot(x.x - x.home[0], x.z - x.home[1]) < 3);
   if (v) attachTool(v, t);
   return t;
 }
 export function buy(key) {
-  if (has(key) || !pay(byKey[key].price)) return false;
+  if ((!isMachine(key) && has(key)) || !pay(byKey[key].price)) return false;
   if (isMachine(key)) addPiece(key, 'own');
   else { G.machines[key] = 'own'; G.cond[key] = 1; }
   applyOwnership();
   return true;
 }
 export function lease(key) {
-  if (has(key) || byKey[key].noLease || !pay(leaseUpfront(key))) return false;
+  if ((!isMachine(key) && has(key)) || byKey[key].noLease || !pay(leaseUpfront(key))) return false;
   if (isMachine(key)) addPiece(key, 'lease');
   else { G.machines[key] = 'lease'; G.cond[key] = 1; }
   applyOwnership();
   return true;
 }
-/** Sells an owned machine or hands back a leased one (machines: its first piece). */
+/** Sells piece p if owned, hands it back if leased. */
+export function releasePiece(p) {
+  if (!p || blockReasonOf(p)) return false;
+  if (p.own === 'own') { G.money += sellValueOf(p); G.flashT = 0.4; }
+  (p.type ? removeVehicle : removeTool)(p);
+  applyOwnership();
+  return true;
+}
+/** Sells an owned building, upgrade or header, or hands back a leased one (machines: their first piece). */
 export function release(key) {
   if (!has(key) || blockReason(key)) return false;
-  if (isMachine(key)) {
-    const p = piecesOf(key)[0];
-    if (p.own === 'own') { G.money += sellValueOf(p); G.flashT = 0.4; }
-    (isToolKey(key) ? removeTool : removeVehicle)(p);
-  } else {
-    if (G.machines[key] === 'own') { G.money += sellValue(key); G.flashT = 0.4; }
-    G.machines[key] = null;
-  }
+  if (isMachine(key)) return releasePiece(piecesOf(key)[0]);
+  if (G.machines[key] === 'own') { G.money += sellValue(key); G.flashT = 0.4; }
+  G.machines[key] = null;
   applyOwnership();
   return true;
 }

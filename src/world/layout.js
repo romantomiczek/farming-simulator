@@ -228,6 +228,7 @@ export const PLACES = [
 /** Rectangles kept free of trees (village, buildings, town, meadows). */
 export const NO_TREES = [
   { x0: 143, x1: 192, z0: 52, z1: 136 }, // village
+  { x0: 0, x1: 136, z0: -100, z1: -56 }, // machine park
   { x0: 27, x1: 49, z0: -50, z1: -20 }, // greenhouses
   ...PLACES.map(p => ({ x0: p.rect.x0 - 5, x1: p.rect.x1 + 5, z0: p.rect.z0 - 5, z1: p.rect.z1 + 5 })),
   { x0: 6, x1: 142, z0: 106, z1: 140 },
@@ -251,6 +252,12 @@ export const fuelZone = { x: -4.5, z: -38, r: 4.5 };
 export const baleZone = { x: -19, z: -36, r: 6 };
 /** Machine shed: swap tractor implements and combine headers here (F or keys 1–6). */
 export const shedZone = { x0: 4, x1: 20, z0: -46, z1: -31 };
+/**
+ * Machine park south of the yard, east of the south road: one row of places for machines (vz) and
+ * two rows for implements (tz), growing east as the fleet grows. The first piece of each kind keeps
+ * its place by the shed; further pieces park here.
+ */
+export const PARK = { x0: 2, z0: -98, z1: -58, vz: -68, tz: [-84, -93.5], vStep: 10, tStep: 8, minX: 46 };
 
 /* ---------- geometry helpers ---------- */
 

@@ -65,11 +65,11 @@ export function serialize() {
       growth: b64.enc(new Uint8Array(f.growth.buffer)), bonus: b64.enc(f.bonus), straw: b64.enc(f.straw),
     })),
     fleet: vehicles.map(v => ({
-      id: v.id, type: v.type, own: v.own, cond: v.cond, x: r2(v.x), z: r2(v.z), h: v.h, fuel: v.fuel, tool: v.tool?.id ?? null,
+      id: v.id, type: v.type, own: v.own, cond: v.cond, slot: v.slot, x: r2(v.x), z: r2(v.z), h: v.h, fuel: v.fuel, tool: v.tool?.id ?? null,
       tank: v.harvester ? v.tank : undefined, seedCrop: v.seedCrop, baleAcc: v.baleAcc, hayAcc: v.hayAcc || 0, header: v.header, logs: v.logs, helper: serializeHelper(v),
     })),
     tools: tools.map(t => ({
-      id: t.id, key: t.key, own: t.own, cond: t.cond,
+      id: t.id, key: t.key, own: t.own, cond: t.cond, slot: t.slot,
       ...(t.key === 'trailer' ? { x: r2(t.x), z: r2(t.z), h: t.h, tank: t.tank, bales: t.bales, hay: t.hay || 0 } : {}),
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
@@ -190,7 +190,7 @@ const clamp01 = x => Math.max(0, Math.min(1, num(x, 1)));
 function loadFleet(plan) {
   clearFleet();
   for (const e of plan.tools) {
-    const t = addTool(e.key, { id: e.id, own: e.own, cond: clamp01(e.cond) });
+    const t = addTool(e.key, { id: e.id, own: e.own, cond: clamp01(e.cond), slot: Number.isInteger(e.slot) ? e.slot : undefined });
     if (t.key === 'trailer') {
       const k = e.tank;
       t.tank = { crop: k ? k.crop | 0 : -1, amount: k ? Math.max(0, +k.amount || 0) : 0, cap: t.tank.cap };
@@ -202,7 +202,7 @@ function loadFleet(plan) {
     if (t.key === 'watertank') { t.water = Math.max(0, Math.min(t.waterCap, +e.water || 0)); t.milk = !!e.milk && t.water > 0; }
   }
   for (const e of plan.fleet) {
-    const v = addVehicle(e.type, { id: e.id, own: e.own, cond: clamp01(e.cond) });
+    const v = addVehicle(e.type, { id: e.id, own: e.own, cond: clamp01(e.cond), slot: Number.isInteger(e.slot) ? e.slot : undefined });
     if (e.fresh) continue; // missing in an old save: starts at home
     Object.assign(v, { x: num(+e.x, v.x), z: num(+e.z, v.z), h: num(+e.h, 0), seedCrop: (e.seedCrop | 0) % CROPS.length, baleAcc: e.baleAcc | 0, hayAcc: e.hayAcc | 0 });
     v.fuel = Number.isFinite(e.fuel) ? Math.max(0, Math.min(v.fuelCap, e.fuel)) : v.fuelCap;

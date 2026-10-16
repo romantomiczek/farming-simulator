@@ -281,6 +281,9 @@ function buildBuyers(st, scene) {
     }
     label(scene, 'Cukrovar', m.x, y + 5, m.z + 8.9, Math.PI); }
   label(scene, 'Družstvo', 5, 7.6, -18.88, 0);
+  // sign post at the machine park by the south road
+  B(0.12, 2.6, 0.12, '#6a5040', -0.5, 1.3, -57.5, st); B(0.12, 2.6, 0.12, '#6a5040', 5.5, 1.3, -57.5, st);
+  label(scene, 'Odstavná plocha', 2.5, 2.4, -57.42, 0);
 }
 
 /** Coloured ground rings that show where to sell grain and where to swap implements. */

@@ -6,7 +6,7 @@ import {
 } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
 import { bales } from '../world/bales.js';
-import { IMPL_ORDER, BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo } from '../vehicles/vehicles.js';
+import { IMPL_ORDER, BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo, labelOf } from '../vehicles/vehicles.js';
 import { baleValue } from '../game/work.js';
 import { fAction, inShed, freeTool } from '../game/actions.js';
 import { has } from '../game/machines.js';
@@ -171,7 +171,7 @@ export function updUI() {
 
   const v = G.active;
   const tr = towed(v), withTrailer = !!tr;
-  setText(ui.vName, 'vname', v.name);
+  setText(ui.vName, 'vname', labelOf(v));
   const working = v.lowered && v.speed > 0.3;
   const busy = (v.harvester && v.unloading) || (withTrailer && tr.tipping);
   const chip = v.helper ? ['Pomocník', v.helper.wait ? 'warn' : 'on'] : busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];

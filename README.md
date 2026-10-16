@@ -23,7 +23,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 | W / S | plyn, brzda, couvání |
 | A / D | zatáčení |
 | Mezerník | spustit / zvednout nářadí; v jeepu troubí |
-| Tab | přesednout do dalšího stroje, který vlastníš (traktor, kombajn, sklízeč cukrovky, harvestor, jeep) |
+| Tab | přesednout do dalšího stroje v okolí (150 m), Shift+Tab do dalšího ze všech strojů |
 | F | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
 | 1–8 | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2) |
 | R | v kůlně: oprava stroje a připojeného nářadí |
@@ -38,6 +38,8 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 | F9 | vývojářský režim (jen při vývoji, viz níže) |
 
 ## Stroje a plodiny
+
+**Vozový park:** strojů a nářadí můžeš mít kolik chceš, i víc kusů stejného druhu (dva traktory, tři přívěsy…). První kus každého druhu stojí u kůlny jako dřív, další parkují na odstavné ploše jižně od dvora, která roste podle potřeby. Nářadí se připojuje ke konkrétnímu traktoru: v kůlně klávesy 1–8 nabízejí volné kusy, nářadí na jiném traktoru je obsazené. Kombajn přeloží zrno do kteréhokoli přívěsu pod rourou. V Kanceláři (K) → **Vozový park** vidíš každý kus s místem, stavem, naftou a nákladem, odtud do něj přesedneš nebo ho prodáš či vrátíš z pronájmu.
 
 Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disky, náboji a maticemi, kabiny s rámy, dveřmi, stěrači, sedadlem a palubní deskou, světla a majáky, hydrauliku s hadicemi a spojkami, schůdky s plechem, SPZ, výstražné pruhy a nápisy (Brázda 140, Klas 7, Bulva 6, Les 8, Lesák).
 
