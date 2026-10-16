@@ -240,7 +240,7 @@ export function updSlowUI() {
     (fc ? ', ' + weatherName(fc.kind, winter).toLowerCase() + ' od ' + hhmm(fc.at) : ''));
   const hs = helpers();
   ui.helpers.hidden = !hs.length;
-  setHTML(ui.helpers, 'helpers', hs.map(h => '<span><b>Pomocník</b> · ' + h.name.split(' ')[0] + ': ' + helperStatus(h) + ' · ' + fmt(h.helper.wage) + ' Kč</span>').join(''));
+  setHTML(ui.helpers, 'helpers', hs.map(h => '<span><b>Pomocník</b> · ' + labelOf(h) + ': ' + helperStatus(h) + ' · ' + fmt(h.helper.wage) + ' Kč</span>').join(''));
   const g = activeGoals()[0];
   ui.goal.hidden = !g;
   if (g) setHTML(ui.goal, 'goal', '<b>Cíl:</b> ' + g.title + ' · ' + progressText(g) + ' · ' + fmt(g.reward) + ' Kč');

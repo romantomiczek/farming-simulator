@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { M, mk, B, CY, bake, glassMat, beaconMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import {
-  DARK, STEEL, IRON, P, F, S, RUBBER, CHROME, RB, rod, ram, hose, profile, fender, decal, sideDecals, wheel,
+  P, F, S, RUBBER, CHROME, RB, rod, ram, hose, profile, fender, decal, sideDecals, sideText, wheel,
   headlamp, tailCluster, workLight, beacon, mirrors, cabInside, glassFrame, wiper, steps, ATLAS,
 } from './parts.js';
 
@@ -114,8 +114,17 @@ export function buildJeep() {
   return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(-0.55, 0.5, -2.05) };
 }
 
-export function buildTractor() {
-  const g = new THREE.Group(), body = P('#5f9c7c'), bodyDk = P('#4b8467'), cream = '#efe2b8', frame = F(), black = F(BLACK);
+/**
+ * Tractor. o = the model's look (catalog.js): body, dark, rim, roof and frame colours, scale (size against
+ * the 140 hp Brázda), weights (front weights), duals (dual rear wheels), brand and model names with their
+ * text colours, stripe. Everything sits in an inner group scaled by o.scale; the outer group carries the
+ * implement on the hitch, so implements keep their size.
+ */
+const TRACTOR = { body: '#5f9c7c', dark: '#4b8467', rim: '#efe2b8', roof: null, frame: '#3a3f42', scale: 1, weights: true, duals: false, brand: 'BRÁZDA', model: '140', text: '#f4ecd2', stroke: '#24312a', stripe: true };
+export function buildTractor(o = {}) {
+  const L = { ...TRACTOR, ...o }, sc = L.scale;
+  const root = new THREE.Group(), g = new THREE.Group(); g.scale.setScalar(sc); root.add(g);
+  const body = P(L.body), bodyDk = P(L.dark), cream = L.rim, frame = F(L.frame), black = F(BLACK), style = { fill: L.text, stroke: L.stroke };
   // --- chassis: engine and sump, gearbox, rear axle trumpets, oil filter and alternator
   RB(0.84, 0.48, 2.5, 0.08, frame, 0, 0.84, 0.95, g);
   RB(0.98, 0.74, 1.4, 0.1, frame, 0, 0.94, -0.72, g);
@@ -132,23 +141,25 @@ export function buildTractor() {
   B(0.48, 0.58, 0.02, F('#1a1c1d'), 0, 1.4, 2.335, g);
   decal('grid', 0.46, 0.56, 0, 1.4, 2.348, 0, g);
   for (const sx of [-1, 1]) headlamp(g, sx * 0.34, 1.42, 2.32, 0.12, 0.42);
-  decal('logo', 0.16, 0.16, 0, 1.76, 2.3, 0, g, 0.25);
+  if (L.brand === 'BRÁZDA') decal('logo', 0.16, 0.16, 0, 1.76, 2.3, 0, g, 0.25);
   sideDecals('vent', 0.5, 0.42, 0.5, 1.48, 1.9, g);
-  sideDecals('brazda', 0.95, 0.24, 0.5, 1.8, 1.05, g);
-  sideDecals('n140', 0.38, 0.19, 0.5, 1.5, 1.35, g);
-  sideDecals('stripe', 1.7, 0.22, 0.5, 1.2, 1.2, g);
-  // --- front weights on the bracket, tow pin
+  sideText(L.brand, 0.24, 1.3, 0.5, 1.8, 1.05, g, style);
+  sideText(L.model, 0.19, 0.9, 0.5, 1.5, 1.35, g, style);
+  if (L.stripe) sideDecals('stripe', 1.7, 0.22, 0.5, 1.2, 1.2, g);
+  // --- front weights on the bracket (or just the bracket), tow pin
   RB(0.72, 0.42, 0.3, 0.05, frame, 0, 0.94, 2.38, g);
-  for (let k = 0; k < 8; k++) {
-    const x = -0.45 + k * 0.128;
-    RB(0.1, 0.52, 0.46, 0.03, F(k % 2 ? '#3a3e41' : '#2f3336'), x, 0.92, 2.72, g);
-    rod([x, 1.2, 2.6], [x, 1.2, 2.84], 0.018, F('#34383b'), g);
+  if (L.weights) {
+    for (let k = 0; k < 8; k++) {
+      const x = -0.45 + k * 0.128;
+      RB(0.1, 0.52, 0.46, 0.03, F(k % 2 ? '#3a3e41' : '#2f3336'), x, 0.92, 2.72, g);
+      rod([x, 1.2, 2.6], [x, 1.2, 2.84], 0.018, F('#34383b'), g);
+    }
+    RB(1.04, 0.08, 0.5, 0.03, frame, 0, 1.22, 2.72, g);
   }
-  RB(1.04, 0.08, 0.5, 0.03, frame, 0, 1.22, 2.72, g);
   CY(0.05, 0.05, 0.3, 8, S(), 0, 0.68, 2.6, g);
   // --- cab on its sill, with roof, wipers, mirrors and interior
   RB(1.86, 0.18, 1.86, 0.06, body, 0, 1.69, -0.55, g);
-  cab(g, { y: 1.78, z: -0.55, w: 1.72, h: 1.45, d: 1.72, roof: body, lights: 4 });
+  cab(g, { y: 1.78, z: -0.55, w: 1.72, h: 1.45, d: 1.72, roof: L.roof ? P(L.roof) : body, lights: 4 });
   wiper(g, 0, 1.92, -1.42, 0.7, -0.4, Math.PI);
   beacon(g, 0.62, 3.47, -0.95, beaconMat);
   rod([-0.7, 3.46, -1.2], [-0.7, 4.15, -1.28], 0.008, black, g); // radio antenna
@@ -201,7 +212,7 @@ export function buildTractor() {
   decal('plate', 0.42, 0.21, 0, 1.68, -1.524, Math.PI, g);
   // --- wheels: big rear, steering front with mudguards and hub reduction
   const wheels = [], front = [];
-  for (const sx of [-1, 1]) { const w = wheel(0.86, 0.6, cream, 'lug'); w.position.set(sx * 1.0, 0.86, -0.7); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) for (const k of L.duals ? [1, 1.64] : [1]) { const w = wheel(0.86, 0.6, cream, 'lug'); w.position.set(sx * k, 0.86, -0.7); g.add(w); wheels.push(w); }
   for (const sx of [-1, 1]) {
     const p = new THREE.Group(); p.position.set(sx * 0.84, 0.52, 1.55); g.add(p);
     const w = wheel(0.52, 0.42, cream, 'lug'); p.add(w); wheels.push(w); front.push(p);
@@ -209,9 +220,10 @@ export function buildTractor() {
     fender(p, body, 0, 0, 0, 0.62, Math.PI * 0.18, Math.PI * 0.82, 0.48, 0.05); // steers with the wheel
     rod([-sx * 0.2, 0.1, 0], [-sx * 0.12, 0.6, 0], 0.025, frame, p);
   }
-  const spot = spotAt(g, 1.45, 2.35);
-  bake(g, NO_SNOW);
-  return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(-0.95, 3.7, 0.52) };
+  const spot = spotAt(g, 1.45 * sc, 2.35 * sc);
+  bake(root, NO_SNOW);
+  for (const w of wheels) w.userData.r *= sc; // spin with the scaled radius
+  return { group: root, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(-0.95, 3.7, 0.52).multiplyScalar(sc), scale: sc };
 }
 
 /** Hoses from an implement's headstock up towards the tractor's remote valves (implement-local). */

@@ -182,7 +182,7 @@ function fleetHTML() {
     <div class="stats"><div><span>Strojů</span><b>${vehicles.length}</b></div><div><span>Nářadí a přívěsů</span><b>${tools.length}</b></div>
     <div><span>Hodnota při prodeji</span><b>${fmt(value)} Kč</b></div><div><span>Pronájmy za den</span><b>${fmt(dailyLeaseCost())} Kč</b></div></div>`;
   const row = p => {
-    const why = blockReasonOf(p), key = p.type || p.key, lease = p.own === 'lease';
+    const why = blockReasonOf(p), key = p.model, lease = p.own === 'lease';
     const chips = (lease ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(key))} Kč/den</span>` : '<span class="chip on">Vlastníš</span>') +
       `<span class="muted">stav ${pct(p.cond)}${p.type ? ' · nafta ' + Math.round((p.fuel / p.fuelCap) * 100) + ' %' : ''}</span>`;
     const acts = (p.type ? btn('drive', p.id, 'Přesednout', p === G.active || !!p.helper) : '') +

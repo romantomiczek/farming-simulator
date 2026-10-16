@@ -149,10 +149,10 @@ try {
   // level of detail: the parked second tractor far from the camera uses the simplified model, near it the detailed one
   const lod = await page.evaluate(async () => {
     const V = await import('/src/vehicles/vehicles.js'), z = window.__zl, t2 = V.vehicles.filter(v => v.type === 'tractor')[1];
-    const nearShown = () => t2.group.children.some(o => o.isMesh && o.visible);
+    const nearShown = () => { let n = 0; t2.group.traverse(o => { if (o.isMesh && o.visible) n++; }); return n > 0; };
     V.updLOD({ x: t2.x + 500, y: 50, z: t2.z }, 70); const far = t2.lodFar && !nearShown();
     V.updLOD({ x: t2.x + 10, y: 10, z: t2.z }, 70); const near = !t2.lodFar && nearShown();
-    return { far, near, tris: V.farStats().tractor };
+    return { far, near, tris: V.farStats()[t2.model] };
   });
   check('vzdálené stroje', lod.far && lod.near && lod.tris < 8000, 'zjednodušený traktor ' + lod.tris + ' △');
 

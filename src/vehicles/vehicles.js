@@ -9,6 +9,7 @@ import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
 import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep } from './models.js';
 import { CROPS } from '../game/crops.js';
+import { MODEL, START_MODEL, modelName } from '../game/catalog.js';
 import { forestColliders } from '../world/forest.js';
 import { pushBales } from '../world/bales.js';
 import { groundH } from '../world/terrain.js';
@@ -98,17 +99,20 @@ export function labelOf(p) {
   return p.name + (same.length > 1 ? ' #' + (same.indexOf(p) + 1) : '');
 }
 
-function makeTool(key) {
-  const s = TOOL_SPEC[key];
-  const im = Object.assign(s.build(), { key, name: s.name, width: s.width, workZ: s.workZ, speed: s.speed, dust: s.dust, own: 'own', cond: 1, on: null });
+/** The model to build: the wanted one if it is of this kind, else the kind's start model. */
+const modelFor = (kind, id) => (MODEL[id]?.kind === kind ? MODEL[id] : MODEL[START_MODEL[kind]]);
+
+function makeTool(key, mid) {
+  const s = TOOL_SPEC[key], m = modelFor(key, mid);
+  const im = Object.assign(s.build(m.look), { key, model: m.id, name: modelName(m), width: s.width, workZ: s.workZ, speed: s.speed, dust: s.dust, own: 'own', cond: 1, on: null });
   if (key === 'trailer') Object.assign(im, { x: 0, z: 0, h: 0, tank: { crop: -1, amount: 0, cap: 14000 }, bales: 0, hay: 0, baleCap: 8, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0 });
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: 8000, milk: false });
   return im;
 }
 
-/** A new implement or trailer on its parking place. o = { id, own, cond, slot }. */
+/** A new implement or trailer on its parking place. o = { id, model, own, cond, slot }. */
 export function addTool(key, o = {}) {
-  const im = makeTool(key);
+  const im = makeTool(key, o.model);
   im.id = o.id || newId(key); noteId(im.id);
   im.own = o.own === 'lease' ? 'lease' : 'own'; im.cond = Number.isFinite(o.cond) ? o.cond : 1;
   im.slot = pickSlot(tools, t => t.key, key, o.slot);
@@ -146,44 +150,52 @@ export function parkTool(im) {
   im.lift.position.y = im.up;
 }
 
-function makeVehicle(type) {
+/** Words for messages: "jede s traktorem". */
+const NOUN = { tractor: 'traktorem', combine: 'kombajnem', beet: 'sklízečem', forest: 'harvestorem', jeep: 'autem' };
+
+function makeVehicle(type, mid) {
+  const m = modelFor(type, mid), look = m.look;
   const v = {
     type, x: 0, z: 0, h: 0, speed: 0, steer: 0, thr: 0, lowered: false, prevTool: null, harvestT: 0, puffT: 0,
     tank: { crop: -1, amount: 0, cap: 9000 }, seedCrop: 0, unloading: false, sold: 0, soldMoney: 0, soldCrop: 0,
     moved: 0, movedCrop: 0, waiting: null, baleAcc: 0, available: true,
   };
   if (type === 'tractor') {
-    Object.assign(v, { name: 'Traktor Brázda 140', r: 1.9, wb: 2.4, vmax: 11.1, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, impl: 'cultivator', mapCol: '#5f9c7c', home: [8.5, -36.5], fuelCap: 250, fuelDrive: 0.05, fuelWork: 0.1 }, buildTractor());
+    Object.assign(v, { r: 1.9, wb: 2.4, vwork: 4.2, acc: 3.2, brk: 7, vrev: 3.6, mapCol: look.body || '#5f9c7c', home: [8.5, -36.5], fuelDrive: 0.05, fuelWork: 0.1 }, buildTractor(look));
+    // a bigger tractor: longer wheelbase, hitch further back, a bit more diesel per hour
+    Object.assign(v, { r: v.r * v.scale, wb: v.wb * v.scale, hitchZ: HITCH_Z * v.scale, vmax: m.kmh / 3.6, fuelCap: m.fuel, hp: m.hp, fuelDrive: 0.05 * m.hp / 140, fuelWork: 0.1 * m.hp / 140 });
   } else if (type === 'combine') {
     Object.assign(v, {
-      name: 'Kombajn Klas 7', gen: 'kombajnu', harvester: true, r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4,
+      gen: 'kombajnu', harvester: true, r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4,
       toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a', home: [-10, -8], chaff: col('#eadba6'), fuelCap: 500, fuelDrive: 0.08, fuelWork: 0.16,
     }, buildCombine());
   } else if (type === 'beet') {
     Object.assign(v, {
-      name: 'Sklízeč cukrovky Bulva 6', gen: 'sklízeče', harvester: true, r: 3.2, wb: 4.6, vmax: 6.4, vwork: 2.5, acc: 1.6, brk: 5, vrev: 2.2,
+      gen: 'sklízeče', harvester: true, r: 3.2, wb: 4.6, vmax: 6.4, vwork: 2.5, acc: 1.6, brk: 5, vrev: 2.2,
       toolW: 4.5, toolZ: 4.6, header: 'beet', mapCol: '#4d7c9e', home: [18, -27], chaff: col('#a98a66'), fuelCap: 600, fuelDrive: 0.09, fuelWork: 0.18,
     }, buildBeetHarvester());
     v.tank.cap = 20000;
   } else if (type === 'forest') {
     Object.assign(v, {
-      name: 'Harvestor Les 8', gen: 'harvestoru', r: 2.6, wb: 3.8, vmax: 8.3, vwork: 3, acc: 2.2, brk: 6, vrev: 3, mapCol: '#e0b13a',
+      gen: 'harvestoru', r: 2.6, wb: 3.8, vmax: 8.3, vwork: 3, acc: 2.2, brk: 6, vrev: 3, mapCol: '#e0b13a',
       home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: WOOD.logCap, cutting: null,
     }, buildForester());
   } else if (type === 'jeep') {
     Object.assign(v, {
-      name: 'Jeep Lesák 4×4', gen: 'jeepu', r: 1.6, wb: 2.6, vmax: 22.2, vwork: 0, acc: 4.6, brk: 9, vrev: 5, mapCol: '#d9a441',
+      gen: 'jeepu', r: 1.6, wb: 2.6, vmax: 22.2, vwork: 0, acc: 4.6, brk: 9, vrev: 5, mapCol: '#d9a441',
       home: [-27, -27], fuelCap: 70, fuelDrive: 0.022, fuelWork: 0,
     }, buildJeep());
   }
+  Object.assign(v, { model: m.id, name: modelName(m), noun: NOUN[type] });
+  v.hitchZ = v.hitchZ ?? HITCH_Z;
   v.fuel = v.fuelCap; v.y = 0; v.tool = null; v.impl = null; v.available = true;
   v.group.rotation.order = 'YXZ'; // heading, then pitch and roll on slopes
   return v;
 }
 
-/** A new machine on its parking place. o = { id, own, cond, slot }. */
+/** A new machine on its parking place. o = { id, model, own, cond, slot }. */
 export function addVehicle(type, o = {}) {
-  const v = makeVehicle(type);
+  const v = makeVehicle(type, o.model);
   v.id = o.id || newId(type); noteId(v.id);
   v.own = o.own === 'lease' ? 'lease' : 'own'; v.cond = Number.isFinite(o.cond) ? o.cond : 1;
   v.slot = pickSlot(vehicles, x => x.type, type, o.slot);
@@ -239,7 +251,7 @@ export function attachTool(v, im) {
   if (im.on && im.on !== v) parkTool(im);
   im.on = v; v.tool = im; v.impl = im.key;
   v.lowered = false;
-  v.vwork = im.speed * (G.upgrades?.tractor ? 1.1 : 1);
+  v.vwork = im.speed;
   if (im.key === 'trailer') {
     // put the trailer straight behind the tractor
     im.h = v.h;
@@ -249,17 +261,17 @@ export function attachTool(v, im) {
     return;
   }
   v.group.add(im.group);
-  im.group.position.set(0, 0, HITCH_Z);
+  im.group.position.set(0, 0, v.hitchZ);
   im.group.rotation.set(0, 0, 0);
 }
 
 /** Working width and offset of the working line from the vehicle origin. */
 export function toolLine(v) {
   if (v.type !== 'tractor') return { W: v.toolW, Z: v.toolZ };
-  return v.tool ? { W: v.tool.width, Z: HITCH_Z + v.tool.workZ } : { W: 0, Z: HITCH_Z };
+  return v.tool ? { W: v.tool.width, Z: v.hitchZ + v.tool.workZ } : { W: 0, Z: v.hitchZ };
 }
 
-const hitchPos = v => [v.x + Math.sin(v.h) * HITCH_Z, v.z + Math.cos(v.h) * HITCH_Z];
+const hitchPos = v => [v.x + Math.sin(v.h) * v.hitchZ, v.z + Math.cos(v.h) * v.hitchZ];
 const MAX_ARTICULATION = 1.3; // rad, the drawbar stops a full jackknife
 
 /** A trailer's collision shape: two circles along the body (local z, radius). */
@@ -346,11 +358,13 @@ const FAR_PLAIN = new Map([[glassMat, ['#4b6470', 0.15, 0.3]], [lampMat, ['#fff4
 const farGeo = new Map(), farSets = new Map(), _c = new THREE.Color();
 let farMat = null, whiteUV = [0, 0];
 
-function farModel(kind) {
-  if (farGeo.has(kind)) return farGeo.get(kind);
+/** The far model of model id (one per model: colours, size and extras differ). */
+function farModel(id) {
+  if (farGeo.has(id)) return farGeo.get(id);
+  const kind = MODEL[id].kind;
   LOD.low = true;
   let m;
-  try { m = (TOOL_SPEC[kind]?.build || VEHICLE_BUILD[kind])(); } finally { LOD.low = false; }
+  try { m = (TOOL_SPEC[kind]?.build || VEHICLE_BUILD[kind])(MODEL[id].look); } finally { LOD.low = false; }
   if (m.cornHdr) m.cornHdr.parent?.remove(m.cornHdr); // the grain header stays on, the row header is the spare one
   m.group.updateMatrixWorld(true);
   const geos = [];
@@ -373,7 +387,7 @@ function farModel(kind) {
   if (m.cornHdr) m.cornHdr.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
   const geo = mergeGeometries(geos);
   geos.forEach(g => g.dispose());
-  farGeo.set(kind, geo);
+  farGeo.set(id, geo);
   return geo;
 }
 
@@ -411,7 +425,7 @@ function setFar(p, far) {
 }
 
 const posOf = p => (p.type || p.key === 'trailer' ? p : p.on || p.group.position);
-const lodKind = p => p.type || p.key;
+const lodKind = p => p.model;
 /**
  * Every frame after the camera moved: picks the detailed or the far model for every piece and
  * writes the far pieces into their kind's instanced mesh. eye = camera position, dist = machineLod (metres from the camera).
@@ -564,7 +578,6 @@ export function applyUpgrades(up) {
 /** One machine or implement: the upgrades bought so far (also for pieces added later). */
 function applyUpgradesTo(o) {
   const up = G.upgrades || {};
-  if (o.type === 'tractor') { o.vmax = up.tractor ? 13.9 : 11.1; if (o.tool) o.vwork = o.tool.speed * (up.tractor ? 1.1 : 1); }
   if (o.type === 'combine') o.tank.cap = up.combine ? 13000 : 9000;
   if (o.key === 'cultivator') { o.width = up.cultivator ? 6.3 : 4.2; o.group.scale.x = up.cultivator ? 1.5 : 1; }
   if (o.key === 'trailer') { o.tank.cap = up.trailer ? 22000 : 14000; o.tip.scale.y = up.trailer ? 1.35 : 1; }

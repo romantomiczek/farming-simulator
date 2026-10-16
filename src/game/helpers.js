@@ -216,7 +216,7 @@ export function sendHelper(v, f) {
   const hp = newHelper(v, { field, remote: true, work });
   setPath(v, 'travel', [...pathOf(way)]);
   hp.total += work.reduce((a, x) => a + x.len, 0);
-  toast('Pomocník jede s ' + v.name.split(' ')[0].toLowerCase() + 'em na pole ' + field.id + ' (' + jobName(v) + '). Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
+  toast('Pomocník jede s ' + v.noun + ' na pole ' + field.id + ' (' + jobName(v) + '). Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
   return true;
 }
 
@@ -389,7 +389,7 @@ export function helperTick(v, dt) {
   if (v.fuel < v.fuelCap * 0.1) {
     // helpers order diesel to the machine instead of stopping: the price plus 10 % for the delivery
     const l = Math.floor(v.fuelCap - v.fuel), cost = Math.round(l * DIESEL * 1.1);
-    if (G.money >= cost) { G.money -= cost; v.fuel = v.fuelCap; toast('Pomocníkovi s ' + v.name.split(' ')[0].toLowerCase() + 'em přivezli ' + fmt(l) + ' l nafty za ' + fmt(cost) + ' Kč.'); }
+    if (G.money >= cost) { G.money -= cost; v.fuel = v.fuelCap; toast('Pomocníkovi s ' + v.noun + ' přivezli ' + fmt(l) + ' l nafty za ' + fmt(cost) + ' Kč.'); }
   }
   if (v.fuel <= 0) { dismiss(v, 'Pomocníkovi došla nafta a nemáš na další.'); return; }
   if (G.money < 0) { dismiss(v, 'Nemáš na mzdu, pomocník odchází.'); return; }

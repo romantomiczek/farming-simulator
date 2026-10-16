@@ -78,7 +78,9 @@ export function fender(p, mat, x, cy, cz, r, a0, a1, width, thick = 0.07) {
 }
 
 /* ---------- decals ---------- */
-// Cells of the atlas in pixels [x, y, w, h] on a 1024 × 1024 canvas.
+// Cells of the atlas in pixels [x, y, w, h]. The canvas is 2048 × 1024: fixed cells on the left half,
+// names of brands and models on the right half, added as models are built (textCell).
+const AW = 2048, AH = 1024, TH = 80;
 const CELLS = {
   brazda: [0, 0, 512, 128], n140: [512, 0, 256, 128], logo: [768, 0, 128, 128], plate: [896, 0, 128, 64], plate2: [896, 64, 128, 64],
   klas: [0, 128, 640, 128], warn: [640, 128, 256, 64], warnR: [640, 192, 256, 64],
@@ -87,17 +89,45 @@ const CELLS = {
   vent: [0, 512, 256, 256], tread: [256, 512, 256, 256], stripe: [512, 512, 512, 64], stripeR: [512, 576, 512, 64],
   fill: [512, 640, 256, 64], level: [768, 640, 256, 64], white: [992, 992, 32, 32],
 };
-const cv = document.createElement('canvas'); cv.width = cv.height = 1024;
+const cv = document.createElement('canvas'); cv.width = AW; cv.height = AH;
 const decalTex = new THREE.CanvasTexture(cv);
 decalTex.colorSpace = THREE.SRGBColorSpace; decalTex.anisotropy = 4;
 export const decalMat = new THREE.MeshStandardMaterial({
   map: decalTex, alphaTest: 0.5, roughness: 0.4, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
 });
 
+const FONT = '"Bricolage Grotesque", "Arial Black", "Segoe UI", sans-serif';
+/** Brand and model names drawn so far: { cell, text, fill, stroke }. */
+const names = [];
+let nx = 1024, ny = 0;
+function drawName(c, n) {
+  const [x, y, w, h] = n.cell;
+  c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip(); c.clearRect(x, y, w, h);
+  c.font = `italic 800 60px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const fit = Math.min(1, (w - 20) / c.measureText(n.text).width);
+  c.translate(x + w / 2, y + h / 2 + 3); c.scale(fit, 1);
+  if (n.stroke) { c.lineWidth = 9; c.lineJoin = 'round'; c.strokeStyle = n.stroke; c.strokeText(n.text, 0, 0); }
+  c.fillStyle = n.fill; c.fillText(n.text, 0, 0);
+  c.restore();
+}
+/** Cell key of a brand or model name in the given colours (drawn on first use). */
+function textCell(text, fill, stroke) {
+  const key = 'name:' + text + '|' + fill + '|' + stroke;
+  if (CELLS[key]) return key;
+  const c = cv.getContext('2d');
+  c.font = `italic 800 60px ${FONT}`;
+  const w = Math.min(1000, Math.ceil(c.measureText(text).width) + 40);
+  if (nx + w > AW) { nx = 1024; ny = Math.min(ny + TH, AH - TH); }
+  const n = { cell: [nx, ny, w, TH], text, fill, stroke };
+  nx += w;
+  CELLS[key] = n.cell; names.push(n);
+  drawName(c, n); decalTex.needsUpdate = true;
+  return key;
+}
+
 function drawAtlas() {
   const c = cv.getContext('2d');
-  c.clearRect(0, 0, 1024, 1024);
-  const FONT = '"Bricolage Grotesque", "Arial Black", "Segoe UI", sans-serif';
+  c.clearRect(0, 0, AW, AH);
   const text = (cell, t, fill, stroke, size, style = 'italic 800') => {
     const [x, y, w, h] = CELLS[cell];
     c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
@@ -173,13 +203,14 @@ function drawAtlas() {
   { const [x, y, w, h] = CELLS.level; c.fillStyle = '#26282a'; c.fillRect(x, y, w, h);
     for (let k = 0; k < 10; k++) { c.fillStyle = k < 7 ? '#e8b84a' : '#5a5f62'; c.fillRect(x + 12 + k * 23, y + 14, 16, h - 28); } }
   c.fillStyle = '#ffffff'; c.fillRect(...CELLS.white); // plain parts sample this texel when merged with the decals
+  for (const n of names) drawName(c, n);
   decalTex.needsUpdate = true;
 }
 drawAtlas();
 document.fonts?.ready.then(drawAtlas);
 
 /** For bake(): decals merge with the plain parts of a machine into one mesh (see bake opts.atlas). */
-export const ATLAS = { mat: decalMat, white: [(CELLS.white[0] + 16) / 1024, 1 - (CELLS.white[1] + 16) / 1024] };
+export const ATLAS = { mat: decalMat, white: [(CELLS.white[0] + 16) / AW, 1 - (CELLS.white[1] + 16) / AH] };
 
 /**
  * Decal from the atlas: a w × h plane at (x, y, z) facing direction ry (0 = +z, π/2 = +x).
@@ -190,11 +221,25 @@ export function decal(name, w, h, x, y, z, ry, p, tilt = 0, flip = false) {
   const [cx, cy, cw, ch] = CELLS[name], geo = new THREE.PlaneGeometry(w, h), uv = geo.attributes.uv;
   for (let i = 0; i < uv.count; i++) {
     const u = flip ? 1 - uv.getX(i) : uv.getX(i), v = uv.getY(i);
-    uv.setXY(i, (cx + u * cw) / 1024, 1 - (cy + (1 - v) * ch) / 1024);
+    uv.setXY(i, (cx + u * cw) / AW, 1 - (cy + (1 - v) * ch) / AH);
   }
   const m = mk(geo, decalMat, x, y, z, p, false);
   m.rotation.set(-tilt, ry, 0, 'YXZ');
   return m;
+}
+/**
+ * A brand or model name as a decal at most maxW wide and h high (keeps the letters' proportions).
+ * style = { fill, stroke }: letter colour and outline.
+ */
+export function textDecal(text, h, maxW, x, y, z, ry, p, style = {}, tilt = 0) {
+  const key = textCell(text, style.fill || '#fbf7ee', style.stroke === undefined ? '#24312a' : style.stroke), [, , cw, ch] = CELLS[key];
+  const w = Math.min(maxW, (h * cw) / ch);
+  return decal(key, w, (w * ch) / cw, x, y, z, ry, p, tilt);
+}
+/** A name on both sides of a body of half width hx, like sideDecals. */
+export function sideText(text, h, maxW, hx, y, z, p, style) {
+  textDecal(text, h, maxW, hx + 0.008, y, z, Math.PI / 2, p, style);
+  textDecal(text, h, maxW, -hx - 0.008, y, z, -Math.PI / 2, p, style);
 }
 /** The same decal on both sides of a body of half width hx (reads front to back on the left, back to front on the right). */
 export function sideDecals(name, w, h, hx, y, z, p) {

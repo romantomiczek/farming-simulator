@@ -154,7 +154,7 @@ export function work(v, dt) {
   if (v.type === 'tractor' && v.impl === 'baler') {
     while (v.baleAcc >= BALE_CELLS) {
       v.baleAcc -= BALE_CELLS;
-      const bz = -1.75 - 4.2;
+      const bz = v.hitchZ - 4.2;
       // a bale is hay when most of what went in came from a meadow
       const hay = (v.hayAcc || 0) >= BALE_CELLS / 2;
       v.hayAcc = Math.max(0, (v.hayAcc || 0) - BALE_CELLS);
