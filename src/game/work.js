@@ -6,7 +6,7 @@ import {
   CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, hayPrice, S_NONE,
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
-import { IMPL, BALE_CELLS, HARVESTERS, toolLine, tractor, trailer, trailerCenter } from '../vehicles/vehicles.js';
+import { BALE_CELLS, HARVESTERS, toolLine, tools, towed, trailerCenter } from '../vehicles/vehicles.js';
 import { baleZone } from '../world/layout.js';
 import { marketAt, accepts, marketPrice } from './markets.js';
 import { BUILDINGS, space, addFeed, partOf } from './farm.js';
@@ -162,8 +162,8 @@ export function work(v, dt) {
     }
   }
 
-  if (res.onField && v.type === 'tractor' && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
-    const k = (Math.random() - 0.5) * W, im = IMPL[v.impl];
+  if (res.onField && v.tool && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
+    const k = (Math.random() - 0.5) * W, im = v.tool;
     const up = v.impl === 'spreader' ? 0.4 : 0.6 + Math.random() * 0.6;
     emit(cx + rx * k, (v.impl === 'spreader' ? 0.6 : 0.3) + (v.y || 0), cz + rz * k, im.dust, v.impl === 'spreader' ? 0.25 : 0.9 + Math.random() * 0.6,
       (Math.random() - 0.5) * 0.6 - sh * 0.6, up, (Math.random() - 0.5) * 0.6 - ch * 0.6, v.impl === 'spreader' ? 0.7 : 1.4 + Math.random() * 0.6, v.impl === 'spreader' ? 2 : 0);
@@ -181,7 +181,10 @@ const PIPE_RATE = 1800; // l/s through a harvester pipe or elevator
 const TIP_RATE = 2600; // l/s when the trailer tips at the intake
 const _v = new THREE.Vector3();
 
-export const hasTrailer = () => tractor.impl === 'trailer';
+/** Does v tow a trailer? */
+export const hasTrailer = v => !!towed(v);
+/** Is any trailer hitched to a tractor? */
+const anyTowed = () => tools.some(t => t.key === 'trailer' && t.on);
 
 /** Where the extended unloading pipe of harvester h ends, in world x/z (it swings out to the left). */
 export function pipeEnd(h) {
@@ -189,17 +192,19 @@ export function pipeEnd(h) {
   return { x: h.x + c * lx + s * lz, z: h.z - s * lx + c * lz };
 }
 
-/** True when the trailer body is under harvester h's (extended) pipe, with a little slack. */
-export function trailerInReach(h) {
-  if (!hasTrailer()) return false;
-  const p = pipeEnd(h), dx = p.x - trailer.x, dz = p.z - trailer.z;
-  const s = Math.sin(trailer.h), c = Math.cos(trailer.h);
+/** True when trailer t's body is under harvester h's (extended) pipe, with a little slack. */
+export function trailerInReach(h, t) {
+  if (!t?.on) return false;
+  const p = pipeEnd(h), dx = p.x - t.x, dz = p.z - t.z;
+  const s = Math.sin(t.h), c = Math.cos(t.h);
   const lx = dx * c - dz * s, lz = dx * s + dz * c; // into trailer-local coordinates
   return Math.abs(lx) < 1.8 && lz > -2.6 && lz < 4.2;
 }
+/** The hitched trailer under harvester h's pipe, or null. */
+export const trailerUnder = h => tools.find(t => t.key === 'trailer' && trailerInReach(h, t)) || null;
 
 /** Same crop (or empty), and no bales on board. */
-const trailerAccepts = crop => trailer.bales === 0 && (trailer.tank.amount <= 0 || trailer.tank.crop === crop);
+const trailerAccepts = (t, crop) => t.bales === 0 && (t.tank.amount <= 0 || t.tank.crop === crop);
 
 /** Hands amt litres of crop to buyer or feed trough m; returns how much was taken. */
 function deliver(m, crop, amt, who) {
@@ -242,21 +247,21 @@ function pour(x, y, z, crop, dt, spread = 0.4) {
 /** One harvester's unloading: sells at the intake or fills the trailer under its pipe, else waits. */
 function unloadHarvester(h, dt, onDone) {
   if (!h.unloading) return;
-  const m = sellPoint(h, h.tank.crop), toTrailer = !m && trailerInReach(h);
+  const m = sellPoint(h, h.tank.crop), t = m ? null : trailerUnder(h);
   if (h.tank.amount <= 0) stopUnload(h, onDone);
-  else if (!m && !hasTrailer()) stopUnload(h, onDone);
-  else if (!m && !toTrailer) h.waiting = 'reach';
-  else if (toTrailer && !trailerAccepts(h.tank.crop)) {
+  else if (!m && !anyTowed()) stopUnload(h, onDone);
+  else if (!m && !t) h.waiting = 'reach';
+  else if (t && !trailerAccepts(t, h.tank.crop)) {
     h.waiting = 'mix';
-    warn('mixT', trailer.bales ? 'V přívěsu jsou balíky. Nejdřív je prodej u stodoly.' : 'V přívěsu je jiná plodina. Nejdřív ho prodej.');
-  } else if (toTrailer && trailer.tank.amount >= trailer.tank.cap - 1) { h.waiting = 'full'; warn('fullT', 'Přívěs je plný. Odvez ho k silům.'); }
+    warn('mixT', t.bales ? 'V přívěsu jsou balíky. Nejdřív je prodej u stodoly.' : 'V přívěsu je jiná plodina. Nejdřív ho prodej.');
+  } else if (t && t.tank.amount >= t.tank.cap - 1) { h.waiting = 'full'; warn('fullT', 'Přívěs je plný. Odvez ho k silům.'); }
   else if (h.pipe.rotation.y < -1.3) { // pipe is out
     h.waiting = null;
     const crop = h.tank.crop;
     let amt = Math.min(h.tank.amount, PIPE_RATE * dt);
-    if (toTrailer) {
-      amt = Math.min(amt, trailer.tank.cap - trailer.tank.amount);
-      trailer.tank.crop = crop; trailer.tank.amount += amt; h.moved += amt;
+    if (t) {
+      amt = Math.min(amt, t.tank.cap - t.tank.amount);
+      t.tank.crop = crop; t.tank.amount += amt; h.moved += amt;
     } else {
       amt = deliver(m, crop, amt, h);
       if (amt <= 0) { stopUnload(h, onDone); return; }
@@ -274,23 +279,25 @@ function unloadHarvester(h, dt, onDone) {
  */
 export function updateLogistics(dt, onDone) {
   for (const h of HARVESTERS) unloadHarvester(h, dt, onDone);
+  for (const t of tools) if (t.key === 'trailer') trailerLogistics(t, dt, onDone);
+}
 
-  const t = trailer;
+function trailerLogistics(t, dt, onDone) {
   if (t.tipping) {
-    const m = hasTrailer() && sellPoint(trailerCenter(), t.tank.crop);
-    if (!m || t.tank.amount <= 0) stopTipping(onDone);
+    const m = t.on && sellPoint(trailerCenter(t), t.tank.crop);
+    if (!m || t.tank.amount <= 0) stopTipping(t, onDone);
     else if (t.tip.rotation.x < -0.5) { // body is up
       const crop = t.tank.crop, amt = deliver(m, crop, Math.min(t.tank.amount, TIP_RATE * dt), t);
-      if (amt <= 0) { stopTipping(onDone); return; }
+      if (amt <= 0) { stopTipping(t, onDone); return; }
       t.tank.amount -= amt;
       _v.set((Math.random() - 0.5) * 1.8, 0.2, 0); t.tip.localToWorld(_v);
       pour(_v.x, _v.y, _v.z, crop, dt, 0.8);
     }
   }
 
-  // auto-loading bales: any bale within reach of the trailer body jumps on board
-  if (hasTrailer() && bales.length) {
-    const tc = trailerCenter();
+  // auto-loading bales: any bale within reach of a hitched trailer's body jumps on board
+  if (t.on && bales.length) {
+    const tc = trailerCenter(t);
     for (let i = bales.length - 1; i >= 0; i--) {
       const b = bales[i];
       if (Math.hypot(b.x - tc.x, b.z - tc.z) > 3.4) continue;
@@ -302,26 +309,26 @@ export function updateLogistics(dt, onDone) {
   }
 }
 
-export function startTipping() {
-  trailer.tipping = true; trailer.fed = 0; trailer.sold = 0; trailer.soldMoney = 0; trailer.soldCrop = trailer.tank.crop;
+export function startTipping(t) {
+  t.tipping = true; t.fed = 0; t.sold = 0; t.soldMoney = 0; t.soldCrop = t.tank.crop;
 }
-export function stopTipping(onDone) {
-  sellToast(trailer, onDone);
-  trailer.tipping = false;
-  if (trailer.tank.amount <= 0) trailer.tank.crop = -1;
+export function stopTipping(t, onDone) {
+  sellToast(t, onDone);
+  t.tipping = false;
+  if (t.tank.amount <= 0) t.tank.crop = -1;
 }
 
-/** Sells all bales from the trailer at the barn. */
-/** What the bales in the trailer fetch at the barn now: straw and hay are priced apart. */
-export function baleValue() {
-  const hay = trailer.hay || 0, straw = trailer.bales - hay;
+/** What the bales in trailer t fetch at the barn now: straw and hay are priced apart. */
+export function baleValue(t) {
+  const hay = t.hay || 0, straw = t.bales - hay;
   return { straw, hay, money: Math.round(straw * balePrice(G.gameMin) + hay * hayPrice(G.gameMin)) };
 }
-export function sellBales(onDone) {
-  const { straw, hay, money } = baleValue();
+/** Sells all bales from trailer t at the barn. */
+export function sellBales(t, onDone) {
+  const { straw, hay, money } = baleValue(t);
   if (!straw && !hay) return;
   G.money += money; earn(money); G.flashT = 0.4;
-  trailer.bales = 0; trailer.hay = 0;
+  t.bales = 0; t.hay = 0;
   const parts = [];
   if (straw) parts.push(plural(straw, 'balík', 'balíky', 'balíků') + ' slámy');
   if (hay) parts.push(plural(hay, 'balík', 'balíky', 'balíků') + ' sena');

@@ -1,13 +1,13 @@
 import { fmt } from '../core/util.js';
 import { G } from '../game/state.js';
-import { has, hasCondition, CATALOG, sellValue, leaseUpfront, leaseDaily, blockReason, buy, lease, release, dailyLeaseCost } from '../game/machines.js';
+import { has, hasCondition, CATALOG, sellValue, leaseUpfront, leaseDaily, blockReason, buy, lease, release, dailyLeaseCost, status, condOf } from '../game/machines.js';
 import { takeLoan, repayLoan, dailyInterest, emergencyFuel, LOAN_MAX, LOAN_STEP, INTEREST_DAILY, EMERGENCY } from '../game/economy.js';
 import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../game/contracts.js';
 import { CROPS } from '../game/crops.js';
 import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap, eatsText, mixShares, mixOk } from '../game/farm.js';
 import { COWS, MIXER } from '../game/balance.js';
 import { trees, matureCount } from '../world/forest.js';
-import { forester, vehicles, IMPL } from '../vehicles/vehicles.js';
+import { vehicles } from '../vehicles/vehicles.js';
 import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName } from '../game/helpers.js';
 import { toast } from './toast.js';
 import { GOALS, activeGoals, isDone, progressOf, progressText } from '../game/goals.js';
@@ -57,7 +57,7 @@ function act(a, key) {
     case 'buy': ok = buy(key); if (ok) toast('Koupeno: ' + CATALOG.find(c => c.key === key).name, 'good'); break;
     case 'lease': ok = lease(key); if (ok) toast('Pronajato: ' + CATALOG.find(c => c.key === key).name, 'good'); break;
     case 'sell': case 'return': {
-      const name = CATALOG.find(c => c.key === key).name, value = sellValue(key), was = G.machines[key];
+      const name = CATALOG.find(c => c.key === key).name, value = sellValue(key), was = status(key);
       ok = release(key);
       if (ok) toast(was === 'own' ? 'Prodáno: ' + name + ' za ' + fmt(value) + ' Kč' : 'Vráceno z pronájmu: ' + name, 'good');
       break;
@@ -69,11 +69,11 @@ function act(a, key) {
     case 'fuel': ok = emergencyFuel(); break;
     case 'field': ok = buyField(FIELDS.find(f => f.id === +key)); break;
     case 'send': {
-      const v = vehicles.find(x => x.type === key), val = $('hsel-' + key)?.value;
+      const v = vehicles.find(x => x.id === key), val = $('hsel-' + key)?.value;
       ok = !!v && !!val && sendHelper(v, val === 'wood' ? null : FIELDS.find(f => f.id === +val));
       break;
     }
-    case 'fire': { const v = vehicles.find(x => x.type === key); if (v?.helper) dismiss(v); break; }
+    case 'fire': { const v = vehicles.find(x => x.id === key); if (v?.helper) dismiss(v); break; }
   }
   if (ok) h.onChange();
   render();
@@ -90,7 +90,7 @@ function shopHTML() {
   for (const kind of [...new Set(CATALOG.map(c => c.kind))]) {
     out += `<h3 class="grp">${kind}</h3>`;
     for (const c of CATALOG.filter(x => x.kind === kind)) {
-      const st = G.machines[c.key];
+      const st = status(c.key);
       const chip = st === 'own' ? '<span class="chip on">Vlastníš</span>'
         : st === 'lease' ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(c.key))} Kč/den</span>`
         : '<span class="chip">Nevlastníš</span>';
@@ -104,7 +104,7 @@ function shopHTML() {
         if (why) note = `<p class="why">${why}</p>`;
       }
       out += `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span>${note}</div>
-        <div class="rstate">${chip}${st && hasCondition(c) ? `<span class="muted">stav ${pct(G.cond[c.key] ?? 1)}</span>` : ''}</div>
+        <div class="rstate">${chip}${st && hasCondition(c) ? `<span class="muted">stav ${pct(condOf(c.key))}</span>` : ''}</div>
         <div class="ract">${actions}</div></div>`;
     }
   }
@@ -166,7 +166,7 @@ function farmHTML() {
       F.dry ? '<span class="chip warn">Bez vody</span>' : '<span class="chip on">V pořádku</span>',
       '<span class="muted">Na odvoz: ' + fmt(F.tomatoes) + ' kg rajčat · ' + fmt(GREENHOUSE.make * 24 * n) + ' kg denně po ' + GREENHOUSE.price + ' Kč</span>')
     : row('Skleníky', 'Koupíš v Obchodě.', '<span class="chip">Nevlastníš</span>');
-  out += row('Les na severu', matureCount() + ' z ' + trees.length + ' stromů je vzrostlých' + (has('forest') ? ' · v harvestoru ' + String(forester.logs.toFixed(1)).replace('.', ',') + ' m³' : ''),
+  out += row('Les na severu', matureCount() + ' z ' + trees.length + ' stromů je vzrostlých' + (has('forest') ? ' · v harvestoru ' + String(vehicles.reduce((a, v) => a + (v.logs || 0), 0).toFixed(1)).replace('.', ',') + ' m³' : ''),
     has('forest') ? '<span class="chip on">Harvestor</span>' : '<span class="chip">Bez harvestoru</span>');
   return out;
 }
@@ -177,11 +177,11 @@ const ha = m2 => String((m2 / 10000).toFixed(2)).replace('.', ',') + ' ha';
 /** Machines a helper can drive: send one to a field or the forest, or let a working one go. */
 function helpersHTML() {
   let out = '<h3 class="grp">Pomocníci</h3><p class="lede small">Pošli stroj s pomocníkem na pole nebo do lesa. Dojede po silnicích, plný zásobník odveze na nejlepší výkup a po práci se vrátí na dvůr. Mzda ' + fmt(WAGE) + ' Kč za herní hodinu, platí se i cesta.</p>';
-  for (const v of vehicles.filter(x => x.available && x.type !== 'jeep')) {
-    const name = v.name + (v.type === 'tractor' ? ' · ' + IMPL[v.impl].name.toLowerCase() : '');
+  for (const v of vehicles.filter(x => x.type !== 'jeep')) {
+    const name = v.name + (v.type === 'tractor' ? ' · ' + (v.tool ? v.tool.name.toLowerCase() : 'bez nářadí') : '');
     if (v.helper) {
       out += `<div class="row"><div class="rmain"><b>${name}</b><span>${helperStatus(v)} · mzda ${fmt(v.helper.wage)} Kč</span></div>
-        <div class="rstate">${btn('fire', v.type, 'Propustit', false, 'ghost')}</div></div>`;
+        <div class="rstate">${btn('fire', v.id, 'Propustit', false, 'ghost')}</div></div>`;
       continue;
     }
     const opts = v.type === 'forest'
@@ -189,8 +189,8 @@ function helpersHTML() {
       : FIELDS.filter(f => !canHire(v, f).why).map(f => [f.id, (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' (zakázka)') + ' · ' + jobName(v)]);
     const why = opts.length ? '' : (canHire(v, v.type === 'forest' ? null : FIELDS.find(f => f.owned)).why || 'Teď s ním není kde pracovat.');
     out += `<div class="row"><div class="rmain"><b>${name}</b>${why ? `<span>${why}</span>`
-      : `<label class="hselect"><span class="sr">Kam</span><select id="hsel-${v.type}">${opts.map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>`}</div>
-      <div class="rstate">${btn('send', v.type, 'Poslat', !opts.length)}</div></div>`;
+      : `<label class="hselect"><span class="sr">Kam</span><select id="hsel-${v.id}">${opts.map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>`}</div>
+      <div class="rstate">${btn('send', v.id, 'Poslat', !opts.length)}</div></div>`;
   }
   return out;
 }
@@ -236,7 +236,7 @@ function goalsHTML() {
 
 function finHTML() {
   const v = G.active;
-  const leased = CATALOG.filter(c => G.machines[c.key] === 'lease');
+  const leased = CATALOG.filter(c => status(c.key) === 'lease');
   return `<div class="stats">
       <div><span>Peníze</span><b class="${G.money < 0 ? 'down' : ''}">${fmt(G.money)} Kč</b></div>
       <div><span>Úvěr</span><b>${fmt(G.loan)} Kč</b></div>

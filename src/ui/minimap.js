@@ -1,5 +1,5 @@
 import { FIELDS } from '../world/fields.js';
-import { vehicles, trailer } from '../vehicles/vehicles.js';
+import { vehicles, tools } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import {
   BOUNDS, ROADS, PAD, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
@@ -116,7 +116,8 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
   }
   c.fillStyle = '#f2dc8c'; c.strokeStyle = 'rgba(36,49,42,.6)'; c.lineWidth = 1;
   for (const b of bales) { c.beginPath(); c.arc(mx(b.x), my(b.z), Math.max(1.5, 0.9 * sc), 0, 7); c.fill(); c.stroke(); }
-  if (trailer.group.visible) {
+  for (const trailer of tools) {
+    if (trailer.key !== 'trailer') continue;
     c.save();
     c.translate(mx(trailer.x + Math.sin(trailer.h) * 0.8), my(trailer.z + Math.cos(trailer.h) * 0.8));
     c.rotate(Math.atan2(-Math.cos(trailer.h), -Math.sin(trailer.h)));
@@ -126,7 +127,6 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
     c.restore();
   }
   for (const u of vehicles) {
-    if (!u.available) continue;
     const r = u === G.active ? opts.icon : opts.icon * 0.72;
     c.save();
     c.translate(mx(u.x), my(u.z));

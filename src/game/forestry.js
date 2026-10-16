@@ -1,6 +1,6 @@
 import { fmt, angDiff } from '../core/util.js';
 import { G } from './state.js';
-import { forester } from '../vehicles/vehicles.js';
+import { vehicles } from '../vehicles/vehicles.js';
 import { trees, volume, nearestMature, startFell, stepFell } from '../world/forest.js';
 import { WOOD_BUYERS } from '../world/layout.js';
 import { toast } from '../ui/toast.js';
@@ -30,10 +30,12 @@ export function fell(v, i) {
   startFell(i, v.x, v.z);
 }
 
-/** Runs every frame: animates the falling tree and loads the wood when it is down. */
+/** Runs every frame: animates the falling trees and loads the wood when one is down. */
 export function forestryTick(dt) {
-  const v = forester, c = v.cutting;
-  if (!c) return;
+  for (const v of vehicles) if (v.cutting) fellTick(v, dt);
+}
+function fellTick(v, dt) {
+  const c = v.cutting;
   if (!stepFell(c.i, dt)) return;
   const got = Math.min(c.vol, v.logCap - v.logs);
   v.logs = +(v.logs + got).toFixed(2);

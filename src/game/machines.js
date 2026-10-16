@@ -1,11 +1,14 @@
 import { G } from './state.js';
-import { vehicles, IMPL, IMPL_ORDER, tractor, combine, trailer, attachImpl, setHeader, applyUpgrades } from '../vehicles/vehicles.js';
+import {
+  vehicles, tools, VEHICLE_TYPES, isToolKey, firstOf, addVehicle, addTool, removeVehicle, removeTool, clearFleet, attachTool, setHeader, applyUpgrades,
+} from '../vehicles/vehicles.js';
 import { COWS, HENS, SHEEP, PIGS, MIXER, GREENHOUSE, WOOD } from './balance.js';
 
 /**
- * Everything the player can own. key matches the vehicle type or implement key;
- * cornHeader is the combine's row header. Buildings and upgrades (noLease) can only be bought.
- * Prices in Kč.
+ * Everything the player can own. key matches the vehicle type or implement key; machines and
+ * implements are pieces in the fleet (vehicles.js), each owned or leased with its own condition.
+ * cornHeader is the combine's row header. Buildings and upgrades (noLease) can only be bought;
+ * they and the header live in G.machines / G.cond by key. Prices in Kč.
  */
 export const CATALOG = [
   { key: 'tractor', name: 'Traktor Brázda 140', kind: 'Traktory', price: 1450000, desc: '140 koní, tahá všechno nářadí a přívěs.', fixed: true },
@@ -46,45 +49,71 @@ export const LEASE_DAILY = 0.012; // share of the price charged every game day
 const SELL_SHARE = 0.55; // resale value of a machine in new condition
 const REPAIR_SHARE = 0.12; // full repair from 0 % costs this share of the price
 
-export const has = key => !!G.machines[key];
-export const sellValue = key => Math.round(byKey[key].price * SELL_SHARE * (G.cond[key] ?? 1));
+/** Is key a machine or implement (pieces in the fleet) rather than a building, upgrade or header? */
+export const isMachine = key => VEHICLE_TYPES.includes(key) || isToolKey(key);
+/** The pieces of catalog key in the fleet. */
+export const piecesOf = key => (VEHICLE_TYPES.includes(key) ? vehicles.filter(v => v.type === key) : tools.filter(t => t.key === key));
+export const has = key => (isMachine(key) ? piecesOf(key).length > 0 : !!G.machines[key]);
+/** 'own' | 'lease' | null: a machine's first piece, or a building, upgrade or header. */
+export const status = key => (isMachine(key) ? piecesOf(key)[0]?.own ?? null : G.machines[key] || null);
+/** Condition 0..1 of key (its first piece for machines). */
+export const condOf = key => (isMachine(key) ? piecesOf(key)[0]?.cond ?? 1 : G.cond[key] ?? 1);
+const priceOf = p => byKey[p.type || p.key].price;
+/** What a piece fetches when sold, by its condition. */
+export const sellValueOf = p => Math.round(priceOf(p) * SELL_SHARE * p.cond);
+export const sellValue = key => (isMachine(key) ? sellValueOf(piecesOf(key)[0]) : Math.round(byKey[key].price * SELL_SHARE * (G.cond[key] ?? 1)));
 export const leaseUpfront = key => Math.round(byKey[key].price * LEASE_UPFRONT);
 export const leaseDaily = key => Math.round(byKey[key].price * LEASE_DAILY);
-export const repairCost = key => Math.round(byKey[key].price * REPAIR_SHARE * (1 - (G.cond[key] ?? 1)));
-export const dailyLeaseCost = () => CATALOG.reduce((a, c) => a + (G.machines[c.key] === 'lease' ? leaseDaily(c.key) : 0), 0);
+/** Full repair of piece p (machine or implement). */
+export const repairCostOf = p => (p ? Math.round(priceOf(p) * REPAIR_SHARE * (1 - p.cond)) : 0);
+export const dailyLeaseCost = () =>
+  [...vehicles, ...tools].reduce((a, p) => a + (p.own === 'lease' ? leaseDaily(p.type || p.key) : 0), 0) +
+  CATALOG.reduce((a, c) => a + (!isMachine(c.key) && G.machines[c.key] === 'lease' ? leaseDaily(c.key) : 0), 0);
 
-/** allOwned = true for saves from before the shop existed: keep every machine the player had. */
-export function resetMachines(allOwned) {
+/** A new game: the starting fleet (tractor with the cultivator, combine, seeder, trailer), no buildings. */
+export function startFleet() {
+  clearFleet();
   G.machines = {}; G.cond = {};
-  for (const c of CATALOG) { G.machines[c.key] = allOwned || START_OWNED.includes(c.key) ? 'own' : null; G.cond[c.key] = 1; }
+  for (const c of CATALOG) if (!isMachine(c.key)) { G.machines[c.key] = null; G.cond[c.key] = 1; }
+  for (const key of START_OWNED) (isToolKey(key) ? addTool : addVehicle)(key);
+  attachTool(firstOf('tractor'), tools.find(t => t.key === 'cultivator'));
 }
 
-/** Shows or hides machines to match ownership and fixes anything that points at a missing one. */
+/** Shows or hides machine parts to match ownership and fixes anything that points at a missing piece. */
 export function applyOwnership() {
-  for (const v of vehicles) { v.available = has(v.type); v.group.visible = v.available; }
-  for (const k of IMPL_ORDER) IMPL[k].group.visible = has(k);
-  combine.cornHdr.visible = has('cornHeader');
-  if (!has('cornHeader') && combine.header === 'corn') setHeader('grain');
-  if (!has(tractor.impl)) { const k = IMPL_ORDER.find(has); if (k) attachImpl(k); }
-  if (!G.active?.available) G.active = vehicles.find(v => v.available);
+  for (const v of vehicles) {
+    if (v.type !== 'combine') continue;
+    v.cornHdr.visible = has('cornHeader');
+    if (!has('cornHeader') && v.header === 'corn') setHeader(v, 'grain');
+  }
+  // a tractor that lost its tool takes a free one
+  for (const v of vehicles) if (v.type === 'tractor' && !v.tool) { const t = tools.find(x => !x.on); if (t) attachTool(v, t); }
+  if (!vehicles.includes(G.active)) G.active = firstOf('combine') || vehicles[0];
   applyUpgrades({ tractor: has('upTractor'), cultivator: has('upCultivator'), combine: has('upCombine'), trailer: has('upTrailer') });
   ownershipHooks.forEach(f => f());
 }
 
-/** Why a machine cannot be sold or returned right now, or null. */
+/** Why piece p cannot be sold or returned right now, or null. */
+export function blockReasonOf(p) {
+  const key = p.type || p.key;
+  if (byKey[key].fixed && piecesOf(key).length < 2) return 'Bez traktoru by farma nefungovala.';
+  if (G.active === p) return 'Právě v něm sedíš.';
+  if (p.helper) return 'Pracuje na něm pomocník.';
+  if (p.on?.helper) return 'Pracuje s ním pomocník.';
+  if (p.on) return 'Je připojené k traktoru. V kůlně připoj jiné nářadí.';
+  if (p.harvester && (p.tank.amount > 0 || p.unloading)) return 'Nejdřív vyprázdni zásobník.';
+  if (p.logs > 0) return 'Nejdřív prodej dřevo na pile.';
+  if (p.key === 'trailer' && (p.tank.amount > 0 || p.bales > 0)) return 'Nejdřív vyprázdni přívěs.';
+  if (p.key === 'watertank' && p.milk && p.water > 0) return 'V cisterně je mléko. Prodej ho v mlékárně.';
+  if (G.contracts.active && key === contractNeeds(G.contracts.active) && piecesOf(key).length < 2) return 'Potřebuješ ho na rozpracovanou zakázku.';
+  return null;
+}
+/** Why catalog key cannot be sold or returned right now, or null. */
 export function blockReason(key) {
-  if (byKey[key].fixed) return 'Bez traktoru by farma nefungovala.';
-  if (G.active?.type === key) return 'Právě v něm sedíš.';
-  if (vehicles.find(x => x.type === key)?.helper) return 'Pracuje na něm pomocník.';
-  if (tractor.helper && tractor.impl === key) return 'Pracuje s ním pomocník.';
-  if (tractor.impl === key) return 'Je připojené k traktoru. V kůlně připoj jiné nářadí.';
-  if (key === 'cornHeader' && combine.header === 'corn') return 'Je nasazený na kombajnu. V kůlně nasaď žací lištu.';
-  const v = vehicles.find(x => x.type === key);
-  if (v && (v.tank.amount > 0 || v.unloading)) return 'Nejdřív vyprázdni zásobník.';
-  if (v?.logs > 0) return 'Nejdřív prodej dřevo na pile.';
-  if (key === 'watertank' && IMPL.watertank.milk && IMPL.watertank.water > 0) return 'V cisterně je mléko. Prodej ho v mlékárně.';
-  if (key === 'upCombine' && combine.tank.amount > 9000) return 'Zásobník kombajnu je plnější než 9 000 l.';
-  if (key === 'upTrailer' && trailer.tank.amount > 14000) return 'Přívěs je plnější než 14 000 l.';
+  if (isMachine(key)) return piecesOf(key)[0] ? blockReasonOf(piecesOf(key)[0]) : null;
+  if (key === 'cornHeader' && vehicles.some(v => v.type === 'combine' && v.header === 'corn')) return 'Je nasazený na kombajnu. V kůlně nasaď žací lištu.';
+  if (key === 'upCombine' && vehicles.some(v => v.type === 'combine' && v.tank.amount > 9000)) return 'Zásobník kombajnu je plnější než 9 000 l.';
+  if (key === 'upTrailer' && tools.some(t => t.key === 'trailer' && t.tank.amount > 14000)) return 'Přívěs je plnější než 14 000 l.';
   if (G.contracts.active && key === contractNeeds(G.contracts.active)) return 'Potřebuješ ho na rozpracovanou zakázku.';
   return null;
 }
@@ -97,23 +126,39 @@ function pay(amount) {
   G.money -= amount; G.flashT = 0.4;
   return true;
 }
+/** Adds a new piece of machine key to the fleet; an implement goes on a tractor that has none. */
+function addPiece(key, own) {
+  if (!isToolKey(key)) return addVehicle(key, { own });
+  const t = addTool(key, { own });
+  const v = vehicles.find(x => x.type === 'tractor' && !x.tool && !x.helper);
+  if (v) attachTool(v, t);
+  return t;
+}
 export function buy(key) {
   if (has(key) || !pay(byKey[key].price)) return false;
-  G.machines[key] = 'own'; G.cond[key] = 1;
+  if (isMachine(key)) addPiece(key, 'own');
+  else { G.machines[key] = 'own'; G.cond[key] = 1; }
   applyOwnership();
   return true;
 }
 export function lease(key) {
   if (has(key) || byKey[key].noLease || !pay(leaseUpfront(key))) return false;
-  G.machines[key] = 'lease'; G.cond[key] = 1;
+  if (isMachine(key)) addPiece(key, 'lease');
+  else { G.machines[key] = 'lease'; G.cond[key] = 1; }
   applyOwnership();
   return true;
 }
-/** Sells an owned machine or hands back a leased one. */
+/** Sells an owned machine or hands back a leased one (machines: its first piece). */
 export function release(key) {
   if (!has(key) || blockReason(key)) return false;
-  if (G.machines[key] === 'own') { G.money += sellValue(key); G.flashT = 0.4; }
-  G.machines[key] = null;
+  if (isMachine(key)) {
+    const p = piecesOf(key)[0];
+    if (p.own === 'own') { G.money += sellValueOf(p); G.flashT = 0.4; }
+    (isToolKey(key) ? removeTool : removeVehicle)(p);
+  } else {
+    if (G.machines[key] === 'own') { G.money += sellValue(key); G.flashT = 0.4; }
+    G.machines[key] = null;
+  }
   applyOwnership();
   return true;
 }

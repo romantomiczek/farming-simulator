@@ -17,14 +17,15 @@ function wheels(x, z, h, [hw, az], fn) {
   fn(cx + c * hw, cz - s * hw); fn(cx - c * hw, cz + s * hw);
 }
 
-/** vehicles: all machines; trailer: the tipping trailer (follows the tractor); dry: no rain, not winter. */
-export function updTracks(dt, vehicles, trailer, dry) {
+/** vehicles: all machines (a towed trailer leaves its own track); dry: no rain, not winter. */
+export function updTracks(dt, vehicles, dry) {
   for (const v of vehicles) {
-    if (!v.available || Math.abs(v.speed) < 0.3) continue;
+    if (Math.abs(v.speed) < 0.3) continue;
     const ax = AXLE[v.type];
     if (!ax) continue;
     wheels(v.x, v.z, v.h, ax, (x, z) => markTrack(x, z, v.h));
-    if (v.type === 'tractor' && v.impl === 'trailer') wheels(trailer.x, trailer.z, trailer.h, [1.15, 0], (x, z) => markTrack(x, z, trailer.h));
+    const t = v.impl === 'trailer' ? v.tool : null;
+    if (t) wheels(t.x, t.z, t.h, [1.15, 0], (x, z) => markTrack(x, z, t.h));
 
     // dust: only on the fields (roads and the yard are paved), dry weather, at a decent speed
     v.dustT = (v.dustT || 0) - dt;

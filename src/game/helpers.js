@@ -2,7 +2,7 @@ import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_RIPE, S_NONE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
 import { fieldAt, FIELDS } from '../world/fields.js';
-import { vehicles, IMPL, toolLine, blockedAt } from '../vehicles/vehicles.js';
+import { vehicles, toolLine, blockedAt } from '../vehicles/vehicles.js';
 import { pushBales } from '../world/bales.js';
 import { contractAllows } from './contracts.js';
 import { isWet, season } from './weather.js';
@@ -74,6 +74,7 @@ export function canHire(v, target) {
   const f = target || fieldAt(v.x, v.z);
   if (!f) return { why: 'Zajeď na pole, které má pomocník obdělat, a stiskni H. Na vzdálené pole ho pošleš z Kanceláře.' };
   if (!f.owned && !contractAllows(f, v)) return { why: 'Na cizím poli může pomocník pracovat jen při zakázce s tímto nářadím.' };
+  if (v.type === 'tractor' && !v.tool) return { why: 'Traktor nemá nářadí. Připoj ho v kůlně.' };
   if (v.type === 'tractor' && !FIELD_TOOLS.includes(v.impl)) return { why: 'S přívěsem pomocník nepracuje. Připoj v kůlně polní nářadí.' };
   if (v.impl === 'seeder' && v.type === 'tractor' && !season().sow) return { why: 'V zimě se nesije.' };
   if (!workLeft(f, v)) return { why: 'Na poli ' + f.id + ' pomocník s tímhle strojem nemá co dělat.' };
@@ -434,7 +435,7 @@ export function helperTick(v, dt) {
   }
 
   if (!hp.path.length) { onPathEnd(v); return; }
-  const cf = condFactor(G.cond[v.type] ?? 1), toolCf = v.type === 'tractor' ? condFactor(G.cond[v.impl] ?? 1) : 1;
+  const cf = condFactor(v.cond), toolCf = v.tool ? condFactor(v.tool.cond) : 1;
   let seg = hp.path[hp.seg], segI = hp.seg, s = hp.s;
   const speed = seg.work ? v.vwork * cf * toolCf : seg.road ? Math.min(v.vmax, 9) * cf : seg.kind === 'arc' ? v.vwork * 0.7 * cf : Math.min(v.vmax, 6) * cf;
   s += speed * dt;

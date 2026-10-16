@@ -7,8 +7,8 @@ import { cam } from '../render/camera.js';
 import { skyParts } from '../render/sky.js';
 import { wind } from '../render/wind.js';
 import { particleMesh } from '../fx/particles.js';
-import { vehicles, tractor, attachImpl } from '../vehicles/vehicles.js';
-import { CATALOG, applyOwnership } from '../game/machines.js';
+import { vehicles, tools, attachTool } from '../vehicles/vehicles.js';
+import { CATALOG, applyOwnership, has, buy } from '../game/machines.js';
 import { MARKETS } from '../game/markets.js';
 import { BUILDINGS, waterCap } from '../game/farm.js';
 import { activeGoals, emptyStats } from '../game/goals.js';
@@ -169,7 +169,7 @@ function teleport(i) {
   const [name, x, z] = PLACES[i], v = G.active;
   if (v.helper) { toast('Stroj řídí pomocník.', 'bad'); return; }
   Object.assign(v, { x, z, speed: 0 });
-  if (v === tractor) attachImpl(tractor.impl); // puts the trailer or tool back behind the tractor
+  if (v.tool) attachTool(v, v.tool); // puts the trailer or tool back behind the tractor
   cam.t.set(x, 1, z);
   toast(v.name + ': ' + name);
 }
@@ -180,8 +180,12 @@ const ACTS = {
   'wx:auto': () => forceWeather('auto'), 'wx:clear': () => forceWeather('clear'), 'wx:cloudy': () => forceWeather('cloudy'), 'wx:rain': () => forceWeather('rain'),
   gfxReset: () => { settings.custom = null; saveSettings(); hooks.applyQuality(); syncControls(); },
   money1: () => { G.money += 100000; G.flashT = 0.4; }, money2: () => { G.money += 1000000; G.flashT = 0.4; },
-  unlock: () => { for (const c of CATALOG) { G.machines[c.key] = 'own'; G.cond[c.key] = 1; } applyOwnership(); toast('Vlastníš všechny stroje, budovy a vylepšení.', 'good'); },
-  service: () => { for (const v of vehicles) v.fuel = v.fuelCap; for (const k in G.cond) G.cond[k] = 1; toast('Stroje natankované a opravené.', 'good'); },
+  unlock: () => {
+    const money = G.money; G.money = 1e12;
+    for (const c of CATALOG) if (!has(c.key)) buy(c.key);
+    G.money = money; applyOwnership(); toast('Vlastníš všechny stroje, budovy a vylepšení.', 'good');
+  },
+  service: () => { for (const p of [...vehicles, ...tools]) p.cond = 1; for (const v of vehicles) v.fuel = v.fuelCap; for (const k in G.cond) G.cond[k] = 1; toast('Stroje natankované a opravené.', 'good'); },
   ripen: () => ripen(false), ripeAll: () => ripen(true),
   fields: () => {
     for (const f of FIELDS) f.owned = true;

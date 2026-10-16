@@ -3,7 +3,7 @@ import { fmt } from '../core/util.js';
 import { G, TIME_SCALES } from './state.js';
 import { CROPS, HEADERS } from './crops.js';
 import {
-  sellPoint, inBaleZone, hasTrailer, trailerInReach, startUnload, stopUnload, startTipping, stopTipping, sellBales,
+  sellPoint, inBaleZone, trailerInReach, trailerUnder, startUnload, stopUnload, startTipping, stopTipping, sellBales,
 } from './work.js';
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
@@ -15,7 +15,7 @@ import { COWS } from './balance.js';
 import { earn } from './goals.js';
 import { inSawmill, treeInReach, fell, sellLogs } from './forestry.js';
 import { POND_FILL, GREENHOUSE_WATER, MILK_LOAD, DAIRY } from '../world/layout.js';
-import { tractor, combine, trailer, trailerCenter, vehicles, HARVESTERS, IMPL, IMPL_ORDER, attachImpl, setHeader } from '../vehicles/vehicles.js';
+import { trailerCenter, vehicles, tools, towed, firstOf, HARVESTERS, IMPL_ORDER, toolInfo, attachTool, setHeader } from '../vehicles/vehicles.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
 import { cam } from '../render/camera.js';
@@ -23,13 +23,15 @@ import { toast } from '../ui/toast.js';
 
 export const inShed = v => v.x > shedZone.x0 && v.x < shedZone.x1 && v.z > shedZone.z0 && v.z < shedZone.z1;
 export const nearSign = v => signs.find(s => !s.f.owned && Math.hypot(v.x - s.x, v.z - s.z) < 10);
-/** Next owned attachment in the shed's swap order. */
-export function otherImpl() {
-  const i = IMPL_ORDER.indexOf(tractor.impl);
-  for (let k = 1; k < IMPL_ORDER.length; k++) { const key = IMPL_ORDER[(i + k) % IMPL_ORDER.length]; if (has(key)) return key; }
+/** A piece of implement key that tractor v can hitch: its own, else one standing free. */
+export const freeTool = (v, key) => tools.find(t => t.key === key && t.on === v) || tools.find(t => t.key === key && !t.on) || null;
+/** Next implement in the shed's swap order that tractor v can hitch. */
+export function otherImpl(v) {
+  const i = IMPL_ORDER.indexOf(v.impl);
+  for (let k = 1; k < IMPL_ORDER.length; k++) { const key = IMPL_ORDER[(i + k) % IMPL_ORDER.length]; if (freeTool(v, key)) return key; }
   return null;
 }
-export const otherHeader = () => (combine.header === 'grain' ? (has('cornHeader') ? 'corn' : null) : 'grain');
+export const otherHeader = v => (v.header === 'grain' ? (has('cornHeader') ? 'corn' : null) : 'grain');
 
 /** What F would do right now for the active vehicle, or null. Shared by doF() and the HUD prompts. */
 export function fAction() {
@@ -43,27 +45,28 @@ export function fAction() {
     return null;
   }
   if (v.type === 'tractor' && v.impl === 'watertank') {
-    const w = IMPL.watertank, near = z => Math.hypot(v.x - z.x, v.z - z.z) < z.r;
-    if (w.milk && w.water > 0 && near(DAIRY)) return { kind: 'sellMilk' };
-    if (near(MILK_LOAD) && has('cows') && G.farm.milk >= 1 && (w.milk || w.water <= 0) && w.water < w.waterCap - 1) return { kind: 'loadMilk' };
-    if (!w.milk && near(POND_FILL) && w.water < w.waterCap - 1) return { kind: 'fillWater' };
-    if (!w.milk && near(GREENHOUSE_WATER) && w.water > 0 && greenhouses() && G.farm.water < waterCap() - 1) return { kind: 'giveWater' };
+    const w = v.tool, near = z => Math.hypot(v.x - z.x, v.z - z.z) < z.r;
+    if (w.milk && w.water > 0 && near(DAIRY)) return { kind: 'sellMilk', w };
+    if (near(MILK_LOAD) && has('cows') && G.farm.milk >= 1 && (w.milk || w.water <= 0) && w.water < w.waterCap - 1) return { kind: 'loadMilk', w };
+    if (!w.milk && near(POND_FILL) && w.water < w.waterCap - 1) return { kind: 'fillWater', w };
+    if (!w.milk && near(GREENHOUSE_WATER) && w.water > 0 && greenhouses() && G.farm.water < waterCap() - 1) return { kind: 'giveWater', w };
   }
   if (v.harvester) {
     if (v.unloading) return { kind: 'stopUnload', h: v };
     if (v.tank.amount > 0 && sellPoint(v, v.tank.crop)) return { kind: 'sell', h: v, m: sellPoint(v, v.tank.crop) };
     if (v.tank.amount > 0 && marketAt(v)) return { kind: 'wrongMarket', m: marketAt(v), crop: v.tank.crop };
-    if (v.tank.amount > 0 && trailerInReach(v)) return { kind: 'overload', h: v };
-    if (v === combine && inShed(v) && otherHeader()) return { kind: 'header', header: otherHeader() };
+    if (v.tank.amount > 0 && trailerUnder(v)) return { kind: 'overload', h: v };
+    if (v.type === 'combine' && inShed(v) && otherHeader(v)) return { kind: 'header', header: otherHeader(v) };
   } else {
-    if (trailer.tipping) return { kind: 'stopTip' };
-    if (hasTrailer() && trailer.tank.amount > 0 && sellPoint(trailerCenter(), trailer.tank.crop)) return { kind: 'tip', m: sellPoint(trailerCenter(), trailer.tank.crop) };
-    if (hasTrailer() && trailer.tank.amount > 0 && marketAt(trailerCenter())) return { kind: 'wrongMarket', m: marketAt(trailerCenter()), crop: trailer.tank.crop };
-    if (hasTrailer() && trailer.hay > 0 && hayFeederAt(trailerCenter())) return { kind: 'feedHay', m: hayFeederAt(trailerCenter()) };
-    if (hasTrailer() && trailer.bales > 0 && inBaleZone(trailerCenter())) return { kind: 'sellBales' };
-    for (const h of HARVESTERS) if (h.available && h.unloading && trailerInReach(h)) return { kind: 'stopUnload', h };
-    for (const h of HARVESTERS) if (h.available && h.tank.amount > 0 && trailerInReach(h)) return { kind: 'overload', h };
-    if (inShed(v) && otherImpl()) return { kind: 'swap', impl: otherImpl() };
+    const t = towed(v), tc = t && trailerCenter(t);
+    if (t?.tipping) return { kind: 'stopTip', t };
+    if (t && t.tank.amount > 0 && sellPoint(tc, t.tank.crop)) return { kind: 'tip', t, m: sellPoint(tc, t.tank.crop) };
+    if (t && t.tank.amount > 0 && marketAt(tc)) return { kind: 'wrongMarket', m: marketAt(tc), crop: t.tank.crop };
+    if (t && t.hay > 0 && hayFeederAt(tc)) return { kind: 'feedHay', t, m: hayFeederAt(tc) };
+    if (t && t.bales > 0 && inBaleZone(tc)) return { kind: 'sellBales', t };
+    if (t) for (const h of HARVESTERS) if (h.unloading && trailerInReach(h, t)) return { kind: 'stopUnload', h };
+    if (t) for (const h of HARVESTERS) if (h.tank.amount > 0 && trailerInReach(h, t)) return { kind: 'overload', h };
+    if (v.type === 'tractor' && inShed(v) && otherImpl(v)) return { kind: 'swap', impl: otherImpl(v) };
   }
   const s = nearSign(v);
   if (s) return { kind: 'buy', sign: s };
@@ -82,6 +85,7 @@ export function toggleHelper() {
 export function toggleTool() {
   const v = G.active;
   if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
+  if (v.type === 'tractor' && !v.tool) { toast('Traktor nemá nářadí. Připojíš ho v kůlně klávesami 1–8.'); return; }
   if (v.type === 'tractor' && v.impl === 'trailer') {
     toast('Přívěs nemá co spouštět. Úrodu vysypeš klávesou F ve výkupu, balíky prodáš F u stodoly.');
     return;
@@ -100,33 +104,35 @@ export function toggleTool() {
 export function switchVehicle() {
   // a running unload keeps going, so you can hop into the tractor and drive under the pipe
   const i = vehicles.indexOf(G.active);
-  for (let k = 1; k <= vehicles.length; k++) {
-    const v = vehicles[(i + k) % vehicles.length];
-    if (v.available) { G.active = v; break; }
-  }
+  G.active = vehicles[(i + 1) % vehicles.length];
   cam.manual = -99; // swing the camera behind the new vehicle
   toast('Sedíš v: ' + G.active.name);
 }
 
 export function cycleSeed() {
-  tractor.seedCrop = (tractor.seedCrop + 1) % CROPS.length;
-  const c = CROPS[tractor.seedCrop];
+  const v = G.active.type === 'tractor' ? G.active : firstOf('tractor');
+  if (!v) return;
+  v.seedCrop = (v.seedCrop + 1) % CROPS.length;
+  const c = CROPS[v.seedCrop];
   const hdr = c.header === 'corn' ? ' · sklízí se řádkovým adaptérem' : c.header === 'beet' ? ' · sklízí se sklízečem cukrovky' : '';
   toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h' + hdr);
 }
 
 export function cycleTime() { G.tsIdx = (G.tsIdx + 1) % TIME_SCALES.length; }
 
-function swapImpl(key) {
-  if (tractor.impl === key) return;
-  if (!has(key)) { toast(IMPL[key].name + ' nevlastníš. Koupíš nebo pronajmeš ho v Kanceláři (K).', 'bad'); return; }
-  attachImpl(key);
-  toast('Připojeno: ' + IMPL[key].name, 'good');
+function swapImpl(v, key) {
+  if (v.impl === key) return;
+  const name = toolInfo(key).name;
+  if (!has(key)) { toast(name + ' nevlastníš. Koupíš nebo pronajmeš ho v Kanceláři (K).', 'bad'); return; }
+  const t = freeTool(v, key);
+  if (!t) { toast(name + ' je připojený k jinému traktoru.', 'bad'); return; }
+  attachTool(v, t);
+  toast('Připojeno: ' + name, 'good');
 }
-function swapHeader(key) {
-  if (combine.header === key) return;
+function swapHeader(v, key) {
+  if (v.header === key) return;
   if (key === 'corn' && !has('cornHeader')) { toast('Řádkový adaptér nevlastníš. Koupíš nebo pronajmeš ho v Kanceláři (K).', 'bad'); return; }
-  setHeader(key);
+  setHeader(v, key);
   toast('Na kombajnu je ' + HEADERS[key].name.toLowerCase(), 'good');
 }
 
@@ -134,8 +140,8 @@ function swapHeader(key) {
 export function pickInShed(n) {
   const v = G.active;
   if (!inShed(v)) return;
-  if (v.type === 'tractor' && IMPL_ORDER[n - 1]) swapImpl(IMPL_ORDER[n - 1]);
-  if (v === combine && n <= 2) swapHeader(n === 1 ? 'grain' : 'corn');
+  if (v.type === 'tractor' && IMPL_ORDER[n - 1]) swapImpl(v, IMPL_ORDER[n - 1]);
+  if (v.type === 'combine' && n <= 2) swapHeader(v, n === 1 ? 'grain' : 'corn');
 }
 
 /** R in the shed: repair the vehicle and its attached tool. */
@@ -154,36 +160,36 @@ export function doF() {
     case 'refuel': refuel(a.v); return;
     case 'fell': fell(G.active, a.i); return;
     case 'sellLogs': sellLogs(G.active, saveLocal); return;
-    case 'fillWater': { const w = IMPL.watertank, l = w.waterCap - w.water; w.water = w.waterCap; toast('Nabráno ' + fmt(l) + ' l vody z rybníka.', 'good'); return; }
+    case 'fillWater': { const w = a.w, l = w.waterCap - w.water; w.water = w.waterCap; toast('Nabráno ' + fmt(l) + ' l vody z rybníka.', 'good'); return; }
     case 'giveWater': {
-      const w = IMPL.watertank, l = Math.min(w.water, waterCap() - G.farm.water);
+      const w = a.w, l = Math.min(w.water, waterCap() - G.farm.water);
       w.water -= l; G.farm.water += l;
       toast('Skleníky dostaly ' + fmt(l) + ' l vody.', 'good'); saveLocal(); return;
     }
     case 'loadMilk': {
-      const w = IMPL.watertank, l = Math.floor(Math.min(G.farm.milk, w.waterCap - w.water));
+      const w = a.w, l = Math.floor(Math.min(G.farm.milk, w.waterCap - w.water));
       w.milk = true; w.water += l; G.farm.milk -= l;
       toast('Nabráno ' + fmt(l) + ' l mléka. V mlékárně v městečku ho prodáš za ' + COWS.dairyPrice + ' Kč/l.', 'good'); saveLocal(); return;
     }
     case 'sellMilk': {
-      const w = IMPL.watertank, l = Math.floor(w.water), money = l * COWS.dairyPrice;
+      const w = a.w, l = Math.floor(w.water), money = l * COWS.dairyPrice;
       w.water = 0; w.milk = false; G.money += money; earn(money); G.flashT = 0.4;
       toast('Mlékárna koupila ' + fmt(l) + ' l mléka za ' + fmt(money) + ' Kč', 'good'); saveLocal(); return;
     }
     case 'feedHay': {
-      const n = feedHay(a.m.feed, trailer.hay);
+      const n = feedHay(a.m.feed, a.t.hay);
       if (!n) { toast('Krmelec (' + BUILDINGS[a.m.feed].name + ') je plný.', 'bad'); return; }
-      trailer.hay -= n; trailer.bales -= n;
+      a.t.hay -= n; a.t.bales -= n;
       toast('Vyloženo ' + n + (n === 1 ? ' balík' : n < 5 ? ' balíky' : ' balíků') + ' sena do krmelce · ' + a.m.short, 'good'); saveLocal(); return;
     }
     case 'stopUnload': stopUnload(a.h, saveLocal); return;
     case 'sell': case 'overload': startUnload(a.h); return;
-    case 'tip': startTipping(); return;
-    case 'stopTip': stopTipping(saveLocal); return;
-    case 'sellBales': sellBales(saveLocal); return;
+    case 'tip': startTipping(a.t); return;
+    case 'stopTip': stopTipping(a.t, saveLocal); return;
+    case 'sellBales': sellBales(a.t, saveLocal); return;
     case 'wrongMarket': toast(a.m.name + ' nebere ' + CROPS[a.crop].gen + '. Vezme ji: ' + buyersOf(a.crop).join(', ') + '.', 'bad'); return;
-    case 'swap': swapImpl(a.impl); return;
-    case 'header': swapHeader(a.header); return;
+    case 'swap': swapImpl(G.active, a.impl); return;
+    case 'header': swapHeader(G.active, a.header); return;
   }
   buyField(a.sign.f);
 }

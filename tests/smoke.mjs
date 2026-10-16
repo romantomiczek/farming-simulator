@@ -119,16 +119,17 @@ try {
     const z = window.__zl, M = await import('/src/game/machines.js'), A = await import('/src/game/actions.js');
     const V = await import('/src/vehicles/vehicles.js'), L = await import('/src/world/layout.js'), F = await import('/src/game/farm.js');
     for (const k of ['cows', 'sheep', 'pigs', 'mixer', 'trailer', 'watertank']) M.buy(k);
-    const t = V.tractor; z.G.active = t;
-    const place = (x, zz) => { Object.assign(t, { x, z: zz, h: 0, speed: 0 }); Object.assign(V.trailer, { x, z: zz - 5, h: 0 }); z.step(3, 0.02); };
-    V.attachImpl('trailer'); V.trailer.bales = 3; V.trailer.hay = 3;
+    const t = V.firstOf('tractor'); z.G.active = t;
+    z.attach('trailer', t); const tr = t.tool;
+    const place = (x, zz) => { Object.assign(t, { x, z: zz, h: 0, speed: 0 }); Object.assign(tr, { x, z: zz - 5, h: 0 }); z.step(3, 0.02); };
+    tr.bales = 3; tr.hay = 3;
     place(L.SHEEP_PEN.feed.x, L.SHEEP_PEN.feed.z + 8); const hay = A.fAction()?.kind; A.doF();
     const sheep = z.G.farm.sheepFeed;
     z.G.farm.cowFeed = 9000; Object.assign(z.G.farm.mix, { grain: 5000, hay: 2000, beet: 2000 }); z.G.farm.milk = 0; F.farmTick(4);
     const milk = z.G.farm.milk;
-    V.attachImpl('watertank'); place(L.MILK_LOAD.x, L.MILK_LOAD.z); A.doF();
+    z.attach('watertank', t); place(L.MILK_LOAD.x, L.MILK_LOAD.z); A.doF();
     const m0 = z.G.money; place(L.DAIRY.x, L.DAIRY.z); const sell = A.fAction()?.kind; A.doF();
-    V.attachImpl('cultivator');
+    z.attach('cultivator', t);
     return { hay, sheep, milk, sell, paid: Math.round(z.G.money - m0) };
   });
   check('zvířata a mlékárna', farm.hay === 'feedHay' && farm.sheep === 3000 && farm.milk === 2000 && farm.sell === 'sellMilk' && farm.paid === 24000,
@@ -138,15 +139,40 @@ try {
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });
   check('hodina herního času', true);
 
-  // save and load
+  // save and load: money, a field, every machine and implement with its id, hitch and load
   const saved = await page.evaluate(async () => {
     const save = await import('/src/game/save.js'), z = window.__zl;
-    const f1 = z.fields.find(x => x.id === 1), before = { money: Math.round(z.G.money), cut: f1.state.filter(s => s === 0).length };
+    const fleet = () => z.vehicles.map(v => v.id + (v.tool ? '+' + v.tool.id : '')).join(' ') + ' | ' + z.tools.map(t => t.id + (t.tank ? ':' + Math.round(t.tank.amount) : '')).join(' ');
+    const tr = z.tools.find(t => t.key === 'trailer'); tr.tank = { crop: 1, amount: 4321, cap: tr.tank.cap };
+    const f1 = z.fields.find(x => x.id === 1), before = { money: Math.round(z.G.money), cut: f1.state.filter(s => s === 0).length, fleet: fleet() };
     save.saveLocal(); z.G.money = 1;
     const ok = save.loadLocal();
-    return { ok, before, after: { money: Math.round(z.G.money), cut: z.fields.find(x => x.id === 1).state.filter(s => s === 0).length } };
+    return { ok, before, after: { money: Math.round(z.G.money), cut: z.fields.find(x => x.id === 1).state.filter(s => s === 0).length, fleet: fleet() } };
   });
-  check('uložení a načtení', saved.ok && saved.after.money === saved.before.money && saved.after.cut === saved.before.cut, JSON.stringify(saved.after));
+  check('uložení a načtení', saved.ok && saved.after.money === saved.before.money && saved.after.cut === saved.before.cut && saved.after.fleet === saved.before.fleet,
+    'peníze ' + saved.after.money + ' · ' + saved.after.fleet);
+
+  // a save from before the fleet (version 4): one piece of every owned machine, loads and the hitch carried over
+  const old = await page.evaluate(async () => {
+    const save = await import('/src/game/save.js'), z = window.__zl, d = save.serialize();
+    const v4 = { ...d, v: 4, active: 'combine', fleet: undefined, tools: undefined };
+    v4.veh = [
+      { x: 10, z: -30, h: 0, impl: 'trailer', seedCrop: 2, fuel: 100 },
+      { x: -5, z: 0, h: 1, tank: { crop: 0, amount: 3000, cap: 9000 }, header: 'grain', fuel: 400 },
+      { x: 18, z: -27, h: 0 }, { x: 0, z: 116, h: 0 }, { x: -27, z: -27, h: 0 },
+    ];
+    v4.machines = { tractor: 'own', combine: 'own', cultivator: 'own', seeder: 'lease', trailer: 'own', forest: 'own', cows: 'own' };
+    v4.cond = { tractor: 0.5, trailer: 0.8 };
+    v4.trailer = { tank: { crop: 0, amount: 7000 }, bales: 0, hay: 0 }; v4.logs = 6;
+    const ok = save.applySave(v4);
+    const t = z.vehicles.find(v => v.type === 'tractor'), c = z.vehicles.find(v => v.type === 'combine'), f = z.vehicles.find(v => v.type === 'forest');
+    return {
+      ok, types: z.vehicles.map(v => v.type).join(','), tools: z.tools.map(x => x.key + (x.own === 'lease' ? '*' : '')).join(','),
+      hitch: t.tool?.key, trailer: Math.round(t.tool?.tank.amount || 0), cond: t.cond, seed: t.seedCrop, combine: Math.round(c.tank.amount), logs: f?.logs, active: z.G.active.type, cows: !!z.G.machines.cows,
+    };
+  });
+  check('převod uložení z verze 4', old.ok && old.types === 'tractor,combine,forest' && old.tools === 'cultivator,seeder*,trailer' && old.hitch === 'trailer' && old.trailer === 7000 &&
+    old.cond === 0.5 && old.seed === 2 && old.combine === 3000 && old.logs === 6 && old.active === 'combine' && old.cows, JSON.stringify(old));
 
   // rendering on every preset
   await page.evaluate(() => { const z = window.__zl; z.renderer.render = z.realRender; });

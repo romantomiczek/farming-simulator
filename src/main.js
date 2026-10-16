@@ -5,7 +5,7 @@ import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
 import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD } from './world/fields.js';
-import { vehicles, trailer, drive, visual, updateTrailer, attachImpl } from './vehicles/vehicles.js';
+import { vehicles, tools, drive, visual, updateTrailers, attachTool } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
@@ -138,8 +138,8 @@ function tick(dt) {
     work(v, dt);
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
-  updateTrailer(dt, trailer.tank.crop >= 0 ? CROPS[trailer.tank.crop].heapCol : null);
-  if (DEV.tracks) updTracks(dt, vehicles, trailer, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
+  updateTrailers(dt);
+  if (DEV.tracks) updTracks(dt, vehicles, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
   updateLogistics(dt, saveLocal);
   flushFields();
   flushBales();
@@ -188,7 +188,9 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, trailer, renderer, wildlife, traffic, attach: attachImpl, pick: pickInShed, fields: FIELDS, forest: forestTrees, bales, addBale,
+    G, vehicles, tools, renderer, wildlife, traffic, pick: pickInShed,
+    /** Hitches the first piece of implement key to tractor v (default: the first tractor). */
+    attach: (key, v = vehicles.find(x => x.type === 'tractor')) => attachTool(v, tools.find(t => t.key === key && t.on === v) || tools.find(t => t.key === key && !t.on) || tools.find(t => t.key === key)), fields: FIELDS, forest: forestTrees, bales, addBale,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
   };
 }
