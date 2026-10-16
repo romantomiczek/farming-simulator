@@ -39,6 +39,8 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 
 ## Stroje a plodiny
 
+Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disky, náboji a maticemi, kabiny s rámy, dveřmi, stěrači, sedadlem a palubní deskou, světla a majáky, hydrauliku s hadicemi a spojkami, schůdky s plechem, SPZ, výstražné pruhy a nápisy (Brázda 140, Klas 7, Bulva 6, Les 8, Lesák).
+
 | Nářadí traktoru | Šířka | Co dělá |
 | --- | --- | --- |
 | 1 Kultivátor | 4,2 m | strniště → zkultivovaná půda |
@@ -173,7 +175,7 @@ Grafika není stažená na nejslabší počítač. Čtyři předvolby (Menu → 
 
 Proč zbývá výkon na detail:
 
-- Stroje a budovy se při startu slučují: díly obyčejné barvy do jednoho tvaru s barvou ve vrcholech, sklo a světla zvlášť (`bake()` v `src/render/materials.js`). Stroj tak stojí jedno až dvě vykreslovací volání.
+- Stroje a budovy se při startu slučují: díly obyčejné barvy do jednoho tvaru s barvou, drsností a kovovostí ve vrcholech, sklo a světla zvlášť (`bake()` v `src/render/materials.js`). Lesklý lak, guma, ocel i nápisy z atlasu (`src/vehicles/parts.js`) jednoho stroje tak jdou jedním vykreslovacím voláním, podrobnější stroje (kolem 45 tisíc trojúhelníků místo 10 tisíc) stojí jen trojúhelníky.
 - Terén a stromy mají úrovně detailu podle vzdálenosti od kamery; hranice nastavuje předvolba (`terrainFine`, `treeNear`… v `src/core/settings.js`). Vzdálený terén má mřížku 10 nebo 20 m, jízda se vždy řídí jemnou mřížkou 5 m. Na Nízké a Střední se vzdálené stromy v hratelné oblasti jen vizuálně zředí, překážkou zůstávají všechny.
 - Prázdné části polí (strniště, oranice) se nekreslí vůbec.
 
