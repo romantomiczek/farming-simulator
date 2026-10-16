@@ -6,7 +6,7 @@ import {
 } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
 import { bales } from '../world/bales.js';
-import { IMPL_ORDER, BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo, labelOf } from '../vehicles/vehicles.js';
+import { IMPL_ORDER, BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo, labelOf, powerShare, towShare, loadOf } from '../vehicles/vehicles.js';
 import { baleValue } from '../game/work.js';
 import { fAction, inShed, freeTool } from '../game/actions.js';
 import { has } from '../game/machines.js';
@@ -40,9 +40,17 @@ const full = tank => tank.amount >= tank.cap - 10;
 const tankText = tank => fmt(tank.amount) + ' / ' + fmt(tank.cap) + ' l' + (tank.crop >= 0 && tank.amount > 0 ? ' · ' + CROPS[tank.crop].name : '');
 const pct = x => Math.round(x * 100) + ' %';
 /** Name of implement kind k (im = a piece of it, for its current width or load). */
-const implLabel = (k, im) => (k === 'trailer' ? 'Sklápěcí přívěs' : k === 'watertank' ? (im?.milk ? 'Cisterna s mlékem' : 'Cisterna')
-  : toolInfo(k).name + ' ' + String(im?.width ?? toolInfo(k).width).replace('.', ',') + ' m');
+const implLabel = (k, im) => (k === 'trailer' ? im?.name || 'Sklápěcí přívěs' : k === 'watertank' ? (im?.name || 'Cisterna') + (im?.milk ? ' s mlékem' : '')
+  : (im?.name || toolInfo(k).name) + (/\d m$/.test(im?.name || '') ? '' : ' ' + String(im?.width ?? toolInfo(k).width).replace('.', ',') + ' m'));
 const m3 = x => String((+x).toFixed(1)).replace('.', ',') + ' m³';
+/** "140 / 350 k · práce 40 %" for the tractor panel: tractor power / what the implement needs. */
+function powerText(v) {
+  const t = v.tool;
+  if (!t?.need) return v.hp + ' k';
+  const s = v.hp + ' / ' + t.need + ' k', work = powerShare(v, t), tow = towShare(v);
+  if (loadOf(t) >= 0) return s + (tow < 1 ? ' · jede ' + pct(tow) : ' · stačí');
+  return s + (work < 1 ? ' · práce ' + pct(work) : ' · stačí');
+}
 
 function taskText() {
   const meadows = FIELDS.filter(f => f.owned && f.meadow), owned = FIELDS.filter(f => f.owned && !f.meadow), sum = k => owned.reduce((a, f) => a + f.cnt[k], 0);
@@ -138,6 +146,7 @@ function toolKv(v) {
   if (v.harvester) return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m</dd>' + condTxt(v);
   const c = CROPS[v.seedCrop];
   let kv = '<dt>Nářadí</dt><dd>' + (v.tool ? implLabel(v.impl, v.tool) : 'bez nářadí') + '</dd>';
+  kv += '<dt>Výkon</dt><dd' + (powerShare(v, v.tool) < 1 || towShare(v) < 1 ? ' class="down"' : '') + '>' + powerText(v) + '</dd>';
   if (v.impl === 'seeder') kv += '<dt>Osivo <kbd>C</kbd></dt><dd>' + c.name + ' · ' + c.seed + ' Kč/m²</dd>';
   if (v.impl === 'plough') kv += '<dt>Účinek</dt><dd>+' + pct(PLOW_BONUS) + ' výnosu</dd>';
   if (v.impl === 'spreader') kv += '<dt>Hnojivo</dt><dd>' + FERT_COST + ' Kč/m² · +' + pct(FERT_BONUS) + ' výnosu</dd>';
@@ -152,7 +161,7 @@ function shedPanel(v) {
   ui.shed.hidden = !show;
   if (!show) return;
   const items = v.type === 'tractor'
-    ? IMPL_ORDER.map((k, i) => { const p = freeTool(v, k); return [i + 1, implLabel(k, p), v.impl === k, has(k), !!p]; })
+    ? IMPL_ORDER.map((k, i) => { const p = freeTool(v, k), sh = p && loadOf(p) < 0 ? powerShare(v, p) : 1; return [i + 1, implLabel(k, p) + (sh < 1 ? ' · práce ' + pct(sh) : ''), v.impl === k, has(k), !!p]; })
     : [[1, HEADERS.grain.name + ' (obilí, řepka)', v.header === 'grain', true, true], [2, HEADERS.corn.name + ' (kukuřice, slunečnice)', v.header === 'corn', has('cornHeader'), true]];
   setHTML(ui.shedList, 'shed', items.map(([n, label, on, owned, free]) => '<li class="' + (on ? 'on' : '') + (owned && free ? '' : ' off') + '"><kbd>' + n + '</kbd><span>' + label +
     (!owned ? ' · nevlastníš' : free ? '' : ' · u jiného traktoru') + '</span></li>').join(''));

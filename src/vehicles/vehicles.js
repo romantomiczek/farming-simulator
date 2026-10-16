@@ -103,7 +103,7 @@ const modelFor = (kind, id) => (MODEL[id]?.kind === kind ? MODEL[id] : MODEL[STA
 function makeTool(key, mid) {
   const s = TOOL_SPEC[key], m = modelFor(key, mid);
   const im = Object.assign(s.build(m.look), {
-    key, model: m.id, name: modelName(m), width: m.width ?? s.width, workZ: s.workZ, speed: m.speed ?? s.speed, dust: s.dust, own: 'own', cond: 1, on: null,
+    key, model: m.id, name: modelName(m), width: m.width ?? s.width, workZ: s.workZ, speed: m.speed ?? s.speed, need: m.hp || 0, dust: s.dust, own: 'own', cond: 1, on: null,
   });
   if (key === 'trailer') {
     // drawbar = axle to eye; two or three collision circles along the body
@@ -263,7 +263,7 @@ export function attachTool(v, im) {
   if (im.on && im.on !== v) parkTool(im);
   im.on = v; v.tool = im; v.impl = im.key;
   v.lowered = false;
-  v.vwork = im.speed;
+  v.vwork = im.speed * powerShare(v, im);
   if (im.key === 'trailer') {
     // put the trailer straight behind the tractor
     im.h = v.h;
@@ -275,6 +275,30 @@ export function attachTool(v, im) {
   v.group.add(im.group);
   im.group.position.set(0, 0, v.hitchZ);
   im.group.rotation.set(0, 0, 0);
+}
+
+/* ---------- power ---------- */
+/** The least share of working speed a too weak tractor still manages. */
+export const MIN_POWER = 0.35;
+/**
+ * Share of full working speed tractor v manages with implement im: its power against the power the
+ * implement needs (MIN_POWER at least). 1 for anything that is not a tractor with a field tool.
+ */
+export const powerShare = (v, im) => (!im || !v.hp || !im.need ? 1 : clamp(v.hp / im.need, MIN_POWER, 1));
+/** How full the load of implement t is (0..1), or -1 when it carries nothing. */
+export function loadOf(t) {
+  if (t?.key === 'trailer') return Math.max(t.tank.amount / t.tank.cap, t.bales / t.baleCap);
+  if (t?.key === 'watertank') return t.water / t.waterCap;
+  return -1;
+}
+/**
+ * Share of top speed tractor v keeps with its trailer or tank: an empty one costs 40 % of what it
+ * needs, a full one all of it; too little power slows the tractor down (to 45 % at worst).
+ */
+export function towShare(v) {
+  const t = v.tool, load = loadOf(t);
+  if (load < 0 || !v.hp || !t.need) return 1;
+  return clamp(v.hp / (t.need * (0.4 + 0.6 * load)), 0.45, 1);
 }
 
 /** Working width and offset of the working line from the vehicle origin. */
@@ -508,7 +532,7 @@ export function drive(v, dt, input) {
   const st = input ? input.st : 0;
   if (v.fuel <= 0) thr = 0; // engine stalls without diesel
   const cf = condFactor(v.cond), toolCf = v.tool ? condFactor(v.tool.cond) : 1;
-  let vmax = (v.lowered ? v.vwork * toolCf : v.vmax) * cf;
+  let vmax = (v.lowered ? v.vwork * toolCf : v.vmax * towShare(v)) * cf;
   // cars built for the road are slower in the fields and the forest
   if (v.offroad < 1 && (v.offT = (v.offT || 0) - dt) <= 0) { v.offT = 0.25; v.offRoad = !roadAt(v.x, v.z, 1.5) && !inRect(v.x, v.z, PAD, 4); }
   if (v.offroad < 1 && v.offRoad) vmax *= v.offroad;

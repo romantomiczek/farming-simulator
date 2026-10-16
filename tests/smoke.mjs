@@ -176,6 +176,20 @@ try {
   });
   check('všechny modely', models.bad.length === 0, models.n + ' modelů' + (models.bad.length ? ' · ' + models.bad.slice(0, 6).join(', ') : ''));
 
+  // tractor power: a 10 m cultivator works slower behind the 140 hp Brázda than behind the Fendt; a full big trailer slows it down
+  const power = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), z = window.__zl;
+    const br = V.vehicles.find(v => v.model === 'brazda-140'), fe = V.vehicles.find(v => v.model === 'fendt-942');
+    const h10 = V.tools.find(t => t.model === 'horsch-terrano-10'), an = V.tools.find(t => t.model === 'annaburger-40');
+    V.attachTool(br, h10); const brWork = br.vwork / h10.speed;
+    V.attachTool(fe, h10); const feWork = fe.vwork / h10.speed;
+    V.attachTool(br, an); const empty = V.towShare(br); an.tank = { crop: 0, amount: an.tank.cap, cap: an.tank.cap }; const full = V.towShare(br);
+    an.tank = { crop: -1, amount: 0, cap: an.tank.cap };
+    return { brWork: +brWork.toFixed(2), feWork: +feWork.toFixed(2), empty: +empty.toFixed(2), full: +full.toFixed(2) };
+  });
+  check('výkon traktoru', power.brWork === 0.4 && power.feWork === 1 && power.empty === 1 && power.full < 0.6,
+    'Horsch 10 m: Brázda ' + Math.round(power.brWork * 100) + ' %, Fendt ' + Math.round(power.feWork * 100) + ' % · plný Annaburger za Brázdou ' + Math.round(power.full * 100) + ' %');
+
   // an hour of game time at full speed: traffic, animals, growth, helpers' world
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });
   check('hodina herního času', true);

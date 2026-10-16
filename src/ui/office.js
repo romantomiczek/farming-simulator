@@ -10,7 +10,8 @@ import { CROPS } from '../game/crops.js';
 import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap, eatsText, mixShares, mixOk } from '../game/farm.js';
 import { COWS, MIXER } from '../game/balance.js';
 import { trees, matureCount } from '../world/forest.js';
-import { vehicles, tools, IMPL_ORDER, VEHICLE_TYPES, labelOf } from '../vehicles/vehicles.js';
+import { vehicles, tools, IMPL_ORDER, VEHICLE_TYPES, labelOf, powerShare, MIN_POWER } from '../vehicles/vehicles.js';
+import { MODEL } from '../game/catalog.js';
 import { PAD, PARK, inRect } from '../world/layout.js';
 import { MARKETS } from '../game/markets.js';
 import { fieldAt } from '../world/fields.js';
@@ -147,8 +148,27 @@ function machineRow(c) {
   const more = ps.length ? ' další' : '';
   const actions = btn('buy', c.key, 'Koupit' + more + ' · ' + fmt(c.price) + ' Kč', G.money < c.price) +
     (c.noLease ? '' : btn('lease', c.key, 'Pronajmout' + more + ' · ' + fmt(leaseUpfront(c.key)) + ' Kč + ' + fmt(leaseDaily(c.key)) + ' Kč/den', G.money < leaseUpfront(c.key), 'ghost'));
-  return `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span></div>
+  const fit = powerNote(MODEL[c.key]);
+  return `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span>${fit}</div>
     <div class="rstate">${chips}</div><div class="ract">${actions}</div></div>`;
+}
+
+/** Shop: how a tractor copes with your implements, or how fast an implement goes with your strongest tractor. */
+function powerNote(m) {
+  if (!m) return '';
+  const share = (hp, need) => Math.max(MIN_POWER, Math.min(1, hp / need));
+  if (m.kind === 'tractor') {
+    const slow = tools.filter(t => t.need > m.hp).sort((a, b) => b.need - a.need);
+    if (!tools.length) return '';
+    if (!slow.length) return '<span class="muted">Utáhne naplno všechno tvoje nářadí.</span>';
+    return '<p class="why">Pomaleji: ' + slow.slice(0, 3).map(t => labelOf(t) + ' na ' + pct(share(m.hp, t.need))).join(', ') + '.</p>';
+  }
+  if (!m.hp) return '';
+  const best = Math.max(0, ...vehicles.filter(v => v.type === 'tractor').map(v => v.hp));
+  if (!best) return '';
+  const sh = share(best, m.hp), load = m.kind === 'trailer' || m.kind === 'watertank';
+  if (sh >= 1) return '<span class="muted">S tvým nejsilnějším traktorem (' + best + ' k) ' + (load ? 'pojede plný naplno.' : 'pojede naplno.') + '</span>';
+  return '<p class="why">S tvým nejsilnějším traktorem (' + best + ' k) ' + (load ? 'pojede plný na ' + pct(Math.max(0.45, sh)) : 'bude pracovat na ' + pct(sh)) + '.</p>';
 }
 
 /* ---------- fleet ---------- */
@@ -273,7 +293,7 @@ function helpersHTML() {
     }
     const opts = v.type === 'forest'
       ? (canHire(v).wood ? [['wood', 'Les: těžba vzrostlých stromů']] : [])
-      : FIELDS.filter(f => !canHire(v, f).why).map(f => [f.id, (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' (zakázka)') + ' · ' + jobName(v)]);
+      : FIELDS.filter(f => !canHire(v, f).why).map(f => [f.id, (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' (zakázka)') + ' · ' + jobName(v) + (powerShare(v, v.tool) < 1 ? ' · práce na ' + pct(powerShare(v, v.tool)) : '')]);
     const why = opts.length ? '' : (canHire(v, v.type === 'forest' ? null : FIELDS.find(f => f.owned)).why || 'Teď s ním není kde pracovat.');
     out += `<div class="row"><div class="rmain"><b>${name}</b>${why ? `<span>${why}</span>`
       : `<label class="hselect"><span class="sr">Kam</span><select id="hsel-${v.id}">${opts.map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>`}</div>

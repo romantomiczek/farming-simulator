@@ -61,7 +61,7 @@ Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disk
 | Přívěsy | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků) |
 | Cisterny | 5 000 l, 8 000 l, Joskin Modulo2 11000, Zunhammer SKE 18.5 |
 
-Každé nářadí má i výkon, který potřebuje od traktoru (v obchodě „potřebuje … koní“); mechanika výkonu přijde v dalším kroku.
+**Výkon traktoru:** každé nářadí potřebuje určitý výkon („potřebuje … koní“). Slabší traktor ho utáhne, ale pracuje pomaleji, úměrně poměru výkonu (nejméně na 35 %): Brázda 140 s Horschem 10 m (350 koní) pracuje na 40 %, Fendt 942 naplno. S plným přívěsem nebo cisternou jede slabý traktor pomaleji (prázdný stojí 40 % potřebného výkonu, plný všechno, nejhůř 45 % rychlosti). Přetížený traktor spotřebuje víc nafty, silný traktor s lehkým nářadím méně. HUD ukazuje „140 / 350 k · práce 40 %“, kůlna u každého nářadí, jak rychle s ním traktor pojede, obchod u traktoru, které tvoje nářadí utáhne pomaleji, a u nářadí, jak pojede s tvým nejsilnějším traktorem. Pomocníci pracují stejnou rychlostí.
 
 | Nářadí traktoru | Šířka | Co dělá |
 | --- | --- | --- |

@@ -3,7 +3,7 @@ import { G, dayOf } from './state.js';
 import { repairCostOf, dailyLeaseCost } from './machines.js';
 import { fuelZone } from '../world/layout.js';
 import { toast, warn } from '../ui/toast.js';
-import { vehicles } from '../vehicles/vehicles.js';
+import { vehicles, towShare } from '../vehicles/vehicles.js';
 
 export const DIESEL = 36; // Kč/l
 export const INTEREST_DAILY = 0.004; // 0,4 % of the loan per game day
@@ -69,7 +69,10 @@ function burn(v, dt, player) {
   const moving = Math.abs(v.speed) > 0.2, working = moving && v.lowered;
   const cond = v.cond;
   if (moving || v.thr) {
-    const rate = (working ? v.fuelWork : v.fuelDrive) * (1 + (1 - cond) * 0.4);
+    // working: the implement's need against the tractor's power (a light tool on a big tractor saves diesel);
+    // driving: a heavy load the tractor struggles with costs up to half as much again
+    const load = working ? (v.tool?.need && v.hp ? Math.max(0.6, Math.min(1.4, v.tool.need / v.hp)) : 1) : 1 + (1 - towShare(v));
+    const rate = (working ? v.fuelWork : v.fuelDrive) * load * (1 + (1 - cond) * 0.4);
     v.fuel = Math.max(0, v.fuel - rate * dt);
   }
   if (!player) { wearDown(v, dt, moving, working, cond); return; }
