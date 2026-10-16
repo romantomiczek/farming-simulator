@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
-import { nearShapes, BOUNDS, movers, PARK } from '../world/layout.js';
+import { nearShapes, BOUNDS, movers, PARK, PAD, roadAt, inRect } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { flatPlane, glassMat, lampMat, beaconMat } from '../render/materials.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup } from './models.js';
 import { CROPS } from '../game/crops.js';
 import { MODEL, START_MODEL, modelName } from '../game/catalog.js';
 import { forestColliders } from '../world/forest.js';
@@ -189,9 +189,10 @@ function makeVehicle(type, mid) {
     Object.assign(v, { r: 2.6 * s, wb: 3.8 * s, fuelCap: m.fuel, logCap: m.logs, cutSpeed: m.cut });
   } else if (type === 'jeep') {
     Object.assign(v, {
-      gen: 'jeepu', r: 1.6, wb: 2.6, vmax: 22.2, vwork: 0, acc: 4.6, brk: 9, vrev: 5, mapCol: '#d9a441',
+      gen: 'auta', r: 1.6, wb: 2.6, vmax: 22.2, vwork: 0, acc: 4.6, brk: 9, vrev: 5, mapCol: '#d9a441',
       home: [-27, -27], fuelCap: 70, fuelDrive: 0.022, fuelWork: 0,
-    }, buildJeep());
+    }, buildOf(m)(look));
+    Object.assign(v, { r: m.r || 1.6, wb: m.wb || 2.6, vmax: m.kmh / 3.6, fuelCap: m.fuel, offroad: m.offroad });
   }
   Object.assign(v, { model: m.id, name: modelName(m), noun: NOUN[type] });
   v.hitchZ = v.hitchZ ?? HITCH_Z;
@@ -359,7 +360,9 @@ function updateTrailer(t, dt) {
  * The machine you drive and its implement always keep the detailed model. Loads (grain, bales, logs)
  * keep showing at any distance.
  */
-const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep };
+const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep, suv: buildSUV, pickup: buildPickup };
+/** The builder of model m: its own (look.builder, e.g. the SUV among the cars) or the kind's. */
+const buildOf = m => VEHICLE_BUILD[m.look.builder] || TOOL_SPEC[m.kind]?.build || VEHICLE_BUILD[m.kind];
 const KEEP = new Set(['position', 'normal', 'uv', 'color', 'surf']);
 /** Lamps, glass and beacons become plain colours in the far model: [hex, roughness, metalness]. */
 const FAR_PLAIN = new Map([[glassMat, ['#4b6470', 0.15, 0.3]], [lampMat, ['#fff4d6', 0.3, 0]], [beaconMat, ['#f0a03a', 0.3, 0]]]);
@@ -369,10 +372,9 @@ let farMat = null, whiteUV = [0, 0];
 /** The far model of model id (one per model: colours, size and extras differ). */
 function farModel(id) {
   if (farGeo.has(id)) return farGeo.get(id);
-  const kind = MODEL[id].kind;
   LOD.low = true;
   let m;
-  try { m = (TOOL_SPEC[kind]?.build || VEHICLE_BUILD[kind])(MODEL[id].look); } finally { LOD.low = false; }
+  try { m = buildOf(MODEL[id])(MODEL[id].look); } finally { LOD.low = false; }
   if (m.cornHdr) m.cornHdr.parent?.remove(m.cornHdr); // the grain header stays on, the row header is the spare one
   m.group.updateMatrixWorld(true);
   const geos = [];
@@ -504,7 +506,10 @@ export function drive(v, dt, input) {
   const st = input ? input.st : 0;
   if (v.fuel <= 0) thr = 0; // engine stalls without diesel
   const cf = condFactor(v.cond), toolCf = v.tool ? condFactor(v.tool.cond) : 1;
-  const vmax = (v.lowered ? v.vwork * toolCf : v.vmax) * cf;
+  let vmax = (v.lowered ? v.vwork * toolCf : v.vmax) * cf;
+  // cars built for the road are slower in the fields and the forest
+  if (v.offroad < 1 && (v.offT = (v.offT || 0) - dt) <= 0) { v.offT = 0.25; v.offRoad = !roadAt(v.x, v.z, 1.5) && !inRect(v.x, v.z, PAD, 4); }
+  if (v.offroad < 1 && v.offRoad) vmax *= v.offroad;
   const maxSteer = lerp(0.62, 0.24, clamp(Math.abs(v.speed) / v.vmax, 0, 1));
   v.steer += (st * maxSteer - v.steer) * Math.min(1, dt * 5);
   if (thr > 0) v.speed += (v.speed < 0 ? v.brk : v.acc) * dt;

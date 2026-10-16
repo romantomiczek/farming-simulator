@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { M, mk, B, CY, bake, glassMat, beaconMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import {
-  P, F, S, RUBBER, CHROME, RB, rod, ram, hose, profile, fender, decal, sideDecals, sideText, wheel,
+  P, F, S, RUBBER, CHROME, RB, rod, ram, hose, profile, fender, decal, sideDecals, sideText, textDecal, wheel,
   headlamp, tailCluster, workLight, beacon, mirrors, cabInside, glassFrame, wiper, steps, ATLAS,
 } from './parts.js';
 
@@ -112,6 +112,124 @@ export function buildJeep() {
   const spot = spotAt(g, 1.33, 2.1);
   bake(g, NO_SNOW);
   return { group: g, wheels, front, rear: [], spot, exhaust: new THREE.Vector3(-0.55, 0.5, -2.05) };
+}
+
+/** Shared bits of the closed cars: glass house with pillars, mirrors, lamps, plates and the steering wheels. */
+function carWheels(g, r, w, rim, tread, x, zf, zr) {
+  const wheels = [], front = [];
+  for (const sx of [-1, 1]) { const wh = wheel(r, w, rim, tread); wh.position.set(sx * x, r, zr); g.add(wh); wheels.push(wh); }
+  for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * x, r, zf); g.add(p);
+    const wh = wheel(r, w, rim, tread); p.add(wh); wheels.push(wh); front.push(p);
+  }
+  return { wheels, front };
+}
+function carMirrors(g, x, y, z, mat) {
+  for (const sx of [-1, 1]) {
+    RB(0.08, 0.06, 0.12, 0.02, mat, sx * x, y - 0.02, z, g);
+    RB(0.06, 0.16, 0.24, 0.03, mat, sx * (x + 0.13), y, z - 0.03, g);
+  }
+}
+
+/**
+ * Compact SUV (Dacia Duster): closed body with a glass house, roof rails, black wheel-arch cladding,
+ * silver skid plates. o = look: body colour, trim, brand and model names.
+ */
+const SUV = { body: '#d9762b', trim: '#c4c8ca', brand: 'DACIA', model: 'DUSTER', text: '#fbf7ee', stroke: '#2a2d2f' };
+export function buildSUV(o = {}) {
+  const L = { ...SUV, ...o }, style = { fill: L.text, stroke: L.stroke };
+  const g = new THREE.Group(), body = P(L.body), plast = F('#2a2d2f'), trim = S(L.trim), black = F(BLACK);
+  RB(1.1, 0.25, 3.6, 0.05, F(), 0, 0.42, 0, g); // floor pan
+  RB(1.8, 0.66, 4.3, 0.14, body, 0, 0.82, 0, g, 3);
+  const bonnet = RB(1.74, 0.18, 1.45, 0.08, body, 0, 1.18, 1.38, g); bonnet.rotation.x = 0.06;
+  for (const sx of [-1, 1]) B(0.6, 0.012, 0.02, F(BLACK), sx * 0.45, 1.275, 1.3, g); // bonnet creases
+  // glass house, pillars, roof with rails
+  mk(new THREE.BoxGeometry(1.6, 0.58, 2.1), glassMat, 0, 1.45, -0.42, g, false);
+  const ws = mk(new THREE.BoxGeometry(1.52, 0.7, 0.03), glassMat, 0, 1.44, 0.82, g, false); ws.rotation.x = -0.62;
+  for (const sx of [-1, 1]) {
+    rod([sx * 0.79, 1.15, 1.05], [sx * 0.74, 1.75, 0.6], 0.045, body, g); // A pillar
+    RB(0.07, 0.58, 0.12, 0.02, black, sx * 0.8, 1.45, -0.3, g); // B pillar
+    RB(0.08, 0.58, 0.32, 0.03, body, sx * 0.79, 1.45, -1.35, g); // C pillar
+    rod([sx * 0.62, 1.86, 0.45], [sx * 0.62, 1.86, -1.38], 0.02, trim, g); // roof rail
+    for (const z of [0.4, -1.32]) B(0.05, 0.06, 0.08, trim, sx * 0.62, 1.83, z, g);
+    for (const z of [0.85, -0.3]) B(0.012, 0.5, 0.02, F(BLACK), sx * 0.902, 0.86, z, g); // door seams
+    for (const z of [0.4, -0.75]) B(0.03, 0.035, 0.16, CHROME, sx * 0.91, 1.02, z, g); // handles
+    RB(0.06, 0.16, 4.0, 0.03, plast, sx * 0.9, 0.55, 0, g); // sill cladding
+    for (const z of [1.33, -1.33]) fender(g, plast, sx * 0.86, 0.36, z, 0.42, Math.PI * 0.05, Math.PI * 0.95, 0.16, 0.06);
+  }
+  RB(1.66, 0.09, 2.25, 0.04, body, 0, 1.78, -0.4, g);
+  RB(1.4, 0.06, 0.22, 0.02, body, 0, 1.76, -1.55, g); // spoiler
+  // front: grille, lamps, bumper and skid plate; back: tailgate, lamps, plate, name
+  B(1.0, 0.24, 0.04, black, 0, 1.0, 2.16, g);
+  for (let k = 0; k < 3; k++) B(0.96, 0.02, 0.02, CHROME, 0, 0.92 + k * 0.08, 2.185, g);
+  for (const sx of [-1, 1]) headlamp(g, sx * 0.64, 1.05, 2.15, 0.32, 0.11);
+  RB(1.84, 0.26, 0.3, 0.08, plast, 0, 0.6, 2.06, g);
+  const sk = B(0.9, 0.06, 0.32, trim, 0, 0.47, 2.12, g); sk.rotation.x = 0.4;
+  decal('plate2', 0.42, 0.21, 0, 0.72, 2.215, 0, g);
+  RB(1.84, 0.26, 0.28, 0.08, plast, 0, 0.6, -2.06, g);
+  B(0.9, 0.06, 0.25, trim, 0, 0.47, -2.12, g);
+  for (const sx of [-1, 1]) tailCluster(g, sx * 0.72, 1.06, -2.17);
+  B(1.3, 0.012, 0.012, F(BLACK), 0, 1.17, -2.152, g); // tailgate seam
+  decal('plate2', 0.42, 0.21, 0, 0.82, -2.172, Math.PI, g);
+  textDecal(L.brand, 0.12, 0.6, 0, 1.0, -2.168, Math.PI, g, style);
+  sideText(L.model, 0.1, 0.6, 0.905, 0.72, 1.55, g, style);
+  carMirrors(g, 0.86, 1.3, 0.7, body);
+  cabInside(g, 0.75, 0.0);
+  wiper(g, 0.1, 1.17, 1.05, 0.5, 0.9);
+  const { wheels, front } = carWheels(g, 0.36, 0.24, '#b9bcbd', 'road', 0.79, 1.33, -1.33);
+  const spot = spotAt(g, 1.05, 2.2);
+  bake(g, NO_SNOW);
+  return { group: g, wheels, front, rear: [], spot, scale: 1, exhaust: new THREE.Vector3(-0.5, 0.42, -2.15) };
+}
+
+/**
+ * Double-cab pickup (Toyota Hilux): cab, open load bed with a roll bar, flared arches, big chrome grille.
+ * o = look: body colour, brand and model names.
+ */
+const PICKUP = { body: '#e9e9e4', brand: 'TOYOTA', model: 'HILUX', text: '#2a2d2f', stroke: null };
+export function buildPickup(o = {}) {
+  const L = { ...PICKUP, ...o }, style = { fill: L.text, stroke: L.stroke };
+  const g = new THREE.Group(), body = P(L.body), plast = F('#2a2d2f'), black = F(BLACK);
+  RB(1.1, 0.25, 4.6, 0.05, F(), 0, 0.5, 0.15, g); // ladder frame
+  RB(1.84, 0.72, 3.0, 0.14, body, 0, 0.92, 1.05, g, 3); // front and cab body
+  const bonnet = RB(1.78, 0.2, 1.35, 0.08, body, 0, 1.32, 1.88, g); bonnet.rotation.x = 0.05;
+  mk(new THREE.BoxGeometry(1.66, 0.6, 1.7), glassMat, 0, 1.6, 0.22, g, false);
+  const ws = mk(new THREE.BoxGeometry(1.56, 0.72, 0.03), glassMat, 0, 1.6, 1.16, g, false); ws.rotation.x = -0.55;
+  RB(1.72, 0.09, 1.65, 0.04, body, 0, 1.94, 0.18, g);
+  for (const sx of [-1, 1]) {
+    rod([sx * 0.82, 1.3, 1.38], [sx * 0.77, 1.9, 0.98], 0.05, body, g);
+    RB(0.07, 0.6, 0.12, 0.02, black, sx * 0.83, 1.6, 0.3, g);
+    RB(0.08, 0.6, 0.18, 0.03, body, sx * 0.82, 1.6, -0.6, g);
+    for (const z of [1.25, 0.3]) B(0.012, 0.55, 0.02, F(BLACK), sx * 0.922, 0.98, z, g);
+    for (const z of [0.85, -0.12]) B(0.03, 0.035, 0.16, CHROME, sx * 0.93, 1.16, z, g);
+    RB(0.22, 0.05, 1.5, 0.02, plast, sx * 0.98, 0.58, 0.55, g); // side step
+    for (const z of [1.65, -1.45]) fender(g, plast, sx * 0.88, 0.4, z, 0.47, Math.PI * 0.05, Math.PI * 0.95, 0.2, 0.07);
+  }
+  // load bed with walls, tailgate, roll bar
+  RB(1.8, 0.12, 1.65, 0.03, F('#45494c'), 0, 0.98, -1.38, g);
+  for (const sx of [-1, 1]) RB(0.07, 0.5, 1.65, 0.03, body, sx * 0.885, 1.25, -1.38, g);
+  RB(1.84, 0.5, 0.07, 0.03, body, 0, 1.25, -0.56, g);
+  RB(1.84, 0.5, 0.07, 0.03, body, 0, 1.25, -2.2, g);
+  textDecal(L.brand, 0.16, 0.9, 0, 1.3, -2.24, Math.PI, g, style);
+  for (const sx of [-1, 1]) rod([sx * 0.8, 1.5, -0.66], [sx * 0.8, 2.05, -0.66], 0.04, CHROME, g);
+  rod([-0.8, 2.05, -0.66], [0.8, 2.05, -0.66], 0.04, CHROME, g);
+  // front: chrome grille, lamps, bumper; back: lamps, bumper, plate
+  RB(1.2, 0.36, 0.06, 0.03, CHROME, 0, 1.08, 2.56, g);
+  for (let k = 0; k < 4; k++) B(1.1, 0.03, 0.03, F(BLACK), 0, 0.96 + k * 0.08, 2.59, g);
+  for (const sx of [-1, 1]) headlamp(g, sx * 0.72, 1.18, 2.52, 0.3, 0.12);
+  RB(1.9, 0.26, 0.32, 0.08, plast, 0, 0.7, 2.5, g);
+  decal('plate2', 0.42, 0.21, 0, 0.72, 2.665, 0, g);
+  RB(1.9, 0.2, 0.24, 0.06, CHROME, 0, 0.72, -2.32, g);
+  for (const sx of [-1, 1]) tailCluster(g, sx * 0.86, 1.25, -2.24);
+  decal('plate2', 0.42, 0.21, 0, 0.92, -2.245, Math.PI, g);
+  sideText(L.model, 0.12, 0.7, 0.925, 0.82, 1.9, g, style);
+  carMirrors(g, 0.9, 1.42, 1.0, body);
+  cabInside(g, 0.95, 0.45);
+  wiper(g, 0.1, 1.33, 1.42, 0.55, 0.9);
+  const { wheels, front } = carWheels(g, 0.4, 0.27, '#3a3f42', 'lug', 0.82, 1.65, -1.45);
+  const spot = spotAt(g, 1.2, 2.6);
+  bake(g, NO_SNOW);
+  return { group: g, wheels, front, rear: [], spot, scale: 1, exhaust: new THREE.Vector3(-0.55, 0.45, -2.35) };
 }
 
 /**

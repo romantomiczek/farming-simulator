@@ -14,7 +14,8 @@ const n = x => x.toLocaleString('cs-CZ');
 const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh + ' km/h, nádrž ' + m.fuel + ' l.'
   : m.kind === 'combine' ? ' Lišta ' + String(m.header).replace('.', ',') + ' m, zásobník ' + n(m.tank) + ' l, vykládání ' + n(m.unload) + ' l/s.'
   : m.kind === 'beet' ? ' ' + m.rows + ' řádků, zásobník ' + n(m.tank) + ' l.'
-  : m.kind === 'forest' ? ' Uveze ' + m.logs + ' m³ dřeva.' : '');
+  : m.kind === 'forest' ? ' Uveze ' + m.logs + ' m³ dřeva.'
+  : m.kind === 'jeep' ? ' Až ' + m.kmh + ' km/h, mimo cesty ' + Math.round(m.kmh * m.offroad) + ' km/h.' : '');
 const modelRows = kinds => MODELS.filter(m => kinds.includes(m.kind)).map(m => ({ key: m.id, name: modelName(m), kind: GROUP[m.kind], price: m.price, desc: m.desc + specs(m), machine: m.kind }));
 
 /**

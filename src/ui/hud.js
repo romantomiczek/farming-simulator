@@ -134,7 +134,7 @@ const condTxt = v => {
 
 function toolKv(v) {
   if (v.type === 'forest') return '<dt>Dřevo</dt><dd>' + m3(v.logs) + ' / ' + v.logCap + ' m³</dd>' + condTxt(v);
-  if (v.type === 'jeep') return '<dt>Vůz</dt><dd>4×4 · až 80 km/h · <kbd>Mezerník</kbd> troubí</dd>' + condTxt(v);
+  if (v.type === 'jeep') return '<dt>Vůz</dt><dd>4×4 · až ' + Math.round(v.vmax * 3.6) + ' km/h' + (v.offroad < 1 ? ' (mimo cesty ' + Math.round(v.vmax * v.offroad * 3.6) + ')' : '') + ' · <kbd>Mezerník</kbd> troubí</dd>' + condTxt(v);
   if (v.harvester) return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m</dd>' + condTxt(v);
   const c = CROPS[v.seedCrop];
   let kv = '<dt>Nářadí</dt><dd>' + (v.tool ? implLabel(v.impl, v.tool) : 'bez nářadí') + '</dd>';

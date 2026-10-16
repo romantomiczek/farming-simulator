@@ -129,7 +129,16 @@ export const MODELS = [
   },
 
   /* ---------- the rest: start models (more come with the next builders) ---------- */
-  { id: 'lesak', kind: 'jeep', brand: 'Jeep', name: 'Lesák 4×4', price: 290000, start: true, look: {}, desc: 'Rychlý terénní vůz, až 80 km/h. Nic netáhne a nepracuje, ale rychle tě doveze k poli, do lesa i do městečka. Mezerník troubí.' },
+  /* ---------- cars: kmh = top speed, offroad = speed off the roads (share of kmh), r/wb = size ---------- */
+  { id: 'lesak', kind: 'jeep', brand: 'Jeep', name: 'Lesák 4×4', price: 290000, kmh: 80, fuel: 70, offroad: 1, start: true, look: {}, desc: 'Otevřený terénní vůz. Mimo cesty jede stejně rychle jako po nich.' },
+  {
+    id: 'dacia-duster', kind: 'jeep', brand: 'Dacia', name: 'Duster 4×4', price: 420000, kmh: 95, fuel: 50, offroad: 0.75, r: 1.65, wb: 2.66,
+    look: { builder: 'suv' }, desc: 'Uzavřené SUV: po silnici rychlejší, v poli a v lese pomalejší než Lesák.',
+  },
+  {
+    id: 'toyota-hilux', kind: 'jeep', brand: 'Toyota', name: 'Hilux', price: 750000, kmh: 100, fuel: 80, offroad: 0.9, r: 1.85, wb: 3.1,
+    look: { builder: 'pickup' }, desc: 'Pickup s korbou: nejrychlejší auto a v terénu skoro jako Lesák.',
+  },
   { id: 'kult-42', kind: 'cultivator', brand: '', name: 'Kultivátor', price: 180000, start: true, look: {}, desc: 'Záběr 4,2 m, připraví strniště k setí.' },
   { id: 'pluh-5', kind: 'plough', brand: '', name: 'Pluh', price: 220000, start: true, look: {}, desc: 'Záběr 3,2 m, pomalejší, ale +15 % výnosu.' },
   { id: 'seci-4', kind: 'seeder', brand: '', name: 'Secí stroj', price: 260000, start: true, look: {}, desc: 'Záběr 4 m, seje všech šest plodin.' },
