@@ -286,6 +286,7 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 10. **Výkon a ekonomika:** úrovně detailu terénu, stromů a plotů, slučování barev do vrcholů, `npm test`, čísla ekonomiky v `balance.js` a `npm run ekonomika`, editor mapy (F9).
 11. **Pomocníci na velké mapě:** jízda po silnicích, odvoz úrody na nejlepší výkup, těžba dřeva, dovoz nafty, posílání z Kanceláře.
 12. **Obsah:** sníh v zimě, seno pro krávy, mlékárna, krmná směs, ovce a prasata; editor posouvá i budovy, řeku a brod.
+13. **Vozový park:** víc kusů každého stroje a odstavná plocha, záložka Vozový park, zjednodušené vzdálené stroje, 60 modelů známých značek, výkon traktoru, jeden pomocník s volbou nářadí, nový obchod s protiúčtem a fotkami strojů.
 
 ## Auta
 
@@ -298,6 +299,13 @@ Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pol
 - **Sečení:** žací lišta (obchod, v kůlně klávesa 8) poseče vysokou trávu a nechá uprostřed záběru řádek sena. Posečená tráva sama doroste zhruba za 10 herních hodin, pod ležícím řádkem neroste.
 - **Lisování:** lis udělá z řádku kulaté balíky sena (zelenější než sláma). Naložíš je přívěsem a u stodoly prodáš dráž než slámu, nebo je vyložíš do krmelce kravína či ovčína. Ceník ukazuje cenu balíku sena zvlášť.
 - **Pomocník** umí louku posekat i slisovat. Polní nářadí a kombajn na louce nic nedělají a na loukách nejsou zakázky.
+
+## Plánováno
+
+Zbývající kroky vozového parku, odložené na později:
+
+- **Bazar s ojetými stroji:** nová záložka obchodu. Každý den 4–6 nabídek ojetých strojů ve stavu 30–85 % za 35–70 % nové ceny. Nabídky se ukládají, nedají se pronajmout a platí pro ně stejné protiúčty jako u nových strojů. Opotřebovaný stroj se vyplatí opravit, nebo ho levně dojezdit.
+- **Vyvážení strojů:** `npm run ekonomika` vypíše tabulku strojů (hektary za hodinu, náklad na hektar a návratnost) a podle ní se doladí ceny a výkony. Smoke test s plným vozovým parkem, doplnění README a nové snímky.
 
 ## Známá omezení a nápady
 
