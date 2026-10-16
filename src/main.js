@@ -120,6 +120,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveL
 
 /* ---------- main loop ---------- */
 let slowT = 0, mapT = 0, forestHours = 0, growHours = 0;
+const ear = { x: 0, z: 0, rx: 1, rz: 0 };
 function tick(dt) {
   if (G.playing) {
     const gm = DEV.freezeTime ? 0 : dt * TIME_SCALES[G.tsIdx] * DEV.timeMult;
@@ -161,7 +162,11 @@ function tick(dt) {
   if (G.flashT > 0) G.flashT -= dt;
   updUI();
   updDev(dt);
-  updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
+  { // we listen at the camera's target; the camera's right side is the right ear
+    const e = camera.matrixWorld.elements, n = Math.hypot(e[0], e[2]) || 1;
+    Object.assign(ear, { x: cam.t.x, z: cam.t.z, rx: e[0] / n, rz: e[2] / n });
+  }
+  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.active, vehicles, traffic: traffic.cars, ear });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(G.active.x, G.active.z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) { pumpPreviews(dt); renderer.render(scene, camera); }

@@ -18,24 +18,24 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 
 ## Ovládání
 
-| Klávesa | Akce |
-| --- | --- |
-| W / S | plyn, brzda, couvání |
-| A / D | zatáčení |
-| Mezerník | spustit / zvednout nářadí; v jeepu troubí |
-| Tab | přesednout do dalšího stroje v okolí (150 m), Shift+Tab do dalšího ze všech strojů |
-| F | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
-| 1–8 | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2) |
-| R | v kůlně: oprava stroje a připojeného nářadí |
-| K | kancelář: obchod se stroji, zakázky, farma a pozemky, cíle, finance (čas se zastaví) |
-| M | velká mapa celého kraje; kliknutím na svůj stroj do něj přesedneš |
-| H | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit |
-| C | změnit osivo |
-| T | rychlost času 1× / 5× / 20× |
-| Q / E, tažení myší | otočení kamery |
-| kolečko | přiblížení |
-| Esc | menu, nastavení grafiky, uložení do souboru |
-| F9 | vývojářský režim (jen při vývoji, viz níže) |
+| Klávesa            | Akce                                                                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W / S              | plyn, brzda, couvání                                                                                                                                                                                           |
+| A / D              | zatáčení                                                                                                                                                                                                       |
+| Mezerník           | spustit / zvednout nářadí; v jeepu troubí                                                                                                                                                                      |
+| Tab                | přesednout do dalšího stroje v okolí (150 m), Shift+Tab do dalšího ze všech strojů                                                                                                                             |
+| F                  | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
+| 1–8                | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2)                                                                                                                                        |
+| R                  | v kůlně: oprava stroje a připojeného nářadí                                                                                                                                                                    |
+| K                  | kancelář: obchod se stroji, zakázky, farma a pozemky, cíle, finance (čas se zastaví)                                                                                                                           |
+| M                  | velká mapa celého kraje; kliknutím na svůj stroj do něj přesedneš                                                                                                                                              |
+| H                  | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit                                                                                                                                                |
+| C                  | změnit osivo                                                                                                                                                                                                   |
+| T                  | rychlost času 1× / 5× / 20×                                                                                                                                                                                    |
+| Q / E, tažení myší | otočení kamery                                                                                                                                                                                                 |
+| kolečko            | přiblížení                                                                                                                                                                                                     |
+| Esc                | menu, nastavení grafiky a zvuku, uložení do souboru                                                                                                                                                            |
+| F9                 | vývojářský režim (jen při vývoji, viz níže)                                                                                                                                                                    |
 
 ## Stroje a plodiny
 
@@ -45,34 +45,34 @@ Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disk
 
 **Modely a značky:** obchod nabízí 60 modelů od nejlevnějších po nejlepší (katalog v `src/game/catalog.js`). Liší se barvami a velikostí podle značky i parametry. Značky jsou jen jako názvy, stroje nenesou loga.
 
-| Druh | Modely |
-| --- | --- |
-| Traktory | Zetor Major 80, Brázda 140 (start), Zetor Forterra 150 HD, Massey Ferguson 6S.165, Case IH Puma 185, New Holland T7.210, John Deere 6R 250, Claas Axion 870, Fendt 942 Vario (80–420 koní, 40–60 km/h) |
-| Kombajny | Sampo Rosenlew SR2045, Klas 7 (start), Claas Tucano 450, Deutz-Fahr C6205, Case IH Axial-Flow 7250, John Deere S790, Claas Lexion 8900 (lišta 3,9–12,3 m, zásobník 4 500–18 000 l) |
-| Sklízeče cukrovky | Bulva 6, Grimme Rexor 620, Holmer Terra Dos T4-40, Ropa Tiger 6S (6–9 řádků, 20–35 tisíc l) |
-| Harvestory | Les 6, Les 8, Komatsu 931XC, John Deere 1270G, Ponsse Scorpion King (16–32 m³, rychlost kácení) |
-| Auta | Jeep Lesák 4×4, Dacia Duster 4×4, Toyota Hilux (80–100 km/h, mimo cesty pomalejší podle modelu) |
-| Kultivátory | Bednar Fenix 3 m, Kultivátor 4,2 m, Lemken Karat 5, Horsch Terrano 6 FX a 10 FX |
-| Pluhy | Kverneland 3 radlice, Pluh 5 radlic, Lemken Juwel 6 radlic, Kuhn Vari-Master 8 radlic |
-| Secí stroje | 3 m, 4 m, Amazone Cirrus 6003, Väderstad Rapid 800S, Horsch Pronto 12 SW |
-| Rozmetadla | 12 m, Amazone ZA-TS 24 m, Rauch Axis 30 m |
-| Žací lišty | 3 m, Pöttinger Novacat 352, Krone EasyCut B 870 (motýlková 8,7 m) |
-| Lisy | Lis na balíky, John Deere V461R, Krone Comprima V150 (rychlejší) |
-| Přívěsy | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků) |
-| Cisterny | 5 000 l, 8 000 l, Joskin Modulo2 11000, Zunhammer SKE 18.5 |
+| Druh              | Modely                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Traktory          | Zetor Major 80, Brázda 140 (start), Zetor Forterra 150 HD, Massey Ferguson 6S.165, Case IH Puma 185, New Holland T7.210, John Deere 6R 250, Claas Axion 870, Fendt 942 Vario (80–420 koní, 40–60 km/h) |
+| Kombajny          | Sampo Rosenlew SR2045, Klas 7 (start), Claas Tucano 450, Deutz-Fahr C6205, Case IH Axial-Flow 7250, John Deere S790, Claas Lexion 8900 (lišta 3,9–12,3 m, zásobník 4 500–18 000 l)                     |
+| Sklízeče cukrovky | Bulva 6, Grimme Rexor 620, Holmer Terra Dos T4-40, Ropa Tiger 6S (6–9 řádků, 20–35 tisíc l)                                                                                                            |
+| Harvestory        | Les 6, Les 8, Komatsu 931XC, John Deere 1270G, Ponsse Scorpion King (16–32 m³, rychlost kácení)                                                                                                        |
+| Auta              | Jeep Lesák 4×4, Dacia Duster 4×4, Toyota Hilux (80–100 km/h, mimo cesty pomalejší podle modelu)                                                                                                        |
+| Kultivátory       | Bednar Fenix 3 m, Kultivátor 4,2 m, Lemken Karat 5, Horsch Terrano 6 FX a 10 FX                                                                                                                        |
+| Pluhy             | Kverneland 3 radlice, Pluh 5 radlic, Lemken Juwel 6 radlic, Kuhn Vari-Master 8 radlic                                                                                                                  |
+| Secí stroje       | 3 m, 4 m, Amazone Cirrus 6003, Väderstad Rapid 800S, Horsch Pronto 12 SW                                                                                                                               |
+| Rozmetadla        | 12 m, Amazone ZA-TS 24 m, Rauch Axis 30 m                                                                                                                                                              |
+| Žací lišty        | 3 m, Pöttinger Novacat 352, Krone EasyCut B 870 (motýlková 8,7 m)                                                                                                                                      |
+| Lisy              | Lis na balíky, John Deere V461R, Krone Comprima V150 (rychlejší)                                                                                                                                       |
+| Přívěsy           | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků)                                                                                      |
+| Cisterny          | 5 000 l, 8 000 l, Joskin Modulo2 11000, Zunhammer SKE 18.5                                                                                                                                             |
 
 **Výkon traktoru:** každé nářadí potřebuje určitý výkon („potřebuje … koní“). Slabší traktor ho utáhne, ale pracuje pomaleji, úměrně poměru výkonu (nejméně na 35 %): Brázda 140 s Horschem 10 m (350 koní) pracuje na 40 %, Fendt 942 naplno. S plným přívěsem nebo cisternou jede slabý traktor pomaleji (prázdný stojí 40 % potřebného výkonu, plný všechno, nejhůř 45 % rychlosti). Přetížený traktor spotřebuje víc nafty, silný traktor s lehkým nářadím méně. HUD ukazuje „140 / 350 k · práce 40 %“, kůlna u každého nářadí, jak rychle s ním traktor pojede, obchod u traktoru, které tvoje nářadí utáhne pomaleji, a u nářadí, jak pojede s tvým nejsilnějším traktorem. Pomocníci pracují stejnou rychlostí.
 
-| Nářadí traktoru | Šířka | Co dělá |
-| --- | --- | --- |
-| 1 Kultivátor | 4,2 m | strniště → zkultivovaná půda |
-| 2 Pluh | 3,2 m | totéž, pomaleji, ale +15 % výnosu |
-| 3 Secí stroj | 4 m | zasívá zvolenou plodinu (C) |
-| 4 Rozmetadlo | 12 m | hnojivo za 2 Kč/m², +25 % výnosu (i na rostoucí plodiny) |
-| 5 Lis na balíky | 2 m | sbírá řádky slámy nebo sena, každých 60 m² vyhodí balík |
-| 6 Přívěs | 14 000 l / 8 balíků | odvoz úrody nebo balíků |
-| 7 Cisterna na vodu | 8 000 l | voda z rybníka pro skleníky |
-| 8 Žací lišta | 3 m | poseče louku a nechá řádek sena |
+| Nářadí traktoru    | Šířka               | Co dělá                                                  |
+| ------------------ | ------------------- | -------------------------------------------------------- |
+| 1 Kultivátor       | 4,2 m               | strniště → zkultivovaná půda                             |
+| 2 Pluh             | 3,2 m               | totéž, pomaleji, ale +15 % výnosu                        |
+| 3 Secí stroj       | 4 m                 | zasívá zvolenou plodinu (C)                              |
+| 4 Rozmetadlo       | 12 m                | hnojivo za 2 Kč/m², +25 % výnosu (i na rostoucí plodiny) |
+| 5 Lis na balíky    | 2 m                 | sbírá řádky slámy nebo sena, každých 60 m² vyhodí balík  |
+| 6 Přívěs           | 14 000 l / 8 balíků | odvoz úrody nebo balíků                                  |
+| 7 Cisterna na vodu | 8 000 l             | voda z rybníka pro skleníky                              |
+| 8 Žací lišta       | 3 m                 | poseče louku a nechá řádek sena                          |
 
 Kombajn má dva adaptéry: **žací lištu** na pšenici, ječmen a řepku a **řádkový adaptér** na kukuřici a slunečnici. Vyměníš je v kůlně (F nebo 1–2).
 
@@ -93,14 +93,14 @@ Pole leží na plochých terasách ve výšce podle okolního terénu, stroje je
 
 Po silnicích jezdí auta. Když jim stroj stojí v cestě, počkají. Po trati jezdí vlak a u nádraží houká.
 
-| Výkup | Kde | Co bere | Cena |
-| --- | --- | --- | --- |
-| Družstvo | u sil na farmě | všechno | 95 % |
-| Mlýn Zlatý klas | u vjezdu do vesnice | pšenice, ječmen | 110–112 % |
-| Olejna | za vesnicí jižně od silnice | řepka, slunečnice | 112–114 % |
-| Cukrovar a bioplynka | na konci silnice | cukrovka, kukuřice | 110–115 % |
-| Nádraží – výkup obilí | městečko za řekou, u trati | pšenice, ječmen, řepka | 112–118 % |
-| Krmivárna | městečko, jižně od hlavní silnice | kukuřice, ječmen, cukrovka | 108–116 % |
+| Výkup                 | Kde                               | Co bere                    | Cena      |
+| --------------------- | --------------------------------- | -------------------------- | --------- |
+| Družstvo              | u sil na farmě                    | všechno                    | 95 %      |
+| Mlýn Zlatý klas       | u vjezdu do vesnice               | pšenice, ječmen            | 110–112 % |
+| Olejna                | za vesnicí jižně od silnice       | řepka, slunečnice          | 112–114 % |
+| Cukrovar a bioplynka  | na konci silnice                  | cukrovka, kukuřice         | 110–115 % |
+| Nádraží – výkup obilí | městečko za řekou, u trati        | pšenice, ječmen, řepka     | 112–118 % |
+| Krmivárna             | městečko, jižně od hlavní silnice | kukuřice, ječmen, cukrovka | 108–116 % |
 
 Dřevo kupuje pila u polní cesty a dřevosklad v městečku, který platí o 15 % víc.
 
@@ -112,7 +112,7 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 **Atmosféra:** obloha se sluncem, které zapadá za obzor, s měsícem, hvězdami a mraky (při zatažení jich je víc a šednou). Ráno a večer je světlo zlaté. Obilí, stromy a živé ploty se vlní ve větru, při dešti víc. Kola nechávají v poli koleje, které zmizí, až pole obděláš, a za sucha se za stroji práší. Kameru sklopíš myší až k obzoru.
 
-**Zvuk** se zapne po kliknutí na Hrát (vypíná se tlačítkem Zvuk nahoře): motor podle otáček a zátěže, mlácení, nářadí v půdě, vítr, déšť, ptáci přes den, cvrčci v noci a cinknutí kasy při příjmu peněz. Všechno je syntetizované, hra nemá zvukové soubory.
+**Zvuk:** motory z nahrávek skutečných strojů, hudba, vítr, déšť, ptáci a zvířata, viz [Zvuk](#zvuk).
 
 **Zvířata v krajině:** pes běhá po dvoře a vyběhne za projíždějícím strojem, u stodoly a domu posedávají dvě kočky. V údolí skáčou zajíci, na kraji lesa a kopců žijí lišky (víc za soumraku a v noci), na jižních svazích se pase stádo srnek, které za svítání a soumraku schází na louku. Hejno vran sedá na pole za strojem, který orá, kultivuje nebo sklízí. Zvířata utíkají před jedoucími stroji.
 
@@ -120,14 +120,14 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce, vlna, vepřové a rajčata se odvážejí a platí o půlnoci.
 
-| Budova | Kde | Co potřebuje (denně) | Co dává (denně) |
-| --- | --- | --- | --- |
-| Kravín s 10 kravami | jihozápadně od farmy | ječmen, kukuřice, cukrovka nebo seno (1 920 l) | 9 600 l mléka po 9 Kč, v mlékárně 12 Kč |
-| Kurník se 40 slepicemi | vedle kravína | pšenice nebo ječmen (96 l) | 1 152 vajec po 15 Kč |
-| Ovčín s 16 ovcemi | jižně od kravína | balíky sena (960 l, asi 1 balík) | 480 kg vlny po 90 Kč |
-| Vepřín s 12 prasaty | vedle ovčína | kukuřice nebo ječmen (1 440 l) | 1 440 kg vepřového po 48 Kč |
-| Míchací krmný vůz | mezi kravínem a ovčínem | kravín | +25 % mléka, když je krmivo vyvážené |
-| Skleník s rajčaty (2×) | mezi farmou a rybníkem | voda (960 l na skleník) | 960 kg rajčat po 24 Kč |
+| Budova                 | Kde                     | Co potřebuje (denně)                           | Co dává (denně)                         |
+| ---------------------- | ----------------------- | ---------------------------------------------- | --------------------------------------- |
+| Kravín s 10 kravami    | jihozápadně od farmy    | ječmen, kukuřice, cukrovka nebo seno (1 920 l) | 9 600 l mléka po 9 Kč, v mlékárně 12 Kč |
+| Kurník se 40 slepicemi | vedle kravína           | pšenice nebo ječmen (96 l)                     | 1 152 vajec po 15 Kč                    |
+| Ovčín s 16 ovcemi      | jižně od kravína        | balíky sena (960 l, asi 1 balík)               | 480 kg vlny po 90 Kč                    |
+| Vepřín s 12 prasaty    | vedle ovčína            | kukuřice nebo ječmen (1 440 l)                 | 1 440 kg vepřového po 48 Kč             |
+| Míchací krmný vůz      | mezi kravínem a ovčínem | kravín                                         | +25 % mléka, když je krmivo vyvážené    |
+| Skleník s rajčaty (2×) | mezi farmou a rybníkem  | voda (960 l na skleník)                        | 960 kg rajčat po 24 Kč                  |
 
 - **Krmení:** zajeď sklízečem nebo traktorem s přívěsem do kruhu u budovy (zelený u kravína, žlutý u kurníku, světlý u ovčína, růžový u vepřína) a stiskni F. Úroda se vyloží do krmelce místo prodeje. Hladová zvířata nic nedají.
 - **Seno:** přívěs s balíky sena v kruhu u kravína nebo ovčína vyloží klávesou F balíky do krmelce, jeden balík dá 1 000 l krmiva. Balíky slámy zůstanou v přívěsu.
@@ -185,12 +185,12 @@ Vykládka sklízeče běží dál, i když přesedneš do jiného stroje (Tab). 
 
 Grafika není stažená na nejslabší počítač. Čtyři předvolby (Menu → Grafika) pokrývají rozsah od starého notebooku po výkonnou kartu. Na samostatné grafické kartě se hra spustí ve Vysoké kvalitě, na integrované Intel v Nízké.
 
-| Předvolba | Pro koho | Co přidává |
-| --- | --- | --- |
-| Nízká | integrovaná grafika (Intel HD 5500) | 70 % rozlišení, plodiny bez stínů, řidší les, kratší dohled, vzdálený terén v hrubší mřížce, jednodušší stromy a keře |
-| Střední | starší samostatné karty (GeForce 840M) | 85 % rozlišení, vyhlazování hran, stíny všech objektů |
-| Vysoká | běžné herní karty | plné rozlišení i na displejích s jemnými pixely, stínová mapa 2048, celý les, nejdelší dohled |
-| Ultra | výkonné karty | stínová mapa 4096, plastické plodiny (čtyři snopy na metr čtvereční místo kvádru), dvojnásobně hustý les na kopcích, hustší déšť |
+| Předvolba | Pro koho                               | Co přidává                                                                                                                       |
+| --------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Nízká     | integrovaná grafika (Intel HD 5500)    | 70 % rozlišení, plodiny bez stínů, řidší les, kratší dohled, vzdálený terén v hrubší mřížce, jednodušší stromy a keře            |
+| Střední   | starší samostatné karty (GeForce 840M) | 85 % rozlišení, vyhlazování hran, stíny všech objektů                                                                            |
+| Vysoká    | běžné herní karty                      | plné rozlišení i na displejích s jemnými pixely, stínová mapa 2048, celý les, nejdelší dohled                                    |
+| Ultra     | výkonné karty                          | stínová mapa 4096, plastické plodiny (čtyři snopy na metr čtvereční místo kvádru), dvojnásobně hustý les na kopcích, hustší déšť |
 
 - **Měřič FPS:** v pravém horním rohu ukazuje FPS, nejhorší snímek, počet vykreslovacích volání a trojúhelníků. Vypíná se v menu.
 - **Notebook se dvěma grafikami:** Windows často nechá prohlížeč na integrované Intel. Ve Windows otevři Nastavení → Systém → Obrazovka → Grafika, přidej prohlížeč, zvol „Vysoký výkon“ a prohlížeč restartuj. Hra v menu ukazuje, kterou kartu používá.
@@ -211,15 +211,15 @@ Proč zbývá výkon na detail:
 
 Čísla, která rozhodují o výdělcích (ceny polí, produkce zvířat a skleníků, dřevo, harvestor, mzda pomocníka), jsou v `src/game/balance.js`. Příkaz `npm run ekonomika` z nich spočítá tabulku tržeb, nákladů a návratnosti. Cíl: budovy a stroje se vrátí za 5–10 herních dnů, pole zůstávají hlavním příjmem (hektar se zaplatí asi za čtyři sklizně).
 
-| Investice | Cena | Zisk za herní den | Návratnost |
-| --- | --- | --- | --- |
-| Kravín | 650 000 Kč | asi 79 000 Kč (s mlékárnou 108 000 Kč) | 8 dní (6 dní) |
-| Kurník | 140 000 Kč | asi 16 600 Kč | 8 dní |
-| Ovčín | 280 000 Kč | asi 41 000 Kč (seno za cenu balíku) | 7 dní |
-| Vepřín | 420 000 Kč | asi 60 000 Kč | 7 dní |
-| Míchací vůz | 220 000 Kč | asi 21 600 Kč víc za mléko | 10 dní |
-| Skleník | 180 000 Kč | asi 23 000 Kč | 8 dní |
-| Harvestor | 1 600 000 Kč | celý les asi 630 000 Kč, doroste za 2,5 dne | 6–7 dní |
+| Investice   | Cena         | Zisk za herní den                           | Návratnost    |
+| ----------- | ------------ | ------------------------------------------- | ------------- |
+| Kravín      | 650 000 Kč   | asi 79 000 Kč (s mlékárnou 108 000 Kč)      | 8 dní (6 dní) |
+| Kurník      | 140 000 Kč   | asi 16 600 Kč                               | 8 dní         |
+| Ovčín       | 280 000 Kč   | asi 41 000 Kč (seno za cenu balíku)         | 7 dní         |
+| Vepřín      | 420 000 Kč   | asi 60 000 Kč                               | 7 dní         |
+| Míchací vůz | 220 000 Kč   | asi 21 600 Kč víc za mléko                  | 10 dní        |
+| Skleník     | 180 000 Kč   | asi 23 000 Kč                               | 8 dní         |
+| Harvestor   | 1 600 000 Kč | celý les asi 630 000 Kč, doroste za 2,5 dne | 6–7 dní       |
 
 ## Vývojářský režim
 
@@ -253,6 +253,8 @@ V panelu F9 → **Editor mapy** se ukáže plán celého kraje shora (sever naho
 ```
 src/
   main.js              start hry a hlavní smyčka
+  audio.js             zvuk: skupiny hlasitosti, syntetizované okolí a efekty
+  audio/               motory z nahrávek (engines.js, profiles.js), hudba (music.js)
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc, obloha (sky.js),
                        vítr ve vegetaci (wind.js)
@@ -268,6 +270,7 @@ src/
   fx/                  částice (prach, plevy, kouř), déšť a sníh, stopy kol (tracks.js)
   ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky, vývojářský panel (devpanel.js),
                        editor mapy (mapeditor.js)
+public/audio/          smyčky motorů a hudba, autoři a licence v CREDITS.md
 prototyp/              původní jednosouborový prototyp
 godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), viz godot-demo/README.md
 ```
@@ -287,6 +290,7 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 11. **Pomocníci na velké mapě:** jízda po silnicích, odvoz úrody na nejlepší výkup, těžba dřeva, dovoz nafty, posílání z Kanceláře.
 12. **Obsah:** sníh v zimě, seno pro krávy, mlékárna, krmná směs, ovce a prasata; editor posouvá i budovy, řeku a brod.
 13. **Vozový park:** víc kusů každého stroje a odstavná plocha, záložka Vozový park, zjednodušené vzdálené stroje, 60 modelů známých značek, výkon traktoru, jeden pomocník s volbou nářadí, nový obchod s protiúčtem a fotkami strojů.
+14. **Zvuk:** motory z nahrávek (5 sad, řazení, startování, stroje okolo a doprava), hudba (kytara a klavír), nastavení zvuku v menu, zkušebna motorů.
 
 ## Auta
 
@@ -299,6 +303,29 @@ Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pol
 - **Sečení:** žací lišta (obchod, v kůlně klávesa 8) poseče vysokou trávu a nechá uprostřed záběru řádek sena. Posečená tráva sama doroste zhruba za 10 herních hodin, pod ležícím řádkem neroste.
 - **Lisování:** lis udělá z řádku kulaté balíky sena (zelenější než sláma). Naložíš je přívěsem a u stodoly prodáš dráž než slámu, nebo je vyložíš do krmelce kravína či ovčína. Ceník ukazuje cenu balíku sena zvlášť.
 - **Pomocník** umí louku posekat i slisovat. Polní nářadí a kombajn na louce nic nedělají a na loukách nejsou zakázky.
+
+## Zvuk
+
+Zvuk se zapne po kliknutí na Hrát a vypíná se tlačítkem Zvuk nahoře. V menu je **Nastavení zvuku** se čtyřmi posuvníky (Hudba, Motory, Okolí, Efekty) a volbou hudby (Obojí, Kytara, Klavír); nastavení se ukládá v prohlížeči. Motory a okolí v menu a v Kanceláři ztichnou, hudba hraje dál. Když přepneš na jinou záložku prohlížeče, zvuk se pozastaví.
+
+- **Motory** jsou z nahrávek skutečných strojů (`public/audio/engines`, `src/audio/engines.js`). Každý model patří do jedné sady smyček a v sadě se liší výškou (menší a levnější stroj zní výš), hlasitostí a syčením turba (`src/audio/profiles.js`):
+
+  | Sada | Stroje | Nahrávky |
+  | --- | --- | --- |
+  | starý traktor | Zetor Major 80 | Ursus C-342 a C-328 |
+  | traktor | ostatní traktory; Claas Axion a Fendt 942 s plynulou převodovkou (otáčky drží, tiše hučí hydrostat) | John Deere 5820, nahoře Mercedes OM 67/4 |
+  | velký stroj | kombajny, sklízeče cukrovky, harvestory (s pilou při kácení) | volnoběh autobusu MAN, práce harvestoru Komatsu 941 |
+  | dieselové auto | Dacia Duster, Toyota Hilux, auta v dopravě | dodávka Tarpan 239 D, Mercedes OM 67/4 |
+  | benzínové auto | Lesák, auta v dopravě | Volvo 850 T5 |
+
+  Smyčky jedné sady hrají současně: slyšet jsou dvě nejbližší aktuálním otáčkám a každá se přehrává rychleji nebo pomaleji podle otáček. Traktor zvedá otáčky s rychlostí, plynem a prací. Kombajn a harvestor jedou i pracují na stálých pracovních otáčkách. Auta řadí pět stupňů, takže otáčky stoupají a po přeřazení klesnou. Při tahu a práci motor zní hlasitěji a jasněji, po puštění plynu tlumeněji.
+- **Startování:** když do stroje přesedneš nebo ho převezme pomocník, motor nastartuje startérem. Stroj, ve kterém nikdo nesedí a nepracuje, po 6 sekundách zhasne.
+- **Stroje okolo:** najednou zní až čtyři motory: stroj, ve kterém sedíš, a nejbližší běžící stroje (pomocník, opuštěný stroj, který ještě nezhasl), z dopravy nejvýš dvě auta. Zvuk slábne a tlumí se se vzdáleností a ozývá se zleva nebo zprava podle kamery.
+- **Hudba:** klidné skladby Kevina MacLeoda, tři kytarové (Clear Air, Windswept, Morning) a tři klavírní (Fresh Air, Friday Morning, Facile), v náhodném pořadí s 1–3 minutami ticha mezi nimi (`src/audio/music.js`). Při hlasité práci se ztiší, v menu je výraznější.
+- **Okolí a efekty** jsou syntetizované (`src/audio.js`): mlácení, nářadí v půdě, vítr, déšť, ptáci přes den, cvrčci v noci, zvířata, houkačky a cinknutí kasy při příjmu peněz.
+- **Zkušebna:** ve vývojářském režimu (F9) je sekce Zvuk motoru: stroj, ve kterém sedíš, zahraje motor libovolného modelu v otáčkách a zátěži z posuvníků a panel ukazuje otáčky a míchání smyček.
+
+**Autoři a licence** (podrobně v [public/audio/CREDITS.md](public/audio/CREDITS.md)): hudba Kevin MacLeod ([incompetech.com](https://incompetech.com)), licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Motory: nahrávky z Wikimedia Commons od [Work With Sounds](https://commons.wikimedia.org/wiki/Commons:Work_With_Sounds) (Museum of Municipal Engineering, Werstas, Technical Museum of Slovenia; CC BY 4.0), Jojhnjoy a Jonas Tittmann (CC BY-SA 4.0; smyčky z jejich nahrávek se šíří pod stejnou licencí) a X5DragonFire (CC0).
 
 ## Plánováno
 

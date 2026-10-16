@@ -131,6 +131,10 @@ kbd{font-family:var(--body);font-weight:700;font-size:12px;background:var(--pape
 .presetDesc{margin:0;font-size:14px;line-height:1.5;color:var(--muted);min-height:3em;}
 .check{display:flex;gap:10px;align-items:center;font-weight:600;cursor:pointer;}
 .check input{width:18px;height:18px;accent-color:var(--leaf);}
+.vols{display:grid;gap:10px;}
+.vol{display:grid;grid-template-columns:76px 1fr 46px;gap:12px;align-items:center;font-weight:600;}
+.vol input{width:100%;accent-color:var(--leaf);}
+.vol output{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);}
 .gpu{display:grid;gap:4px;border-top:1px solid var(--line);padding-top:14px;}
 .gpu p{margin:0;font-size:13.5px;overflow-wrap:anywhere;}
 .warnbox{background:rgba(223,169,58,.18);border-radius:10px;padding:10px 12px;line-height:1.45;margin-top:6px!important;}

@@ -1,7 +1,10 @@
-import { settings, PRESETS, saveSettings, gpuName, isIntegrated, startAntialias } from '../core/settings.js';
+import { settings, PRESETS, saveSettings, gpuName, isIntegrated, startAntialias, MUSIC_STYLES } from '../core/settings.js';
+import { nowPlaying } from '../audio/music.js';
+import { sound } from '../audio.js';
 
 const $ = id => document.getElementById(id);
-const menu = $('menu'), main = $('menuMain'), gfx = $('menuGfx');
+const menu = $('menu'), main = $('menuMain'), gfx = $('menuGfx'), snd = $('menuSnd');
+const VOLS = [['music', 'Hudba'], ['engines', 'Motory'], ['ambient', 'Okolí'], ['effects', 'Efekty']];
 let handlers = null;
 let started = false;
 
@@ -53,6 +56,41 @@ export function initMenu(h) {
   $('gpuName').textContent = gpuName;
   $('gpuWarn').hidden = !isIntegrated;
   renderGfx();
+
+  // sound panel: a volume per group and the music style; the game reads settings every frame
+  $('sndBtn').onclick = () => showSnd(true);
+  $('sndBack').onclick = () => showSnd(false);
+  $('volRows').innerHTML = VOLS.map(([k, label]) =>
+    `<label class="vol"><span>${label}</span><input type="range" min="0" max="100" step="5" data-vol="${k}" aria-label="Hlasitost: ${label}"><output></output></label>`).join('');
+  $('volRows').oninput = e => {
+    const k = e.target.dataset.vol;
+    if (!k) return;
+    settings.vol[k] = e.target.value / 100; saveSettings(); renderSnd();
+  };
+  $('musicSeg').innerHTML = Object.entries(MUSIC_STYLES).map(([k, label]) => `<button role="radio" data-m="${k}">${label}</button>`).join('');
+  $('musicSeg').onclick = e => {
+    const k = e.target.closest('button')?.dataset.m;
+    if (!k) return;
+    settings.musicStyle = k; saveSettings(); renderSnd();
+  };
+}
+
+let sndTimer = 0;
+function renderSnd() {
+  for (const el of $('volRows').querySelectorAll('input')) {
+    const v = settings.vol[el.dataset.vol];
+    el.value = Math.round(v * 100); el.nextElementSibling.textContent = Math.round(v * 100) + ' %';
+  }
+  for (const b of $('musicSeg').children) b.setAttribute('aria-checked', String(b.dataset.m === settings.musicStyle));
+  const tr = nowPlaying();
+  $('nowPlaying').textContent = !sound.on ? 'Zvuk je vypnutý. Zapneš ho tlačítkem Zvuk nahoře nebo spuštěním hry.'
+    : tr ? 'Hraje: ' + tr.title + ' (Kevin MacLeod)' : 'Mezi skladbami je chvíle ticha.';
+}
+function showSnd(on) {
+  main.hidden = on; snd.hidden = !on;
+  clearInterval(sndTimer);
+  if (on) { renderSnd(); sndTimer = setInterval(renderSnd, 1000); }
+  (on ? $('volRows').querySelector('input') : $('sndBtn'))?.focus();
 }
 
 function renderGfx() {
@@ -63,7 +101,7 @@ function renderGfx() {
 }
 
 function showGfx(on) {
-  main.hidden = on; gfx.hidden = !on;
+  main.hidden = on; gfx.hidden = !on; snd.hidden = true;
   (on ? $('presetSeg').querySelector('[aria-checked="true"]') : $('gfxBtn'))?.focus();
 }
 
@@ -76,6 +114,7 @@ function refreshButtons() {
 export function showMenu() {
   refreshButtons();
   showGfx(false);
+  clearInterval(sndTimer);
   menu.hidden = false;
   $('playBtn').focus();
   handlers.onPause?.();

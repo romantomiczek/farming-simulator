@@ -1,6 +1,14 @@
-// Synthesized sound (no audio files): engine with load, field work, wind, rain, birds by day,
-// crickets at night, a till sound when money comes in and short animal calls (see playAt).
-// Nothing runs until the player turns sound on (browsers need a click first anyway).
+// Sound in four groups, each with its own volume (settings.vol, Nastavení zvuku in the menu):
+//   music   – background pieces (audio/music.js), quieter while you work, fuller in the menu and the office
+//   engines – machines from recordings (audio/engines.js), threshing and soil synthesized here
+//   ambient – synthesized wind, rain, birds by day, crickets at night and animal calls (playAt)
+//   effects – a till when money comes in, horns
+// Engines and ambience are silent in the menu and the office, the music plays on. Nothing runs
+// until the player turns sound on (browsers need a click first anyway).
+import { settings } from './core/settings.js';
+import { initEngines, updEngines, engineLoud, engineTest } from './audio/engines.js';
+import { initMusic, updMusic } from './audio/music.js';
+
 let A = null;
 export const sound = { on: false };
 
@@ -12,43 +20,30 @@ function noiseBuffer(ac) {
 
 function build() {
   const ac = new (window.AudioContext || window.webkitAudioContext)();
-  const master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);
+  const gain = (v = 0) => { const g = ac.createGain(); g.gain.value = v; return g; };
+  const master = gain(0); master.connect(ac.destination);
+  const bus = { music: gain(0), engines: gain(0), ambient: gain(0), effects: gain(0) };
+  for (const k in bus) bus[k].connect(master);
   const noise = noiseBuffer(ac);
   const src = () => { const s = ac.createBufferSource(); s.buffer = noise; s.loop = true; s.start(0, Math.random() * 2); return s; };
   const filt = (type, f, q = 0.7) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
-  const gain = (v = 0) => { const g = ac.createGain(); g.gain.value = v; return g; };
   const chain = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
-
-  // engine: diesel firing pulse (rich harmonics) + sub + combustion noise, lowpass opens with load
-  const real = new Float32Array(16), imag = new Float32Array(16);
-  for (let k = 1; k < 16; k++) imag[k] = (k % 2 ? 1 : 0.6) / k ** 1.15;
-  const wave = ac.createPeriodicWave(real, imag);
-  const o1 = ac.createOscillator(), o2 = ac.createOscillator(), sub = ac.createOscillator();
-  o1.setPeriodicWave(wave); o2.setPeriodicWave(wave); sub.type = 'sine';
-  const eLp = filt('lowpass', 300, 1.2), eGain = gain();
-  o1.connect(eLp); o2.connect(eLp); chain(sub, gain(0.6), eLp);
-  const eNoise = chain(src(), filt('bandpass', 180, 1.5), gain(0.5));
-  eNoise.connect(eLp);
-  // "chug": amplitude wobble at half the firing rate
-  const chug = ac.createOscillator(), chugDepth = gain(0.25), eAmp = gain(0.75);
-  chain(chug, chugDepth, eAmp.gain);
-  chain(eLp, eAmp, eGain, master);
-  const turbo = ac.createOscillator(), tGain = gain(); turbo.type = 'sine'; chain(turbo, tGain, master);
-  [o1, o2, sub, chug, turbo].forEach(o => o.start());
 
   // field work: threshing (combine), soil (tools in the ground)
   const thresh = chain(src(), filt('bandpass', 1300, 0.8), gain());
   const threshLow = chain(src(), filt('lowpass', 220), gain());
   const soil = chain(src(), filt('lowpass', 420, 0.9), gain());
-  [thresh, threshLow, soil].forEach(n => n.connect(master));
+  [thresh, threshLow, soil].forEach(n => n.connect(bus.engines));
 
   // ambience: wind gusts and rain
   const windF = filt('bandpass', 380, 0.6), wind = chain(src(), windF, gain());
   const rain = chain(src(), filt('highpass', 1800), gain());
   const rainLow = chain(src(), filt('lowpass', 600), gain());
-  [wind, rain, rainLow].forEach(n => n.connect(master));
+  [wind, rain, rainLow].forEach(n => n.connect(bus.ambient));
 
-  return { ac, master, o1, o2, sub, chug, eLp, eGain, turbo, tGain, thresh, threshLow, soil, wind, windF, rain, rainLow, gain, filt, src, nextBird: 2, nextCricket: 1, lastFlash: 0, lastMoney: 0, nextTill: 0 };
+  initEngines(ac, bus.engines, noise);
+  initMusic(ac, bus.music);
+  return { ac, master, bus, thresh, threshLow, soil, wind, windF, rain, rainLow, gain, filt, nextBird: 2, nextCricket: 1, lastFlash: 0, lastMoney: 0, nextTill: 0 };
 }
 
 export function toggleSound() {
@@ -57,6 +52,12 @@ export function toggleSound() {
   if (A.ac.state === 'suspended') A.ac.resume();
   return sound.on;
 }
+// a hidden page goes quiet (the music pauses where it was)
+document.addEventListener('visibilitychange', () => {
+  if (!A) return;
+  if (document.hidden) A.ac.suspend();
+  else if (sound.on) A.ac.resume();
+});
 
 const set = (p, v, t, tau = 0.15) => p.setTargetAtTime(v, t, tau);
 
@@ -68,23 +69,23 @@ function tone(type, f0, f1, at, dur, vol, dest, filter) {
   g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.03, dur * 0.3));
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
   if (filter) { o.connect(filter); filter.connect(g); } else o.connect(g);
-  g.connect(dest || A.master);
+  g.connect(dest);
   o.start(at); o.stop(at + dur + 0.05);
 }
 function bird(at, vol) {
   const base = 2600 + Math.random() * 1800, n = 2 + ((Math.random() * 5) | 0);
   for (let i = 0; i < n; i++) {
     const t = at + i * (0.09 + Math.random() * 0.07), up = Math.random() < 0.6;
-    tone('sine', base * (up ? 0.85 : 1.15), base * (up ? 1.2 : 0.8), t, 0.05 + Math.random() * 0.06, vol);
+    tone('sine', base * (up ? 0.85 : 1.15), base * (up ? 1.2 : 0.8), t, 0.05 + Math.random() * 0.06, vol, A.bus.ambient);
   }
 }
 function cricket(at, vol) {
-  for (let i = 0; i < 3; i++) tone('triangle', 4300, 4250, at + i * 0.045, 0.03, vol);
+  for (let i = 0; i < 3; i++) tone('triangle', 4300, 4250, at + i * 0.045, 0.03, vol, A.bus.ambient);
 }
 function till() {
   const t = A.ac.currentTime;
-  tone('triangle', 1760, 1740, t, 0.18, 0.05);
-  tone('triangle', 2640, 2600, t + 0.07, 0.3, 0.04);
+  tone('triangle', 1760, 1740, t, 0.18, 0.05, A.bus.effects);
+  tone('triangle', 2640, 2600, t + 0.07, 0.3, 0.04, A.bus.effects);
 }
 
 /** Animal and other calls at a world position; quieter with distance (heard up to range metres). */
@@ -92,52 +93,52 @@ export function playAt(kind, x, z, listener, range = 90) {
   if (!A || !sound.on) return;
   const d = Math.hypot(x - listener.x, z - listener.z), k = Math.max(0, 1 - d / range);
   if (k <= 0.02) return;
-  const t = A.ac.currentTime, v = 0.09 * k * k;
+  const t = A.ac.currentTime, v = 0.09 * k * k, amb = A.bus.ambient, fx = A.bus.effects;
   if (kind === 'moo') {
     const f = A.filt('bandpass', 520, 2.5);
-    tone('sawtooth', 128, 102, t, 1.1 + Math.random() * 0.5, v * 1.6, null, f);
+    tone('sawtooth', 128, 102, t, 1.1 + Math.random() * 0.5, v * 1.6, amb, f);
   } else if (kind === 'bark') {
-    for (let i = 0; i < 2; i++) tone('square', 420, 260, t + i * 0.22, 0.11, v, null, A.filt('lowpass', 1400));
+    for (let i = 0; i < 2; i++) tone('square', 420, 260, t + i * 0.22, 0.11, v, amb, A.filt('lowpass', 1400));
   } else if (kind === 'cluck') {
-    for (let i = 0; i < 3; i++) tone('square', 900, 650, t + i * 0.14, 0.05, v * 0.6, null, A.filt('bandpass', 1200, 3));
+    for (let i = 0; i < 3; i++) tone('square', 900, 650, t + i * 0.14, 0.05, v * 0.6, amb, A.filt('bandpass', 1200, 3));
   } else if (kind === 'meow') {
-    tone('sawtooth', 620, 880, t, 0.18, v * 0.6, null, A.filt('bandpass', 1100, 4));
-    tone('sawtooth', 880, 520, t + 0.18, 0.35, v * 0.6, null, A.filt('bandpass', 1100, 4));
+    tone('sawtooth', 620, 880, t, 0.18, v * 0.6, amb, A.filt('bandpass', 1100, 4));
+    tone('sawtooth', 880, 520, t + 0.18, 0.35, v * 0.6, amb, A.filt('bandpass', 1100, 4));
   } else if (kind === 'honk') {
-    for (const f of [415, 523]) tone('square', f, f, t, 0.35, v * 0.9, null, A.filt('lowpass', 1800));
+    for (const f of [415, 523]) tone('square', f, f, t, 0.35, v * 0.9, fx, A.filt('lowpass', 1800));
   } else if (kind === 'horn') {
     // two-tone train horn
-    for (const [f, dt] of [[330, 0], [262, 0.55]]) tone('sawtooth', f, f * 0.99, t + dt, 0.5, v * 1.4, null, A.filt('lowpass', 1200));
+    for (const [f, dt] of [[330, 0], [262, 0.55]]) tone('sawtooth', f, f * 0.99, t + dt, 0.5, v * 1.4, fx, A.filt('lowpass', 1200));
   } else if (kind === 'crow') {
-    tone('sawtooth', 700, 500, t, 0.25, v * 0.5, null, A.filt('bandpass', 1500, 3));
+    tone('sawtooth', 700, 500, t, 0.25, v * 0.5, amb, A.filt('bandpass', 1500, 3));
   }
 }
 
 /**
- * Per frame. v = active vehicle; env = { playing, rain (0..1), hour, money, wet (rain kind), winter }.
+ * Per frame. env = { playing, rain (0..1), hour, flash, money, winter, active (the machine you sit
+ * in), vehicles, traffic (background cars), ear: { x, z, rx, rz } (listening point and the camera's
+ * right direction) }.
  */
-export function updAudio(v, env) {
+export function updAudio(dt, env) {
   if (!A) return;
-  const t = A.ac.currentTime, on = sound.on && env.playing;
+  const t = A.ac.currentTime, on = sound.on, vol = settings.vol, play = env.playing;
   set(A.master.gain, on ? 1 : 0, t, 0.25);
+  updMusic(dt, on && vol.music > 0.001 && !document.hidden);
   if (!on) { A.lastFlash = env.flash; A.lastMoney = env.money; return; }
+  updEngines(dt, env);
+  // the music steps back while the engine works and fills in when the game stands
+  set(A.bus.music.gain, vol.music * (play ? 0.8 - 0.35 * engineLoud() : 1), t, 0.5);
+  set(A.bus.engines.gain, vol.engines * (play || engineTest.on ? 1 : 0), t, 0.25);
+  set(A.bus.ambient.gain, vol.ambient * (play ? 1 : 0), t, 0.25);
+  set(A.bus.effects.gain, vol.effects, t, 0.1);
+  if (!play) {
+    for (const n of [A.thresh, A.threshLow, A.soil]) set(n.gain, 0, t, 0.2); // quiet under the engine test
+    A.lastFlash = env.flash; A.lastMoney = env.money;
+    return;
+  }
 
-  // engine: idle ~ 13 Hz firing, rises with speed and throttle; harvesters run high while working
-  const working = v.lowered && Math.abs(v.speed) > 0.3;
-  const big = v.type === 'combine' || v.type === 'beet' || v.type === 'forest', car = v.type === 'jeep';
-  const load = Math.max(0, v.thr) * 0.6 + (working ? 0.5 : 0) + (v.cutting ? 0.6 : 0);
-  const rpm = Math.min(1, Math.abs(v.speed) / (car ? 22 : 10) * 0.6 + load * 0.5 + (v.lowered && v.harvester ? 0.35 : 0));
-  // the jeep's petrol engine runs higher than the diesels
-  const f = car ? 22 + rpm * 38 : (big ? 11 : 13) + rpm * (big ? 15 : 19);
-  const engineOn = v.fuel > 0;
-  set(A.o1.frequency, f * 2, t); set(A.o2.frequency, f * 2 * 1.007, t); set(A.sub.frequency, f, t); set(A.chug.frequency, f / 2, t);
-  set(A.eLp.frequency, 260 + rpm * 900 + load * 300, t, 0.2);
-  set(A.eGain.gain, engineOn ? 0.055 + rpm * 0.05 + load * 0.02 : 0, t, 0.25);
-  set(A.turbo.frequency, 1800 + rpm * 2600, t, 0.3);
-  set(A.tGain.gain, engineOn ? rpm * rpm * 0.006 : 0, t, 0.3);
-
-  // work sounds
-  const threshing = v.harvester && v.lowered;
+  // work sounds of the machine you sit in
+  const v = env.active, working = v.lowered && Math.abs(v.speed) > 0.3, threshing = v.harvester && v.lowered;
   set(A.thresh.gain, threshing ? 0.022 + (working ? 0.025 : 0) : 0, t, 0.3);
   set(A.threshLow.gain, threshing ? 0.06 : 0, t, 0.3);
   set(A.soil.gain, v.type === 'tractor' && working ? 0.05 + Math.abs(v.speed) * 0.006 : 0, t, 0.2);

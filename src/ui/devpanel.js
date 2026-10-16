@@ -18,6 +18,11 @@ import { SAWMILL, POND } from '../world/layout.js';
 import { saveLocal } from '../game/save.js';
 import { toast } from './toast.js';
 import { toggleMapEditor } from './mapeditor.js';
+import { MODELS, modelName } from '../game/catalog.js';
+import { engineTest, engineInfo } from '../audio/engines.js';
+
+/** Machines with an engine, for the engine sound test. */
+const ENGINE_MODELS = MODELS.filter(m => ['tractor', 'combine', 'beet', 'forest', 'jeep'].includes(m.kind));
 
 /**
  * Developer panel (F9): time, weather, graphics details, world switches, cheats and live info.
@@ -80,6 +85,13 @@ function html() {
   ${sec('Mapa', `
     <p class="muted">Přesouvej a měň pole, louky, cesty, rybníky a lesy. Změny se uloží do src/world/map.json.</p>
     <div class="devbtns">${button('mapEdit', 'Editor mapy')}</div>`)}
+  ${sec('Zvuk motoru', `
+    <p class="muted">Stroj, ve kterém sedíš, hraje motor zvoleného modelu v zadaných otáčkách a zátěži, i v menu.</p>
+    ${check('devSndTest', 'Zkoušet zvuk motoru')}
+    ${select('devSndModel', 'Model', ENGINE_MODELS.map(m => [m.id, modelName(m)]))}
+    ${range('devSndRpm', 'Otáčky', 0, 1, 0.01)}
+    ${range('devSndLoad', 'Zátěž', 0, 1, 0.01)}
+    <pre class="devinfo" id="devSnd"></pre>`, false)}
   ${sec('Hra', `
     <div class="devbtns">${button('money1', '+ 100 000 Kč')}${button('money2', '+ 1 000 000 Kč')}</div>
     <div class="devbtns">${button('unlock', 'Všechny stroje a budovy')}${button('service', 'Natankovat a opravit')}</div>
@@ -111,6 +123,9 @@ function syncControls() {
   $('#devSky').checked = skyParts.dome.visible; $('#devClouds').checked = skyParts.clouds.visible;
   $('#devAnimals').checked = DEV.wildlife; $('#devWind').checked = DEV.wind; $('#devTracks').checked = DEV.tracks;
   $('#devParticles').checked = particleMesh.visible; $('#devHud').checked = document.body.classList.contains('dev-nohud');
+  $('#devSndTest').checked = engineTest.on; $('#devSndModel').value = engineTest.model;
+  setVal('devSndRpm', engineTest.rpm, Math.round(engineTest.rpm * 100) + ' %');
+  setVal('devSndLoad', engineTest.load, Math.round(engineTest.load * 100) + ' %');
 }
 function setVal(id, v, shown) { $('#' + id).value = v; $('#' + id + 'Out').textContent = shown; }
 
@@ -130,6 +145,7 @@ function info() {
     'Kamera: vzdálenost ' + cam.dist.toFixed(0) + ' m · sklon ' + cam.pitch.toFixed(2),
     q.cropDetail ? 'Plodiny: snopky' : 'Plodiny: kvádry',
   ].join('\n');
+  $('#devSnd').textContent = engineInfo(v);
 }
 
 /* ---------- actions ---------- */
@@ -231,6 +247,10 @@ function bind() {
   on('devTracks', 'change', t => { DEV.tracks = t.checked; });
   on('devParticles', 'change', t => { particleMesh.visible = t.checked; });
   on('devHud', 'change', t => { document.body.classList.toggle('dev-nohud', t.checked); });
+  on('devSndTest', 'change', t => { engineTest.on = t.checked; });
+  on('devSndModel', 'change', t => { engineTest.model = t.value; });
+  on('devSndRpm', 'input', t => { engineTest.rpm = +t.value; $('#devSndRpmOut').textContent = Math.round(t.value * 100) + ' %'; });
+  on('devSndLoad', 'input', t => { engineTest.load = +t.value; $('#devSndLoadOut').textContent = Math.round(t.value * 100) + ' %'; });
   // live labels while dragging
   for (const [id, f] of [['devScale', v => Math.round(v * 100) + ' %'], ['devView', v => v], ['devTrees', v => String((+v).toFixed(1)).replace('.', ',')]]) {
     $('#' + id).addEventListener('input', e => { $('#' + id + 'Out').textContent = f(e.target.value); });

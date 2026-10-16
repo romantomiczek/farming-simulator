@@ -130,6 +130,7 @@
         </div>
         <div class="actions links">
           <button class="link" id="gfxBtn">Nastavení grafiky</button>
+          <button class="link" id="sndBtn">Nastavení zvuku</button>
           <button class="link" id="exportBtn">Uložit do souboru</button>
           <button class="link" id="importBtn">Načíst ze souboru</button>
           <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -149,6 +150,16 @@
         </div>
         <p class="note" id="aaNote" hidden>Vyhlazování hran se změní po obnovení stránky (F5).</p>
         <div class="actions"><button class="btn" id="gfxBack">Hotovo</button></div>
+      </section>
+
+      <section id="menuSnd" class="cardsec" hidden>
+        <h2>Nastavení zvuku</h2>
+        <div class="vols" id="volRows"></div>
+        <span class="eyebrow">Hudba</span>
+        <div class="seg" role="radiogroup" aria-label="Styl hudby" id="musicSeg"></div>
+        <p class="presetDesc" id="nowPlaying"></p>
+        <p class="note">Hudba: Kevin MacLeod (incompetech.com), licence CC BY 4.0. Motory: nahrávky z Wikimedia Commons (Work With Sounds, Jojhnjoy, Jonas Tittmann, X5DragonFire); autoři a licence jsou v souboru audio/CREDITS.md.</p>
+        <div class="actions"><button class="btn" id="sndBack">Hotovo</button></div>
       </section>
     </div>
   </div>

@@ -218,6 +218,29 @@ try {
   check('náhledy v obchodě', shots.want > 0 && shots.got === shots.want && !shots.flat && shots.turn > 40,
     shots.got + '/' + shots.want + ' fotek' + (shots.flat ? ', prázdných ' + shots.flat : '') + ' · otočný model kontrast ' + shots.turn);
 
+  // sound: the engine recordings load, the machine you sit in plays its model's set, a machine you
+  // just left is heard nearby and stops after a few seconds, the music files are there
+  const snd = await page.evaluate(async () => {
+    const A = await import('/src/audio.js'), E = await import('/src/audio/engines.js'), M = await import('/src/audio/music.js');
+    const V = await import('/src/vehicles/vehicles.js'), z = window.__zl;
+    if (!A.sound.on) A.toggleSound();
+    await E.enginesReady();
+    const t = V.firstOf('tractor'), c = V.firstOf('combine'), was = z.G.active;
+    for (const v of [t, c]) Object.assign(v, { speed: 0, helper: null, fuel: v.fuelCap });
+    Object.assign(c, { x: t.x + 20, z: t.z });
+    z.G.active = c; z.step(20);
+    z.G.active = t; z.step(30);
+    const farm = () => E.engineVoices().filter(v => !v.traffic);
+    const both = farm().map(v => v.set + (v.id === t.id ? '*' : '')).sort().join(',');
+    z.step(240);
+    const after = farm().map(v => v.set).join(',');
+    const music = await Promise.all(M.TRACKS.map(tr => fetch(M.MUSIC_URL + tr.file, { method: 'HEAD' }).then(r => r.ok)));
+    A.toggleSound(); z.G.active = was;
+    return { ...E.engineFiles, both, after, music: music.filter(Boolean).length, tracks: M.TRACKS.length };
+  });
+  check('zvuk', snd.loaded === snd.total && !snd.failed && snd.both === 'big,tractor*' && snd.after === 'tractor' && snd.music === snd.tracks,
+    'nahrávky ' + snd.loaded + '/' + snd.total + ' · slyšet ' + snd.both + ' → po 8 s ' + snd.after + ' · hudba ' + snd.music + '/' + snd.tracks);
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;
