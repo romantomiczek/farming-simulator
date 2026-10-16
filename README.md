@@ -286,7 +286,7 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 11. **Pomocníci na velké mapě:** jízda po silnicích, odvoz úrody na nejlepší výkup, těžba dřeva, dovoz nafty, posílání z Kanceláře.
 12. **Obsah:** sníh v zimě, seno pro krávy, mlékárna, krmná směs, ovce a prasata; editor posouvá i budovy, řeku a brod.
 
-## Jeep
+## Auta
 
 Auta (obchod: Jeep Lesák 4×4 290 000 Kč, Dacia Duster 4×4 420 000 Kč, Toyota Hilux 750 000 Kč, dají se i pronajmout) se hodí na přejezdy po kraji: k polím na kopcích, do lesa nebo do městečka. Lesák jede všude 80 km/h, Duster po cestě 95 a mimo ni 71 km/h, Hilux 100 a 90 km/h. Nic netáhnou a nepracují, pomocník je neřídí. Tankují se jako ostatní stroje, mezerník troubí.
 
