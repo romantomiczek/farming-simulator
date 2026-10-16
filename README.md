@@ -263,7 +263,7 @@ src/
                        vegetace, pole a louky, balíky, kravín, kurník a skleníky
                        (farmstead.js), les (forest.js), zvířata (wildlife.js),
                        auta a vlak (traffic.js)
-  vehicles/            modely a jízda strojů, nářadí, přívěs
+  vehicles/            modely a jízda strojů, kolizní tvary a nárazy (body.js), nářadí, přívěs
   game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
                        zvířata a skleníky (farm.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
@@ -291,6 +291,15 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 12. **Obsah:** sníh v zimě, seno pro krávy, mlékárna, krmná směs, ovce a prasata; editor posouvá i budovy, řeku a brod.
 13. **Vozový park:** víc kusů každého stroje a odstavná plocha, záložka Vozový park, zjednodušené vzdálené stroje, 60 modelů známých značek, výkon traktoru, jeden pomocník s volbou nářadí, nový obchod s protiúčtem a fotkami strojů.
 14. **Zvuk:** motory z nahrávek (5 sad, řazení, startování, stroje okolo a doprava), hudba (kytara a klavír), nastavení zvuku v menu, zkušebna motorů.
+15. **Jízda a nárazy:** řízení omezené přilnavostí pneumatik, smyk auta, otáčení kolem nápravy, náklon karoserie, kolize podle tvaru strojů včetně lišt a nářadí, realistický náraz s otřesem a zvukem.
+
+## Jízda a nárazy
+
+- **Řízení:** volant se natáčí plynule a sám se vrací. V rychlosti se plný rejd omezí na to, co pneumatiky udrží: auto zatáčí nejvýš asi 0,8 g, traktor 0,4 g, kombajn 0,3 g. Na mokru (v dešti a dokud neoschne), mimo silnici a na sněhu drží kola méně: stroj se v zatáčce rozšiřuje a zpomaluje, auto dostane smyk a záď mu ujede. Stroj se otáčí kolem nápravy, která nezatáčí: auto a traktor kolem zadní, kombajn a sklízeč kolem přední (zatáčejí zadními koly). Karoserie se v zatáčce naklání a při brzdění kývne dopředu.
+- **Tvar pro kolize:** každý stroj je jeden nebo víc obdélníků změřených z jeho 3D modelu: tělo (bez výsypné roury a jeřábu harvestoru), lišta kombajnu a sklízeče cukrovky a zapojené nářadí, takže narážejí i lišta a 12m secí stroj. Stromy překážejí kmenem, ne korunou. Kód je v `src/vehicles/body.js` a `drive()` v `src/vehicles/vehicles.js`.
+- **Náraz:** stroj se o překážku zastaví a trochu odskočí. Když narazí šikmo, klouže podél ní a ztratí jen část rychlosti. Když narazí rohem, pootočí se. Chvíli po nárazu klouže, než ho kola znovu chytí. Silný náraz zatřese kamerou a je slyšet. Stroje se nárazem nepoškozují.
+- **Odstavná plocha** má místa po 14 m, aby se vedle sebe vešly i kombajny s nejširšími lištami.
+- **Omezení:** Claas Lexion 8900 (lišta 14 m) neprojede alejemi podél silnic, John Deere S790 (12,4 m) jen přesně středem. Pomocníci objíždějí překážky podle těla stroje bez lišty a nářadí.
 
 ## Auta
 

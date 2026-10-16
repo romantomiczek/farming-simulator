@@ -241,6 +241,54 @@ try {
   check('zvuk', snd.loaded === snd.total && !snd.failed && snd.both === 'big,tractor*' && snd.after === 'tractor' && snd.music === snd.tracks,
     'nahrávky ' + snd.loaded + '/' + snd.total + ' · slyšet ' + snd.both + ' → po 8 s ' + snd.after + ' · hudba ' + snd.music + '/' + snd.tracks);
 
+  // driving and crashes: a car at top speed with full lock stays within the grip of the tyres; it
+  // stops at a wall without going into it, glances off a wall at a shallow angle keeping most of
+  // its speed, and passes a gap a little wider than itself
+  const phys = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), L = await import('/src/world/layout.js'), M = await import('/src/game/machines.js'), z = window.__zl;
+    if (!V.vehicles.some(v => v.model === 'dacia-duster')) { z.G.money += 1e7; M.buy('dacia-duster'); }
+    const car = V.vehicles.filter(v => v.model === 'dacia-duster').pop(), f = z.fields.find(x => x.id === 2), dt = 1 / 60;
+    const others = V.vehicles.filter(v => v !== car).map(v => ({ v, x: v.x, z: v.z }));
+    others.forEach((o, i) => { o.v.x = -600 - i * 20; o.v.z = -600; });
+    const cx = f.x0 + f.w / 2, cz = f.z0 + f.h / 2, wet = V.surface.wet, snow = V.surface.snow;
+    V.surface.wet = false; V.surface.snow = false;
+    const reset = (x, zz, h, speed) => Object.assign(car, { x, z: zz, h, speed, steer: 0, yaw: 0, lat: 0, hit: 0, knock: 0, offRoad: false, offT: 99 });
+    // grip: the path's sideways acceleration
+    reset(cx, cz, 0, car.vmax);
+    let g = 0, px = car.x, pz = car.z, pd = null;
+    for (let i = 0; i < 90 && !car.hit; i++) {
+      V.drive(car, dt, { thr: 1, st: 1 });
+      const vx = (car.x - px) / dt, vz = (car.z - pz) / dt, d = Math.atan2(vx, vz);
+      if (pd != null && i > 20) g = Math.max(g, (Math.abs(((d - pd + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) / dt) * Math.hypot(vx, vz) / 9.81);
+      pd = d; px = car.x; pz = car.z;
+    }
+    const wall = { x0: cx - 60, x1: cx + 60, z0: cz + 30, z1: cz + 31 };
+    L.boxes.push(wall);
+    const crash = ang => {
+      reset(cx, wall.z0 - 2.4 - 16.7 * Math.cos(ang) * 0.3, ang, 16.7);
+      let deep = 0;
+      for (let i = 0; i < 60; i++) {
+        V.drive(car, dt, null);
+        const p = car.parts[0], s = Math.sin(car.h), c = Math.cos(car.h);
+        for (const [a, b] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) deep = Math.max(deep, car.z - a * p.hx * s + b * p.hz * c - wall.z0);
+      }
+      return { deep, kmh: car.speed * 3.6 };
+    };
+    const head = crash(0), glance = crash(1.22);
+    L.boxes.splice(L.boxes.indexOf(wall), 1);
+    const posts = [{ x: cx - 1.5, z: cz + 20, r: 0.3 }, { x: cx + 1.5, z: cz + 20, r: 0.3 }];
+    L.circles.push(...posts);
+    reset(cx, cz + 5, 0, 5);
+    for (let i = 0; i < 300; i++) { V.drive(car, dt, { thr: 0.3, st: 0 }); car.speed = Math.min(car.speed, 5); }
+    const through = car.z > cz + 23;
+    L.circles.splice(L.circles.indexOf(posts[0]), 2);
+    for (const o of others) { o.v.x = o.x; o.v.z = o.z; }
+    V.surface.wet = wet; V.surface.snow = snow;
+    return { g, head, glance, through };
+  });
+  check('jízda a nárazy', phys.g > 0.6 && phys.g < 0.95 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
+    'auto v plném rejdu ' + phys.g.toFixed(2) + ' g · čelně do zdi ' + Math.round(phys.head.kmh) + ' km/h, ve zdi ' + phys.head.deep.toFixed(2) + ' m · šikmo 20° dál ' + Math.round(phys.glance.kmh) + ' km/h · mezera 2,4 m ' + (phys.through ? 'projel' : 'neprojel'));
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

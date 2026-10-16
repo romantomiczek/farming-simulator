@@ -95,7 +95,7 @@ export function forestColliders(out, x, z, r = 0) {
   for (const t of trees) {
     if (t.g <= 0.3 || t.fall) continue;
     if (x != null && (Math.abs(t.x - x) > r + 2 || Math.abs(t.z - z) > r + 2)) continue;
-    out.push({ x: t.x, z: t.z, r: 0.5 + 0.5 * t.g });
+    out.push({ x: t.x, z: t.z, r: Math.max(0.2, 0.42 * t.g * t.s) }); // the trunk
   }
   return out;
 }

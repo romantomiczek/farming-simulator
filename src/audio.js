@@ -43,7 +43,7 @@ function build() {
 
   initEngines(ac, bus.engines, noise);
   initMusic(ac, bus.music);
-  return { ac, master, bus, thresh, threshLow, soil, wind, windF, rain, rainLow, gain, filt, nextBird: 2, nextCricket: 1, lastFlash: 0, lastMoney: 0, nextTill: 0 };
+  return { ac, master, bus, noise, thresh, threshLow, soil, wind, windF, rain, rainLow, gain, filt, nextBird: 2, nextCricket: 1, lastFlash: 0, lastMoney: 0, nextTill: 0 };
 }
 
 export function toggleSound() {
@@ -86,6 +86,18 @@ function till() {
   const t = A.ac.currentTime;
   tone('triangle', 1760, 1740, t, 0.18, 0.05, A.bus.effects);
   tone('triangle', 2640, 2600, t + 0.07, 0.3, 0.04, A.bus.effects);
+}
+
+/** A crash of the machine you drive: a dull thump, crunching and, for a hard hit, a clank. strength 0..1. */
+export function playImpact(strength) {
+  if (!A || !sound.on) return;
+  const t = A.ac.currentTime, k = Math.min(1, Math.max(0, strength)), fx = A.bus.effects;
+  tone('sine', 75, 38, t, 0.35, 0.05 + 0.25 * k, fx);
+  const s = A.ac.createBufferSource(), f = A.filt('bandpass', 700 + 900 * k, 0.9), g = A.gain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.04 + 0.2 * k, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12 + 0.25 * k);
+  s.buffer = A.noise; s.connect(f); f.connect(g); g.connect(fx); s.start(t, Math.random()); s.stop(t + 0.5);
+  if (k > 0.35) for (const fr of [310, 467]) tone('square', fr, fr * 0.96, t + 0.02, 0.25, 0.02 * k, fx, A.filt('bandpass', fr * 2, 6));
 }
 
 /** Animal and other calls at a world position; quieter with distance (heard up to range metres). */

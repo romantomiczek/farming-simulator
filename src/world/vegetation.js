@@ -166,7 +166,7 @@ export function buildVegetation(scene) {
       }
     }
   }
-  for (const t of trees) if (t.solid) { circles.push({ x: t.x, z: t.z, r: 0.9 * t.s }); treeDots.push(t.x, t.z); }
+  for (const t of trees) if (t.solid) { circles.push({ x: t.x, z: t.z, r: 0.42 * t.s }); treeDots.push(t.x, t.z); } // the trunk, not the crown
 
   /* ---------- hedges ---------- */
   const hedge = [];

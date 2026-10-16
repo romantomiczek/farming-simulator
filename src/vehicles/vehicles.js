@@ -14,6 +14,7 @@ import { forestColliders } from '../world/forest.js';
 import { pushBales } from '../world/bales.js';
 import { groundH } from '../world/terrain.js';
 import { WOOD } from '../game/balance.js';
+import { footprint, partOf, worldPart, boxPart, partCircle, partPart, resolve } from './body.js';
 
 /**
  * The fleet: every machine and every implement is its own piece (instance) with an id, owned or
@@ -112,6 +113,7 @@ function makeTool(key, mid) {
     Object.assign(im, { x: 0, z: 0, h: 0, tank: { crop: -1, amount: 0, cap: m.cap }, bales: 0, hay: 0, baleCap: im.baleMeshes.length, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0, shape, centerZ: -2 + L / 2 });
   }
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
+  if (key !== 'trailer') im.foot = footprint(im.group); // collision shape while hitched (trailers have their circles)
   return im;
 }
 
@@ -140,7 +142,7 @@ export function removeTool(im) {
 
 /** Puts an implement back on its parking spot (detached from any tractor). */
 export function parkTool(im) {
-  if (im.on) { const v = im.on; v.tool = null; v.impl = null; v.lowered = false; im.on = null; }
+  if (im.on) { const v = im.on; v.tool = null; v.impl = null; v.lowered = false; im.on = null; refreshParts(v); }
   if (im.key === 'trailer') {
     im.tipping = false;
     im.h = 0; im.x = im.park[0]; im.z = im.park[1] - im.drawbar;
@@ -202,7 +204,34 @@ function makeVehicle(type, mid) {
   v.hitchZ = v.hitchZ ?? HITCH_Z;
   v.fuel = v.fuelCap; v.y = 0; v.tool = null; v.impl = null; v.available = true;
   v.group.rotation.order = 'YXZ'; // heading, then pitch and roll on slopes
+  // collision body: the model's footprint without the pipe and the crane (they reach over things)
+  v.bodyPart = partOf(footprint(v.group, v.group, [v.headerLift, v.pipe, v.crane].filter(Boolean)));
+  v.inertia = ((2 * v.bodyPart.hx) ** 2 + (2 * v.bodyPart.hz) ** 2) / 12;
+  v.pivotZ = pivotOf(v);
+  v.yaw = 0; v.lat = 0; v.axS = 0; v.ayS = 0; v.hit = 0;
+  refreshParts(v);
   return v;
+}
+
+/** Local z of the axle that does not steer: the machine turns about it (rear axle of a car, front axle of a combine). */
+function pivotOf(v) {
+  const steer = new Set([...v.front, ...v.rear]), inv = new THREE.Matrix4(), p = new THREE.Vector3(), zs = [];
+  v.group.updateMatrixWorld(true); inv.copy(v.group.matrixWorld).invert();
+  for (const w of v.wheels) {
+    let steers = false;
+    for (let o = w; o && o !== v.group; o = o.parent) if (steer.has(o)) steers = true;
+    if (!steers) zs.push(p.setFromMatrixPosition(w.matrixWorld).applyMatrix4(inv).z);
+  }
+  return zs.length ? zs.reduce((a, b) => a + b, 0) / zs.length : 0;
+}
+/** The rectangles machine v collides with: its body, the header, a hitched implement. */
+function refreshParts(v) {
+  v.parts = [v.bodyPart];
+  if (v.headerLift) {
+    const fp = footprint(v.headerLift, v.group);
+    if (Number.isFinite(fp.x0)) v.parts.push(partOf(fp));
+  }
+  if (v.tool?.foot) v.parts.push(partOf(v.tool.foot, v.hitchZ));
 }
 
 /** A new machine on its parking place. o = { id, model, own, cond, slot }. */
@@ -254,6 +283,7 @@ export function setHeader(v, key) {
   // in the yard the spare header keeps its size: the combine's scale is not around it there
   scene.add(off); off.position.set(v.headerPark[0], 0, v.headerPark[1]); off.rotation.set(0, 0, 0); off.scale.set(v.hdrScale * v.scale, v.scale, v.scale);
   if (v.lodFar) setFar(v, true);
+  refreshParts(v);
 }
 
 /* ---------- tractor attachments ---------- */
@@ -270,11 +300,13 @@ export function attachTool(v, im) {
     const [hx, hz] = hitchPos(v);
     im.x = hx - Math.sin(im.h) * im.drawbar;
     im.z = hz - Math.cos(im.h) * im.drawbar;
+    refreshParts(v);
     return;
   }
   v.group.add(im.group);
   im.group.position.set(0, 0, v.hitchZ);
   im.group.rotation.set(0, 0, 0);
+  refreshParts(v);
 }
 
 /* ---------- power ---------- */
@@ -329,12 +361,13 @@ function penetration(x, z, r, skip) {
   nearShapes(x, z, r + 1, circ, box);
   treeBuf.length = 0;
   for (const c of forestColliders(treeBuf, x, z, r + 2)) circ(c);
-  for (const o of vehicles) if (!skip.includes(o)) circ(o);
+  probe.x = x; probe.z = z; probe.r = r;
+  for (const o of vehicles) if (!skip.includes(o)) for (const q of o.parts) { const k = partCircle(worldPart(o, q, wpBuf), probe, ctBuf); if (k) p += k.d; }
   for (const t of tools) if (t.key === 'trailer' && !skip.includes(t)) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circ(c); }
   for (const c of movers) circ(c);
   return p;
 }
-const circBuf = [];
+const circBuf = [], probe = { x: 0, z: 0, r: 0 }, wpBuf = {}, ctBuf = {};
 /** True if a circle would sit noticeably inside a fixed obstacle or another vehicle. */
 export const blockedAt = (x, z, r, self) => penetration(x, z, r, towed(self) ? [self, towed(self)] : [self]) > 0.3;
 const trailerBuf = [];
@@ -362,7 +395,9 @@ function updateTrailer(t, dt) {
     // the trailer would run into something: undo this frame's move of tractor and trailer
     if (v.prev && trailerPen(t) > before + 1e-4) {
       Object.assign(t, old);
-      v.x = v.prev.x; v.z = v.prev.z; v.h = v.prev.h; v.speed = 0;
+      v.x = v.prev.x; v.z = v.prev.z; v.h = v.prev.h;
+      v.hit = Math.max(v.hit || 0, Math.abs(v.speed));
+      v.speed *= -0.1; v.yaw = 0; v.lat = 0;
       ds = 0;
     }
     for (const w of t.wheels) w.userData.spin.rotation.x += ds / w.userData.r;
@@ -492,63 +527,119 @@ export function updLOD(eye, dist) {
   for (const [kind, s] of farSets) if (counts.has(kind)) { s.mesh.count = s.n; s.mesh.visible = true; s.mesh.instanceMatrix.needsUpdate = true; }
 }
 
-/* ---------- driving ---------- */
-function collide(v) {
-  let hit = false;
-  const push = c => {
-    const dx = v.x - c.x, dz = v.z - c.z, d = Math.hypot(dx, dz), min = c.r + v.r;
-    if (d < min && d > 1e-4) { v.x += (dx / d) * (min - d); v.z += (dz / d) * (min - d); hit = true; }
-  };
-  const box = b => {
-    if (b.off) return;
-    const cx = clamp(v.x, b.x0, b.x1), cz = clamp(v.z, b.z0, b.z1), dx = v.x - cx, dz = v.z - cz, d = Math.hypot(dx, dz);
-    if (d >= v.r) return;
-    if (d > 1e-4) { v.x += (dx / d) * (v.r - d); v.z += (dz / d) * (v.r - d); }
-    else {
-      const opts = [[b.x0 - v.r - v.x, 0], [b.x1 + v.r - v.x, 0], [0, b.z0 - v.r - v.z], [0, b.z1 + v.r - v.z]];
-      opts.sort((a, c) => Math.hypot(...a) - Math.hypot(...c));
-      v.x += opts[0][0]; v.z += opts[0][1];
+/* ---------- collisions ---------- */
+const _wp = [], _op = {}, _ct = {}, _bp = {};
+/** Every contact of v's rectangles in their current place: buildings, posts, trees, machines, trailers, traffic. */
+function contactsOf(v, keep) {
+  v.parts.forEach((p, i) => {
+    const wp = worldPart(v, p, (_wp[i] ||= {}));
+    const circle = c => { const k = partCircle(wp, c, _ct); if (k) keep(k); };
+    nearShapes(wp.x, wp.z, wp.R + 1, circle, b => { if (!b.off) { const k = partPart(wp, boxPart(b, _bp), _ct); if (k) keep(k); } });
+    treeBuf.length = 0;
+    for (const c of forestColliders(treeBuf, wp.x, wp.z, wp.R + 2)) circle(c);
+    for (const o of vehicles) {
+      if (o === v || Math.abs(o.x - wp.x) > 30 || Math.abs(o.z - wp.z) > 30) continue;
+      for (const q of o.parts) { const k = partPart(wp, worldPart(o, q, _op), _ct); if (k) keep(k); }
     }
-    hit = true;
-  };
-  nearShapes(v.x, v.z, v.r + 1, push, box);
-  treeBuf.length = 0;
-  for (const c of forestColliders(treeBuf, v.x, v.z, v.r + 2)) push(c);
-  for (const o of vehicles) if (o !== v) push(o);
-  for (const c of movers) push(c);
-  // parked trailers and the trailers of other vehicles are obstacles too (not the one v tows)
-  for (const t of tools) if (t.key === 'trailer' && t !== v.tool) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) push(c); }
+    for (const c of movers) circle(c);
+    // parked trailers and the trailers of other machines (not the one v tows)
+    for (const t of tools) if (t.key === 'trailer' && t !== v.tool) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circle(c); }
+  });
+}
+/** Pushes v out of what it ran into (see body.js resolve) and keeps it on the map; remembers how hard it hit. */
+function collide(v) {
+  const hit = resolve(v, contactsOf);
+  if (hit > 1.5) v.knock = 0.5;
+  v.hit = Math.max(v.hit || 0, hit);
   const x = clamp(v.x, BOUNDS.x0, BOUNDS.x1), z = clamp(v.z, BOUNDS.z0, BOUNDS.z1);
-  if (x !== v.x || z !== v.z) hit = true;
+  if (x !== v.x || z !== v.z) { v.hit = Math.max(v.hit, Math.abs(v.speed)); v.speed = 0; v.lat = 0; v.yaw = 0; }
   v.x = x; v.z = z;
-  if (hit) v.speed *= 0.6;
-  pushBales(v.x, v.z, v.r);
+  // bales roll aside: circles along each rectangle
+  v.parts.forEach((p, i) => {
+    const wp = worldPart(v, p, (_wp[i] ||= {})), r = Math.min(wp.hx, wp.hz), along = wp.hx > wp.hz;
+    const n = Math.max(1, Math.ceil(Math.max(wp.hx, wp.hz) / r));
+    for (let k = 0; k < n; k++) {
+      const t = n === 1 ? 0 : (k / (n - 1) - 0.5) * 2 * (Math.max(wp.hx, wp.hz) - r);
+      pushBales(wp.x + (along ? wp.axx : wp.azx) * t, wp.z + (along ? wp.axz : wp.azz) * t, r);
+    }
+  });
 }
 
 const treeBuf = [];
 
-/** Bicycle-model driving. input = { thr: -1..1, st: -1..1 } (st > 0 turns left). */
+/* ---------- driving ---------- */
+/**
+ * Steering and grip of each kind of machine. grip = how hard the tyres push sideways (share of g on a
+ * dry road), lock = full steering angle, rate/back = how fast the wheel turns and comes back (rad/s),
+ * tau = how fast the machine follows the wheel (s), slide = the car's tail can step out, roll/pitch =
+ * how the body leans (rad per g).
+ */
+const PHYS = {
+  tractor: { grip: 0.42, lock: 0.55, rate: 1.1, back: 1.6, tau: 0.15, roll: 0.03, pitch: 0.02 },
+  combine: { grip: 0.3, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  beet: { grip: 0.3, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  forest: { grip: 0.35, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
+  jeep: { grip: 0.85, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
+};
+const GRAV = 9.81;
+/** The ground under the wheels: wet after rain, snow in winter (set by the main loop). */
+export const surface = { wet: false, snow: false };
+
+/**
+ * One step of driving machine v. input = { thr: -1..1, st: -1..1 } (st > 0 turns left), null = nobody
+ * at the wheel. The machine turns about its fixed axle (pivotZ); the turn is limited by the grip of
+ * the tyres: asked for more, a machine pushes on wide and loses speed, a car also slides and its
+ * tail steps out. Then it is pushed out of whatever it ran into.
+ */
 export function drive(v, dt, input) {
   v.prev = { x: v.x, z: v.z, h: v.h };
   let thr = input ? input.thr : 0;
-  const st = input ? input.st : 0;
+  const st = input ? input.st : 0, P = PHYS[v.type], u0 = v.speed;
   if (v.fuel <= 0) thr = 0; // engine stalls without diesel
   const cf = condFactor(v.cond), toolCf = v.tool ? condFactor(v.tool.cond) : 1;
   let vmax = (v.lowered ? v.vwork * toolCf : v.vmax * towShare(v)) * cf;
   // cars built for the road are slower in the fields and the forest
   if (v.offroad < 1 && (v.offT = (v.offT || 0) - dt) <= 0) { v.offT = 0.25; v.offRoad = !roadAt(v.x, v.z, 1.5) && !inRect(v.x, v.z, PAD, 4); }
   if (v.offroad < 1 && v.offRoad) vmax *= v.offroad;
-  const maxSteer = lerp(0.62, 0.24, clamp(Math.abs(v.speed) / v.vmax, 0, 1));
-  v.steer += (st * maxSteer - v.steer) * Math.min(1, dt * 5);
+
+  // steering wheel: turns at a steady rate and comes back faster; at speed full lock is cut to what
+  // the tyres hold on a dry road, so that steering with the keys stays drivable
+  const lock = Math.min(P.lock, Math.atan((0.95 * P.grip * GRAV * v.wb) / Math.max(1, u0 * u0)));
+  const rate = (st ? P.rate : P.back) * dt;
+  v.steer += clamp(st * lock - v.steer, -rate, rate);
+
   if (thr > 0) v.speed += (v.speed < 0 ? v.brk : v.acc) * dt;
   else if (thr < 0) v.speed -= (v.speed > 0 ? v.brk : v.acc * 0.7) * dt;
   else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 2.4 * dt);
   if (v.speed > vmax) v.speed = Math.max(vmax, v.speed - v.brk * dt);
   if (v.speed < -v.vrev) v.speed = -v.vrev;
-  v.h += (v.speed / v.wb) * Math.tan(v.steer) * dt;
-  v.x += Math.sin(v.h) * v.speed * dt;
-  v.z += Math.cos(v.h) * v.speed * dt;
-  collide(v);
+
+  // grip: less off the road (cars), on wet ground and on snow; for a moment after a crash the
+  // machine skids and turns on before the tyres catch it again
+  const knock = v.knock > 0;
+  if (knock) v.knock -= dt;
+  const mu = P.grip * (v.type === 'jeep' && v.offRoad ? 0.7 : 1) * (surface.wet ? 0.8 : 1) * (surface.snow ? 0.65 : 1) * (knock ? 0.5 : 1);
+  const amax = mu * GRAV, u = v.speed, want = (u / v.wb) * Math.tan(v.steer), lim = amax / Math.max(Math.abs(u), 0.5);
+  const over = Math.abs(want) - lim;
+  const turn = over > 0 ? Math.sign(want) * lim * (P.slide ? 1.15 : 1) : want;
+  if (over > 0) v.speed -= Math.sign(u) * Math.min(Math.abs(u), over * Math.abs(u) * 0.5 * dt); // scrubbing tyres
+  v.yaw += (turn - v.yaw) * (1 - Math.exp(-dt / (P.tau * (knock ? 6 : 1))));
+  if (P.slide || knock) {
+    // side slip at the fixed axle: the tyres pull it back as far as their grip goes
+    const side = clamp(u * v.yaw - v.lat / 0.08, -amax, amax);
+    v.lat = clamp(v.lat + (side - u * v.yaw) * dt, -Math.abs(u) - 3, Math.abs(u) + 3);
+    v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), Math.abs(v.lat) * 0.4 * dt);
+  } else v.lat = 0;
+
+  const s = Math.sin(v.h), c = Math.cos(v.h), side = v.lat - v.yaw * v.pivotZ;
+  v.x += (s * v.speed + c * side) * dt;
+  v.z += (c * v.speed - s * side) * dt;
+  v.h += v.yaw * dt;
+  // for the body's lean
+  const k = Math.min(1, dt * 5);
+  v.axS += ((v.speed - u0) / Math.max(dt, 1e-3) - v.axS) * k;
+  v.ayS += (v.speed * v.yaw - v.ayS) * k;
+  if (v.speed || v.yaw || v.lat || input) collide(v);
   v.thr = thr;
 }
 
@@ -572,6 +663,12 @@ const _v = new THREE.Vector3();
 /** Moves meshes to match the simulation: wheels, steering, lifts, reel, discs, pipe, grain heap, exhaust. */
 export function visual(v, dt, tankCropColor) {
   v.y = sitOnGround(v.group, v.x, v.z, v.h, v.wb, v.r * 1.1, 0);
+  // the body leans out of a turn and dips its nose when braking (only on the model)
+  if (!v.helper) {
+    const P = PHYS[v.type];
+    v.group.rotation.z += P.roll * clamp(v.ayS / GRAV, -1, 1);
+    v.group.rotation.x -= P.pitch * clamp(v.axS / GRAV, -1, 1);
+  }
   for (const w of v.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
   for (const p of v.front) p.rotation.y = v.steer;
   for (const p of v.rear) p.rotation.y = -v.steer;

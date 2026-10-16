@@ -5,7 +5,7 @@ import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
 import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD } from './world/fields.js';
-import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD } from './vehicles/vehicles.js';
+import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD, surface } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
@@ -25,7 +25,7 @@ import { checkGoals } from './game/goals.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
 import { flushBales, bales, addBale } from './world/bales.js';
 import { bindInput, driveInput, releaseAll } from './core/input.js';
-import { cam, bindCamera, updateCamera } from './render/camera.js';
+import { cam, bindCamera, updateCamera, shakeCamera } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
 import { updSnow, snapSnow } from './render/snow.js';
 import { WX, updateWeather, season, isWinter } from './game/weather.js';
@@ -41,7 +41,7 @@ import { pumpPreviews } from './render/previews.js';
 import { toast } from './ui/toast.js';
 import { initDev, toggleDev, updDev, devEnabled } from './ui/devpanel.js';
 import { mapEditorOpen } from './ui/mapeditor.js';
-import { toggleSound, updAudio, sound } from './audio.js';
+import { toggleSound, updAudio, sound, playImpact } from './audio.js';
 
 /* ---------- world ---------- */
 const terrain = buildTerrain(scene);
@@ -134,6 +134,8 @@ function tick(dt) {
     if (chargeDays()) { sellProducts(); generateOffers(); saveLocal(); }
   }
   const input = G.playing ? driveInput() : null;
+  // tyres hold less on wet ground (in the rain and until it dries) and on snow
+  surface.wet = WX.rain > 0.15 || G.gameMin < WX.wetUntil; surface.snow = isWinter();
   for (const v of vehicles) {
     if (v.helper && G.playing) helperTick(v, dt);
     else if (!v.helper) drive(v, dt, v === G.active && !v.cutting ? input : null);
@@ -141,6 +143,10 @@ function tick(dt) {
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
   updateTrailers(dt);
+  // a crash of the machine you drive: the view shakes and it is heard (small knocks only shake a little)
+  const hit = G.active.hit || 0;
+  if (hit > 0.8) { const k = Math.min(1, (hit - 0.8) / 8); shakeCamera(0.15 + 0.85 * k); playImpact(k); }
+  for (const v of vehicles) v.hit = 0;
   if (DEV.tracks) updTracks(dt, vehicles, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
   updateLogistics(dt, saveLocal);
   flushFields();

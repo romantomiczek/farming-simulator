@@ -43,6 +43,9 @@ export function bindCamera(canvas) {
 }
 
 const desired = new THREE.Vector3(), look = new THREE.Vector3();
+let shake = 0, shakeT = 0;
+/** A short shake of the view after a crash: a = strength 0..1. */
+export function shakeCamera(a) { shake = Math.max(shake, a); }
 export function updateCamera(dt, v) {
   const t = performance.now() / 1000;
   if (keys.KeyQ) { cam.yaw += 1.7 * dt; cam.manual = t; }
@@ -63,4 +66,12 @@ export function updateCamera(dt, v) {
   // when the camera is tilted low, aim a little above the vehicle so the horizon comes into view
   look.copy(cam.t); look.y += Math.max(0, 0.4 - cam.pitch) * 8;
   camera.lookAt(look);
+  if (shake > 0.002) {
+    // a few fast wobbles of the view that die away
+    shakeT += dt;
+    camera.rotateX(Math.sin(shakeT * 47) * shake * 0.025);
+    camera.rotateY(Math.sin(shakeT * 61 + 1) * shake * 0.02);
+    camera.rotateZ(Math.sin(shakeT * 37 + 2) * shake * 0.015);
+    shake *= Math.exp(-dt * 6);
+  }
 }
