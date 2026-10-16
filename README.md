@@ -157,9 +157,10 @@ Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kanc
 
 ## Ekonomika
 
-**Kancelář (K)** má pět záložek. Dokud je otevřená, čas stojí.
+**Kancelář (K)** má šest záložek. Dokud je otevřená, čas stojí.
 
-- **Obchod:** na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs. Pluh, rozmetadlo, lis, řádkový adaptér a sklízeč cukrovky koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den). Vlastní stroj prodáš za 55 % ceny podle stavu.
+- **Obchod:** záložky Traktory, Sklízeče, Nářadí, Přívěsy a cisterny, Lesnictví, Auta a Budovy. Každý druh má řadu karet od nejlevnějšího po nejlepší: barvy značky, cena, proužky parametrů a srovnání s tím, co už máš („+50 % výkon“). Filtr „Jen na co mám“ a řazení od nejlevnějšího nebo od nejlepšího. Klik na kartu otevře detail se všemi čísly, poznámkou o výkonu a nákupem. Stroj koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den); v detailu můžeš zvolit **protiúčet**: starý stroj stejného druhu se prodá (55 % ceny podle stavu) a doplatíš rozdíl, nový převezme jeho nářadí i tvoje místo za volantem. Na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs.
+- **Vozový park:** každý stroj a nářadí s místem, stavem a nákladem; přesednutí, prodej a vrácení z pronájmu.
 - **Zakázky:** obděláváš sousedova pole, která ti nepatří (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem.
 - **Farma:** pozemky (výměra, co na nich je, nákup sousedových polí na dálku), zásoby zvířat a skleníků, stav lesa.
 - **Cíle:** tři aktivní cíle s odměnou (od první sklizně po celé údolí) a statistiky farmy. Aktuální cíl je vidět i pod Dalším krokem.

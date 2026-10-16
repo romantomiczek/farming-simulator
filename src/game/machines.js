@@ -156,6 +156,30 @@ export function lease(key) {
   applyOwnership();
   return true;
 }
+/**
+ * Why piece p cannot go as a trade-in now, or null. Like selling, except that the last tractor and
+ * the machine you sit in may go: the new one takes their place.
+ */
+export function tradeBlock(p) {
+  if (p.own !== 'own') return 'Pronajatý stroj se vrací, ne prodává.';
+  const why = blockReasonOf(p);
+  return why === 'Bez traktoru by farma nefungovala.' || why === 'Právě v něm sedíš.' ? null : why;
+}
+/** Buys model key and sells piece old in the same go: you pay the difference. The new piece takes over old's implement and your seat. */
+export function buyWithTrade(key, old) {
+  const c = byKey[key];
+  if (!c || !old || tradeBlock(old) || G.money + sellValueOf(old) < c.price) return false;
+  const wasActive = G.active === old, tool = old.tool;
+  G.money += sellValueOf(old);
+  (old.type ? removeVehicle : removeTool)(old);
+  if (!buy(key)) return false;
+  const p = piecesOf(key).pop();
+  if (tool && p.type === 'tractor' && tools.includes(tool) && !tool.on) attachTool(p, tool);
+  if (wasActive) G.active = p;
+  applyOwnership();
+  return true;
+}
+
 /** Sells piece p if owned, hands it back if leased. */
 export function releasePiece(p) {
   if (!p || blockReasonOf(p)) return false;

@@ -172,6 +172,25 @@ try {
   });
   check('vzdálené stroje', lod.far && lod.near && lod.tris < 8000, 'zjednodušený traktor ' + lod.tris + ' △');
 
+  // the shop: every tab renders cards, a tractor bought with the old one as a trade-in keeps its implement
+  const shopCheck = await page.evaluate(async () => {
+    const O = await import('/src/ui/office.js'), V = await import('/src/vehicles/vehicles.js'), z = window.__zl;
+    O.openOffice('shop');
+    const tabs = [...document.querySelectorAll('button[data-act="shopgrp"]')].map(b => b.dataset.key), cards = {};
+    for (const k of tabs) { document.querySelector(`button[data-act="shopgrp"][data-key="${k}"]`).click(); cards[k] = document.querySelectorAll('#officeBody .mcard, #officeBody .row').length; }
+    document.querySelector('button[data-act="shopgrp"][data-key="tractor"]').click();
+    document.querySelector('button[data-act="model"][data-key="jd-6r250"]').click();
+    const sel = document.querySelector('select[data-trade]'), old = V.vehicles.find(v => v.type === 'tractor' && v.tool && !v.helper && v !== z.G.active);
+    sel.value = old.id; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const tool = old.tool, m0 = z.G.money;
+    document.querySelector('button[data-act="trade"]').click();
+    const jd = V.vehicles.filter(v => v.model === 'jd-6r250').pop();
+    O.closeOffice();
+    return { cards, gone: !V.vehicles.includes(old), hitched: tool.on === jd, paid: Math.round(m0 - z.G.money) };
+  });
+  check('obchod', Object.values(shopCheck.cards).every(n => n > 0) && shopCheck.gone && shopCheck.hitched && shopCheck.paid > 0 && shopCheck.paid < 3000000,
+    Object.entries(shopCheck.cards).map(([k, n]) => k + ' ' + n).join(', ') + ' · protiúčet: doplaceno ' + shopCheck.paid + ' Kč');
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

@@ -2,7 +2,7 @@ import { fmt } from '../core/util.js';
 import { G } from '../game/state.js';
 import {
   has, hasCondition, CATALOG, byKey, sellValue, leaseUpfront, leaseDaily, blockReason, buy, lease, release, dailyLeaseCost, status, condOf,
-  isMachine, piecesOf, sellValueOf, blockReasonOf, releasePiece,
+  isMachine, piecesOf, sellValueOf, blockReasonOf, releasePiece, tradeBlock, buyWithTrade,
 } from '../game/machines.js';
 import { takeLoan, repayLoan, dailyInterest, emergencyFuel, LOAN_MAX, LOAN_STEP, INTEREST_DAILY, EMERGENCY } from '../game/economy.js';
 import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../game/contracts.js';
@@ -11,7 +11,7 @@ import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap, eatsText, mixSh
 import { COWS, MIXER } from '../game/balance.js';
 import { trees, matureCount } from '../world/forest.js';
 import { vehicles, tools, IMPL_ORDER, VEHICLE_TYPES, labelOf, powerShare, MIN_POWER } from '../vehicles/vehicles.js';
-import { MODEL } from '../game/catalog.js';
+import { MODEL, MODELS, modelName } from '../game/catalog.js';
 import { PAD, PARK, inRect } from '../world/layout.js';
 import { MARKETS } from '../game/markets.js';
 import { fieldAt } from '../world/fields.js';
@@ -42,8 +42,13 @@ export function initOffice(handlers) {
   $('officeClose').onclick = closeOffice;
   // choosing a tractor's implement for a helper changes which fields are offered
   body.onchange = e => {
-    const sel = e.target.closest('select[data-tool]');
-    if (sel) { picks[sel.dataset.tool] = sel.value; render(); }
+    const t = e.target;
+    if (t.dataset.tool) picks[t.dataset.tool] = t.value;
+    else if (t.dataset.trade) shop.trade = t.value || null;
+    else if (t.dataset.filter === 'afford') shop.afford = t.checked;
+    else if (t.dataset.filter === 'sort') shop.sort = t.value;
+    else return;
+    render();
   };
   body.onclick = e => {
     const b = e.target.closest('button[data-act]');
@@ -69,6 +74,15 @@ function act(a, key) {
   switch (a) {
     case 'buy': ok = buy(key); if (ok) toast('Koupeno: ' + byKey[key].name + (isMachine(key) ? ' · ' + parkedAt(key) : ''), 'good'); break;
     case 'lease': ok = lease(key); if (ok) toast('Pronajato: ' + byKey[key].name + (isMachine(key) ? ' · ' + parkedAt(key) : ''), 'good'); break;
+    case 'shopgrp': shop.tab = key; shop.sel = null; break;
+    case 'model': shop.sel = shop.sel === key ? null : key; shop.trade = null; break;
+    case 'unmodel': shop.sel = null; break;
+    case 'trade': {
+      const old = [...vehicles, ...tools].find(x => x.id === shop.trade), name = old && labelOf(old), value = old && sellValueOf(old);
+      ok = buyWithTrade(key, old);
+      if (ok) { toast('Koupeno: ' + byKey[key].name + ' · ' + name + ' prodán za ' + fmt(value) + ' Kč', 'good'); shop.trade = null; }
+      break;
+    }
     case 'drive': {
       const v = vehicles.find(x => x.id === key);
       if (v && !v.helper) { G.active = v; cam.manual = -99; toast('Sedíš v: ' + labelOf(v)); closeOffice(); return; }
@@ -108,7 +122,9 @@ function act(a, key) {
 function render() {
   for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   $('officeMoney').textContent = fmt(G.money) + ' Kč';
+  const top = body.scrollTop;
   body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'fleet' ? fleetHTML() : tab === 'jobs' ? jobsHTML() : tab === 'farm' ? farmHTML() : tab === 'goals' ? goalsHTML() : finHTML();
+  body.scrollTop = top;
 }
 
 /** Where the newest piece of key waits (for the purchase message). */
@@ -119,44 +135,128 @@ function parkedAt(key) {
   return p.slot >= 0 ? 'stojí na odstavné ploše jižně od dvora' : 'stojí na dvoře u kůlny';
 }
 
+/* ---------- shop ---------- */
+/** Shop tabs: machine kinds (one row of cards each, cheapest first) or the buildings. */
+const SHOP = [
+  { id: 'tractor', name: 'Traktory', kinds: ['tractor'] },
+  { id: 'harvest', name: 'Sklízeče', kinds: ['combine', 'beet'], extra: ['cornHeader'] },
+  { id: 'tools', name: 'Nářadí', kinds: ['cultivator', 'plough', 'seeder', 'spreader', 'mower', 'baler'] },
+  { id: 'haul', name: 'Přívěsy a cisterny', kinds: ['trailer', 'watertank'] },
+  { id: 'forest', name: 'Lesnictví', kinds: ['forest'] },
+  { id: 'cars', name: 'Auta', kinds: ['jeep'] },
+  { id: 'build', name: 'Budovy' },
+];
+const KIND_TITLE = {
+  tractor: 'Traktory', combine: 'Kombajny', beet: 'Sklízeče cukrovky', cultivator: 'Kultivátory', plough: 'Pluhy', seeder: 'Secí stroje',
+  spreader: 'Rozmetadla', mower: 'Žací lišty', baler: 'Lisy', trailer: 'Přívěsy', watertank: 'Cisterny', forest: 'Harvestory', jeep: 'Auta',
+};
+const n1 = x => String(Math.round(x * 10) / 10).replace('.', ',');
+/** The numbers a card shows for each kind: [label, value, text, more is better]. */
+const STATS = {
+  tractor: m => [['Výkon', m.hp, m.hp + ' k', 1], ['Rychlost', m.kmh, m.kmh + ' km/h', 1], ['Nádrž', m.fuel, fmt(m.fuel) + ' l', 1]],
+  combine: m => [['Lišta', m.header, n1(m.header) + ' m', 1], ['Zásobník', m.tank, fmt(m.tank) + ' l', 1], ['Vykládání', m.unload, fmt(m.unload) + ' l/s', 1]],
+  beet: m => [['Řádky', m.rows, m.rows + '', 1], ['Zásobník', m.tank, fmt(m.tank) + ' l', 1], ['Sklizeň', m.work || 1, Math.round((m.work || 1) * 100) + ' %', 1]],
+  forest: m => [['Náklad', m.logs, m.logs + ' m³', 1], ['Kácení', m.cut, Math.round(m.cut * 100) + ' %', 1]],
+  jeep: m => [['Rychlost', m.kmh, m.kmh + ' km/h', 1], ['Mimo cesty', m.kmh * m.offroad, Math.round(m.kmh * m.offroad) + ' km/h', 1]],
+  baler: m => [['Rychlost', m.speed, Math.round(m.speed * 3.6) + ' km/h', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
+  trailer: m => [['Objem', m.cap, fmt(m.cap) + ' l', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
+  watertank: m => [['Objem', m.cap, fmt(m.cap) + ' l', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
+};
+const statsOf = m => (STATS[m.kind] || (x => [['Záběr', x.width, n1(x.width) + ' m', 1], ['Potřebuje', x.hp, x.hp + ' k', 0]]))(m);
+const shop = { tab: 'tractor', sel: null, afford: false, sort: 'price' };
+
+/** A picture slot for model m (the model's colours and brand; real pictures come with the previews). */
+function thumbHTML(m, big) {
+  const L = m.look || {}, c1 = L.body || L.color || '#5f9c7c', c2 = L.dark || L.bodyLt || L.light || L.accent || c1;
+  const word = (m.brand || m.name).toUpperCase();
+  return `<div class="mthumb${big ? ' big' : ''}" style="--c1:${c1};--c2:${c2}" data-model="${esc(m.id)}"><span>${esc(word)}</span></div>`;
+}
+/** Compared with the best piece of the kind you own: "+50 % výkon". */
+function compareText(m) {
+  const own = MODELS.filter(x => x.kind === m.kind && piecesOf(x.id).length);
+  if (!own.length) return '';
+  const [label, v, , more] = statsOf(m)[0], best = Math.max(...own.map(x => statsOf(x)[0][1]));
+  if (Math.abs(v - best) < 1e-6) return '<span class="cmp">' + label.toLowerCase() + ' jako tvůj nejlepší</span>';
+  const d = Math.round((v / best - 1) * 100), good = (d > 0) === !!more;
+  return `<span class="cmp ${good ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d} % ${label.toLowerCase()}</span>`;
+}
+function cardHTML(m) {
+  const ps = piecesOf(m.id), own = ps.filter(p => p.own === 'own').length, leased = ps.length - own;
+  const stats = statsOf(m), max = stats.map((s, i) => Math.max(...MODELS.filter(x => x.kind === m.kind).map(x => statsOf(x)[i][1])));
+  const chips = (own ? `<span class="chip on">Vlastníš ${own}</span>` : '') + (leased ? `<span class="chip warn">Pronájem ${leased}</span>` : '');
+  return `<button class="mcard${shop.sel === m.id ? ' on' : ''}${G.money < m.price ? ' dear' : ''}" data-act="model" data-key="${esc(m.id)}">
+    ${thumbHTML(m)}
+    <span class="mname"><b>${esc(modelName(m))}</b>${chips}</span>
+    <span class="mprice">${fmt(m.price)} Kč</span>
+    ${stats.map(([label, v, txt, more], i) => `<span class="mstat${more ? '' : ' less'}"><i>${label}</i><em><s style="width:${Math.max(6, (v / max[i]) * 100).toFixed(0)}%"></s></em><b>${txt}</b></span>`).join('')}
+    ${compareText(m)}
+  </button>`;
+}
+/** The chosen model: picture, all numbers, what you own of it, buy, lease or buy with a trade-in. */
+function detailHTML(m) {
+  const c = byKey[m.id], ps = piecesOf(m.id), same = [...vehicles, ...tools].filter(p => (p.type || p.key) === m.kind && p.own === 'own');
+  const trade = same.filter(p => !tradeBlock(p)), pick = trade.find(p => p.id === shop.trade) || null;
+  const pay = c.price - (pick ? sellValueOf(pick) : 0);
+  const tradeSel = same.length ? `<label class="hselect"><span>Protiúčet</span><select data-trade="1">
+      <option value="">Bez protiúčtu</option>${trade.map(p => `<option value="${p.id}"${p === pick ? ' selected' : ''}>Prodat ${esc(labelOf(p))} · stav ${pct(p.cond)} · ${fmt(sellValueOf(p))} Kč</option>`).join('')}
+    </select></label>` : '';
+  return `<div class="mdetail">
+    ${thumbHTML(m, true)}
+    <div class="mdbody">
+      <div class="mdhead"><h3>${esc(modelName(m))}</h3>${btn('unmodel', '', 'Zavřít', false, 'ghost')}</div>
+      <p>${esc(c.desc)}</p>
+      <div class="mdstats">${statsOf(m).map(([label, , txt]) => `<div><span>${label}</span><b>${txt}</b></div>`).join('')}<div><span>Cena</span><b>${fmt(c.price)} Kč</b></div></div>
+      ${powerNote(m)}
+      ${ps.length ? `<p class="muted">Máš ${ps.length} ${ps.length === 1 ? 'kus' : ps.length < 5 ? 'kusy' : 'kusů'}: ${ps.map(p => esc(labelOf(p))).join(', ')}. Prodej najdeš ve Vozovém parku.</p>` : ''}
+      ${tradeSel}
+      <div class="ract">${pick
+        ? btn('trade', m.id, 'Koupit a prodat starý · doplatíš ' + fmt(pay) + ' Kč', G.money < pay)
+        : btn('buy', m.id, 'Koupit · ' + fmt(c.price) + ' Kč', G.money < c.price)}
+        ${c.noLease ? '' : btn('lease', m.id, 'Pronajmout · ' + fmt(leaseUpfront(m.id)) + ' Kč + ' + fmt(leaseDaily(m.id)) + ' Kč/den', G.money < leaseUpfront(m.id), 'ghost')}</div>
+      ${same.length && !trade.length ? '<p class="muted">Na protiúčet teď nic nejde: stroje jsou v práci, ve kterém sedíš, nebo mají náklad.</p>' : ''}
+    </div>
+  </div>`;
+}
+
 function shopHTML() {
-  let out = '<p class="lede small">Strojů a nářadí můžeš mít kolik chceš, i víc kusů stejného druhu. Další kusy parkují na odstavné ploše jižně od dvora. Prodej a vrácení jednotlivých kusů najdeš v záložce Vozový park.</p>';
-  for (const kind of [...new Set(CATALOG.map(c => c.kind))]) {
-    out += `<h3 class="grp">${kind}</h3>`;
-    for (const c of CATALOG.filter(x => x.kind === kind)) {
-      if (isMachine(c.key)) { out += machineRow(c); continue; }
-      const st = status(c.key);
-      const chip = st === 'own' ? '<span class="chip on">Vlastníš</span>'
-        : st === 'lease' ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(c.key))} Kč/den</span>`
-        : '<span class="chip">Nevlastníš</span>';
-      let actions = '', note = '';
-      if (!st) {
-        actions = btn('buy', c.key, 'Koupit · ' + fmt(c.price) + ' Kč', G.money < c.price) +
-          (c.noLease ? '' : btn('lease', c.key, 'Pronajmout · ' + fmt(leaseUpfront(c.key)) + ' Kč + ' + fmt(leaseDaily(c.key)) + ' Kč/den', G.money < leaseUpfront(c.key), 'ghost'));
-      } else if (!c.fixed) {
-        const why = blockReason(c.key);
-        actions = st === 'own' ? btn('sell', c.key, 'Prodat · ' + fmt(sellValue(c.key)) + ' Kč', !!why, 'ghost') : btn('return', c.key, 'Vrátit', !!why, 'ghost');
-        if (why) note = `<p class="why">${why}</p>`;
-      }
-      out += `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span>${note}</div>
-        <div class="rstate">${chip}${st && hasCondition(c) ? `<span class="muted">stav ${pct(condOf(c.key))}</span>` : ''}</div>
-        <div class="ract">${actions}</div></div>`;
-    }
+  const g = SHOP.find(x => x.id === shop.tab) || SHOP[0];
+  let out = `<div class="shopnav">${SHOP.map(x => `<button class="chipbtn${x === g ? ' on' : ''}" data-act="shopgrp" data-key="${x.id}">${x.name}</button>`).join('')}</div>`;
+  if (g.id === 'build') return out + buildingsHTML();
+  out += `<div class="shopfilter"><label><input type="checkbox" data-filter="afford"${shop.afford ? ' checked' : ''}> Jen na co mám</label>
+    <label>Řadit <select data-filter="sort"><option value="price"${shop.sort === 'price' ? ' selected' : ''}>od nejlevnějšího</option><option value="best"${shop.sort === 'best' ? ' selected' : ''}>od nejlepšího</option></select></label>
+    <span class="muted">Další kusy parkují na odstavné ploše jižně od dvora.</span></div>`;
+  const sel = MODEL[shop.sel];
+  if (sel && g.kinds.includes(sel.kind)) out += detailHTML(sel);
+  for (const kind of g.kinds) {
+    let list = MODELS.filter(m => m.kind === kind && (!shop.afford || m.price <= G.money));
+    list = shop.sort === 'best' ? list.sort((a, b) => statsOf(b)[0][1] - statsOf(a)[0][1] || b.price - a.price) : list.sort((a, b) => a.price - b.price);
+    out += `<h3 class="grp">${KIND_TITLE[kind]}</h3>`;
+    out += list.length ? `<div class="mcards">${list.map(cardHTML).join('')}</div>` : '<p class="empty">Na žádný model teď nemáš.</p>';
   }
+  for (const key of g.extra || []) out += `<h3 class="grp">${byKey[key].kind}</h3>` + buildingRow(byKey[key]);
   return out;
 }
 
-/** A machine or implement in the shop: how many you have, buy or lease one more. */
-function machineRow(c) {
-  const ps = piecesOf(c.key), own = ps.filter(p => p.own === 'own').length, leased = ps.length - own;
-  const chips = [own ? `<span class="chip on">Vlastníš ${own}</span>` : '', leased ? `<span class="chip warn">Pronájem ${leased} · ${fmt(leaseDaily(c.key) * leased)} Kč/den</span>` : ''].join('') || '<span class="chip">Nevlastníš</span>';
-  const more = ps.length ? ' další' : '';
-  const actions = btn('buy', c.key, 'Koupit' + more + ' · ' + fmt(c.price) + ' Kč', G.money < c.price) +
-    (c.noLease ? '' : btn('lease', c.key, 'Pronajmout' + more + ' · ' + fmt(leaseUpfront(c.key)) + ' Kč + ' + fmt(leaseDaily(c.key)) + ' Kč/den', G.money < leaseUpfront(c.key), 'ghost'));
-  const fit = powerNote(MODEL[c.key]);
-  return `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span>${fit}</div>
-    <div class="rstate">${chips}</div><div class="ract">${actions}</div></div>`;
+/** A building or the row header: one row with buy, lease or sell. */
+function buildingRow(c) {
+  const st = status(c.key);
+  const chip = st === 'own' ? '<span class="chip on">Vlastníš</span>'
+    : st === 'lease' ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(c.key))} Kč/den</span>`
+    : '<span class="chip">Nevlastníš</span>';
+  let actions = '', note = '';
+  if (!st) {
+    actions = btn('buy', c.key, 'Koupit · ' + fmt(c.price) + ' Kč', G.money < c.price) +
+      (c.noLease ? '' : btn('lease', c.key, 'Pronajmout · ' + fmt(leaseUpfront(c.key)) + ' Kč + ' + fmt(leaseDaily(c.key)) + ' Kč/den', G.money < leaseUpfront(c.key), 'ghost'));
+  } else {
+    const why = blockReason(c.key);
+    actions = st === 'own' ? btn('sell', c.key, 'Prodat · ' + fmt(sellValue(c.key)) + ' Kč', !!why, 'ghost') : btn('return', c.key, 'Vrátit', !!why, 'ghost');
+    if (why) note = `<p class="why">${why}</p>`;
+  }
+  return `<div class="row"><div class="rmain"><b>${c.name}</b><span>${c.desc}</span>${note}</div>
+    <div class="rstate">${chip}${st && hasCondition(c) ? `<span class="muted">stav ${pct(condOf(c.key))}</span>` : ''}</div>
+    <div class="ract">${actions}</div></div>`;
 }
+const buildingsHTML = () => '<h3 class="grp">Budovy</h3>' + CATALOG.filter(c => c.kind === 'Budovy').map(buildingRow).join('');
 
 /** Shop: how a tractor copes with your implements, or how fast an implement goes with your strongest tractor. */
 function powerNote(m) {
