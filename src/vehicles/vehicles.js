@@ -389,6 +389,8 @@ function updateTrailer(t, dt) {
 const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep, suv: buildSUV, pickup: buildPickup };
 /** The builder of model m: its own (look.builder, e.g. the SUV among the cars) or the kind's. */
 const buildOf = m => VEHICLE_BUILD[m.look.builder] || TOOL_SPEC[m.kind]?.build || VEHICLE_BUILD[m.kind];
+/** A fresh detailed model of model id, outside the game (shop pictures): what the builder returns. */
+export const buildModel = id => buildOf(MODEL[id])(MODEL[id].look);
 const KEEP = new Set(['position', 'normal', 'uv', 'color', 'surf']);
 /** Lamps, glass and beacons become plain colours in the far model: [hex, roughness, metalness]. */
 const FAR_PLAIN = new Map([[glassMat, ['#4b6470', 0.15, 0.3]], [lampMat, ['#fff4d6', 0.3, 0]], [beaconMat, ['#f0a03a', 0.3, 0]]]);

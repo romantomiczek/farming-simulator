@@ -191,6 +191,33 @@ try {
   check('obchod', Object.values(shopCheck.cards).every(n => n > 0) && shopCheck.gone && shopCheck.hitched && shopCheck.paid > 0 && shopCheck.paid < 3000000,
     Object.entries(shopCheck.cards).map(([k, n]) => k + ' ' + n).join(', ') + ' · protiúčet: doplaceno ' + shopCheck.paid + ' Kč');
 
+  // shop pictures: the cards of a tab get their photos, the detail shows the model turning (not an empty canvas)
+  const shots = await page.evaluate(async () => {
+    const O = await import('/src/ui/office.js'), z = window.__zl, idle = z.renderer.render;
+    z.renderer.render = z.realRender; // the studio draws with the game's renderer
+    const spread = (src, w, h) => { // how much the picture's brightness varies: an empty or one-colour picture has ~0
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(src, 0, 0, w, h);
+      const d = x.getImageData(0, 0, w, h).data; let lo = 255, hi = 0;
+      for (let i = 0; i < d.length; i += 4) { const l = (d[i] + d[i + 1] + d[i + 2]) / 3; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+      return hi - lo;
+    };
+    const frames = n => new Promise(r => { const f = () => (--n ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });
+    O.openOffice('shop');
+    document.querySelector('button[data-act="shopgrp"][data-key="tools"]').click();
+    const want = document.querySelectorAll('#officeBody .mcard .mthumb').length;
+    for (let i = 0; i < 120 && document.querySelectorAll('#officeBody .mcard .mthumb img').length < want; i++) await frames(1);
+    const imgs = [...document.querySelectorAll('#officeBody .mcard .mthumb img')];
+    await Promise.all(imgs.map(im => im.decode()));
+    const flat = imgs.filter(im => spread(im, 108, 40) < 40).length;
+    document.querySelector('#officeBody .mcard').click();
+    await frames(5);
+    const view = document.querySelector('#officeBody canvas.mview'), turn = view ? spread(view, 150, 95) : 0;
+    O.closeOffice(); z.renderer.render = idle;
+    return { want, got: imgs.length, flat, turn: Math.round(turn) };
+  });
+  check('náhledy v obchodě', shots.want > 0 && shots.got === shots.want && !shots.flat && shots.turn > 40,
+    shots.got + '/' + shots.want + ' fotek' + (shots.flat ? ', prázdných ' + shots.flat : '') + ' · otočný model kontrast ' + shots.turn);
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

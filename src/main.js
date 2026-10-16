@@ -37,6 +37,7 @@ import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
+import { pumpPreviews } from './render/previews.js';
 import { toast } from './ui/toast.js';
 import { initDev, toggleDev, updDev, devEnabled } from './ui/devpanel.js';
 import { mapEditorOpen } from './ui/mapeditor.js';
@@ -163,7 +164,7 @@ function tick(dt) {
   updAudio(G.active, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter() });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(G.active.x, G.active.z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
-  if (shadersReady) renderer.render(scene, camera);
+  if (shadersReady) { pumpPreviews(dt); renderer.render(scene, camera); }
 }
 
 // Compile all shaders in parallel without blocking the page (KHR_parallel_shader_compile); until then

@@ -12,6 +12,7 @@ import { COWS, MIXER } from '../game/balance.js';
 import { trees, matureCount } from '../world/forest.js';
 import { vehicles, tools, IMPL_ORDER, VEHICLE_TYPES, labelOf, powerShare, MIN_POWER } from '../vehicles/vehicles.js';
 import { MODEL, MODELS, modelName } from '../game/catalog.js';
+import { thumbURL, setThumbHandler, setViewer } from '../render/previews.js';
 import { PAD, PARK, inRect } from '../world/layout.js';
 import { MARKETS } from '../game/markets.js';
 import { fieldAt } from '../world/fields.js';
@@ -66,6 +67,7 @@ export function openOffice(t) {
 }
 export function closeOffice() {
   box.hidden = true;
+  setViewer(null, null);
   h.onClose();
 }
 
@@ -125,6 +127,9 @@ function render() {
   const top = body.scrollTop;
   body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'fleet' ? fleetHTML() : tab === 'jobs' ? jobsHTML() : tab === 'farm' ? farmHTML() : tab === 'goals' ? goalsHTML() : finHTML();
   body.scrollTop = top;
+  // the detail of a model in the shop shows it turning
+  const view = body.querySelector('canvas.mview');
+  setViewer(view, view ? shop.sel : null);
 }
 
 /** Where the newest piece of key waits (for the purchase message). */
@@ -165,12 +170,21 @@ const STATS = {
 const statsOf = m => (STATS[m.kind] || (x => [['Záběr', x.width, n1(x.width) + ' m', 1], ['Potřebuje', x.hp, x.hp + ' k', 0]]))(m);
 const shop = { tab: 'tractor', sel: null, afford: false, sort: 'price' };
 
-/** A picture slot for model m (the model's colours and brand; real pictures come with the previews). */
+/**
+ * Picture of model m: its photo from the studio (render/previews.js), or until it is made the model's
+ * colours and brand. big = the turning model in the detail.
+ */
 function thumbHTML(m, big) {
   const L = m.look || {}, c1 = L.body || L.color || '#5f9c7c', c2 = L.dark || L.bodyLt || L.light || L.accent || c1;
-  const word = (m.brand || m.name).toUpperCase();
-  return `<div class="mthumb${big ? ' big' : ''}" style="--c1:${c1};--c2:${c2}" data-model="${esc(m.id)}"><span>${esc(word)}</span></div>`;
+  const word = (m.brand || m.name).toUpperCase(), url = big ? null : thumbURL(m.id);
+  const inner = big ? '<canvas class="mview" width="600" height="380" aria-label="Model stroje, otáčíš ho tažením myši"></canvas><em>Otoč tažením</em>'
+    : url ? `<img src="${url}" alt="">` : `<span>${esc(word)}</span>`;
+  return `<div class="mthumb${big ? ' big' : ''}${url || big ? ' shot' : ''}" style="--c1:${c1};--c2:${c2}" data-model="${esc(m.id)}">${inner}</div>`;
 }
+// a picture that was made while the shop is open goes straight into its card
+setThumbHandler(id => {
+  for (const el of document.querySelectorAll(`.mthumb[data-model="${CSS.escape(id)}"]:not(.big)`)) { el.classList.add('shot'); el.innerHTML = `<img src="${thumbURL(id)}" alt="">`; }
+});
 /** Compared with the best piece of the kind you own: "+50 % výkon". */
 function compareText(m) {
   const own = MODELS.filter(x => x.kind === m.kind && piecesOf(x.id).length);
