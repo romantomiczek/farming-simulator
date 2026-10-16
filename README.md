@@ -140,10 +140,10 @@ Budovy se nedají pronajmout, jen koupit. Dřívější vylepšení nahradily mo
 
 ## Pomocníci
 
-Pomocníka najmeš dvěma způsoby:
+Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kancelář a klávesa H řeknou, kdo zrovna pracuje). Pomocníka najmeš dvěma způsoby:
 
 - **Na místě:** zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přesedneš do dalšího volného stroje.
-- **Z Kanceláře (K → Farma → Pomocníci):** u stroje vyber pole nebo louku (u harvestoru les) a dej **Poslat**. Pomocník dojede po silnicích (vpravo, jako auta, přes mosty a brod), práci udělá a vrátí se na dvůr. Tady vidíš i stav všech pomocníků a můžeš je propustit.
+- **Z Kanceláře (K → Farma → Pomocník):** u traktoru vyber nářadí (zapojené, nebo kterékoli volné; u každého je vidět, jak rychle s ním traktor pojede), pak pole nebo louku (u harvestoru les) a dej **Poslat**. Pro jiné nářadí si pomocník nejdřív dojede tam, kde stojí, a připojí si ho. Pak jede po silnicích (vpravo, jako auta, přes mosty a brod), práci udělá a vrátí se na dvůr. Tady vidíš i jeho stav a můžeš ho propustit.
 
 - **Jak pracuje:** jezdí v pruzích sem a tam a na konci pruhu zvedne nářadí a otočí se. Nakonec projede souvratě na obou koncích pole.
 - **S čím pracuje:** kultivátor, pluh, secí stroj (seje zvolené osivo), rozmetadlo, žací lišta, lis, kombajn, sklízeč cukrovky a harvestor. S přívěsem nepracuje.
@@ -153,7 +153,7 @@ Pomocníka najmeš dvěma způsoby:
 - **Konec:** skončí, když je práce hotová nebo dojdou peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí, nebo v Kanceláři.
 - **Zakázky:** na sousedově poli může pracovat, jen když tam máš zakázku s odpovídajícím nářadím.
 - **Překážky:** na poli pomocník nikdy neprojede budovou, plotem, stromem ani zaparkovaným strojem; když mu něco stojí v cestě déle než 8 sekund, skončí s hlášením. Na cestě po silnicích čeká na stroje a auta a krátké úseky mimo silnici (z kůlny, ke kraji pole) projede.
-- **Ukládání:** pomocníci se ukládají i s rozpracovanou trasou a fází (cesta, práce, odvoz). Po načtení hry pokračují.
+- **Ukládání:** pomocník se ukládá i s rozpracovanou trasou a fází (cesta pro nářadí, cesta, práce, odvoz). Po načtení hry pokračuje. Ze starší uložené hry s více pomocníky pokračuje jen první.
 
 ## Ekonomika
 

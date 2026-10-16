@@ -183,7 +183,8 @@ export function applySave(d) {
   if (!G.contracts.active && !G.contracts.offers.length) generateOffers();
   // helpers carry on where they were (after ownership and contracts are known)
   // a helper on a field the map editor moved or resized would follow the old path, so he goes home instead
-  for (const e of plan.fleet) { const v = vehicles.find(x => x.id === e.id); if (v && !moved.has(e.helper?.field)) restoreHelper(v, e.helper); }
+  // only one helper works at a time: from older saves with several, the first one carries on
+  for (const e of plan.fleet) { const v = vehicles.find(x => x.id === e.id); if (v && !moved.has(e.helper?.field) && !vehicles.some(x => x.helper)) restoreHelper(v, e.helper); }
   if (G.active.helper) G.active = vehicles.find(v => !v.helper) || G.active;
   G.stats = loadStats(d.stats);
   // saves from before goals existed: whatever is already achieved counts as done, without a reward

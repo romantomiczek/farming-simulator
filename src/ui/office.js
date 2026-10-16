@@ -16,7 +16,7 @@ import { PAD, PARK, inRect } from '../world/layout.js';
 import { MARKETS } from '../game/markets.js';
 import { fieldAt } from '../world/fields.js';
 import { cam } from '../render/camera.js';
-import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName } from '../game/helpers.js';
+import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName, helperTools, busyHelper } from '../game/helpers.js';
 import { toast } from './toast.js';
 import { GOALS, activeGoals, isDone, progressOf, progressText } from '../game/goals.js';
 import { FIELDS } from '../world/fields.js';
@@ -40,6 +40,11 @@ export function initOffice(handlers) {
   h = handlers;
   tabs.onclick = e => { const t = e.target.closest('[data-tab]')?.dataset.tab; if (t) { tab = t; render(); } };
   $('officeClose').onclick = closeOffice;
+  // choosing a tractor's implement for a helper changes which fields are offered
+  body.onchange = e => {
+    const sel = e.target.closest('select[data-tool]');
+    if (sel) { picks[sel.dataset.tool] = sel.value; render(); }
+  };
   body.onclick = e => {
     const b = e.target.closest('button[data-act]');
     if (!b || b.disabled) return;
@@ -90,8 +95,8 @@ function act(a, key) {
     case 'fuel': ok = emergencyFuel(); break;
     case 'field': ok = buyField(FIELDS.find(f => f.id === +key)); break;
     case 'send': {
-      const v = vehicles.find(x => x.id === key), val = $('hsel-' + key)?.value;
-      ok = !!v && !!val && sendHelper(v, val === 'wood' ? null : FIELDS.find(f => f.id === +val));
+      const v = vehicles.find(x => x.id === key), val = $('hsel-' + key)?.value, im = toolPick(v);
+      ok = !!v && !!val && sendHelper(v, val === 'wood' ? null : FIELDS.find(f => f.id === +val), im);
       break;
     }
     case 'fire': { const v = vehicles.find(x => x.id === key); if (v?.helper) dismiss(v); break; }
@@ -282,23 +287,40 @@ const ha = m2 => String((m2 / 10000).toFixed(2)).replace('.', ',') + ' ha';
 
 /** Every field: size, what is on it and, for the neighbours' fields, the price. */
 /** Machines a helper can drive: send one to a field or the forest, or let a working one go. */
+/** The implement chosen for a helper on tractor v (remembered while the office is open). */
+const picks = {};
+function toolPick(v) {
+  if (v?.type !== 'tractor') return undefined;
+  const list = helperTools(v);
+  return list.find(t => t.id === picks[v.id]) || (list.includes(v.tool) ? v.tool : list[0]) || v.tool;
+}
+/** "Pole 5 · kultivace": the field and what the helper does there with v (and implement im). */
+const fieldLabel = (f, v, im) => (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' (zakázka)') + ' · ' + jobName(im ? Object.assign(Object.create(v), { impl: im.key }) : v);
+
+/** Machines a helper can drive: send one (a tractor with the implement of your choice) to a field or the forest, or let him go. */
 function helpersHTML() {
-  let out = '<h3 class="grp">Pomocníci</h3><p class="lede small">Pošli stroj s pomocníkem na pole nebo do lesa. Dojede po silnicích, plný zásobník odveze na nejlepší výkup a po práci se vrátí na dvůr. Mzda ' + fmt(WAGE) + ' Kč za herní hodinu, platí se i cesta.</p>';
+  const busy = busyHelper(null);
+  let out = '<h3 class="grp">Pomocník</h3><p class="lede small">Pošli stroj s pomocníkem na pole nebo do lesa. U traktoru vyber nářadí: pro jiné, než má zapojené, si pomocník nejdřív dojede. Na pole jede po silnicích, plný zásobník odveze na nejlepší výkup a po práci se vrátí na dvůr. Najednou pracuje jen jeden pomocník. Mzda ' + fmt(WAGE) + ' Kč za herní hodinu, platí se i cesta.</p>';
   for (const v of vehicles.filter(x => x.type !== 'jeep')) {
-    const name = v.name + (v.type === 'tractor' ? ' · ' + (v.tool ? v.tool.name.toLowerCase() : 'bez nářadí') : '');
+    const name = labelOf(v) + (v.type === 'tractor' ? ' · ' + (v.tool ? labelOf(v.tool).toLowerCase() : 'bez nářadí') : '');
     if (v.helper) {
-      out += `<div class="row"><div class="rmain"><b>${name}</b><span>${helperStatus(v)} · mzda ${fmt(v.helper.wage)} Kč</span></div>
+      out += `<div class="row active"><div class="rmain"><b>${name}</b><span>${helperStatus(v)} · mzda ${fmt(v.helper.wage)} Kč</span></div>
         <div class="rstate">${btn('fire', v.id, 'Propustit', false, 'ghost')}</div></div>`;
       continue;
     }
+    if (busy) continue; // only one helper at a time: the others wait until he is done
+    const im = toolPick(v), list = v.type === 'tractor' ? helperTools(v) : [];
+    const toolSel = list.length > 1 || (list.length && list[0] !== v.tool)
+      ? `<label class="hselect"><span class="sr">Nářadí</span><select data-tool="${v.id}">${list.map(t => `<option value="${t.id}"${t === im ? ' selected' : ''}>${labelOf(t)}${t === v.tool ? ' (zapojené)' : ''}${powerShare(v, t) < 1 ? ' · práce ' + pct(powerShare(v, t)) : ''}</option>`).join('')}</select></label>` : '';
     const opts = v.type === 'forest'
       ? (canHire(v).wood ? [['wood', 'Les: těžba vzrostlých stromů']] : [])
-      : FIELDS.filter(f => !canHire(v, f).why).map(f => [f.id, (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' (zakázka)') + ' · ' + jobName(v) + (powerShare(v, v.tool) < 1 ? ' · práce na ' + pct(powerShare(v, v.tool)) : '')]);
-    const why = opts.length ? '' : (canHire(v, v.type === 'forest' ? null : FIELDS.find(f => f.owned)).why || 'Teď s ním není kde pracovat.');
-    out += `<div class="row"><div class="rmain"><b>${name}</b>${why ? `<span>${why}</span>`
+      : FIELDS.filter(f => !canHire(v, f, im).why).map(f => [f.id, fieldLabel(f, v, im) + (im && powerShare(v, im) < 1 ? ' · práce na ' + pct(powerShare(v, im)) : '')]);
+    const why = opts.length ? '' : (canHire(v, v.type === 'forest' ? null : FIELDS.find(f => f.owned), im).why || 'Teď s ním není kde pracovat.');
+    out += `<div class="row"><div class="rmain"><b>${name}</b>${toolSel}${why ? `<span>${why}</span>`
       : `<label class="hselect"><span class="sr">Kam</span><select id="hsel-${v.id}">${opts.map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>`}</div>
       <div class="rstate">${btn('send', v.id, 'Poslat', !opts.length)}</div></div>`;
   }
+  if (busy) out += `<p class="muted">Ostatní stroje počkají, až pomocník (${labelOf(busy)}) skončí nebo ho propustíš.</p>`;
   return out;
 }
 

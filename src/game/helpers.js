@@ -2,7 +2,7 @@ import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_RIPE, S_NONE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
 import { fieldAt, FIELDS } from '../world/fields.js';
-import { vehicles, toolLine, blockedAt } from '../vehicles/vehicles.js';
+import { vehicles, tools, toolLine, blockedAt, attachTool, labelOf } from '../vehicles/vehicles.js';
 import { pushBales } from '../world/bales.js';
 import { contractAllows } from './contracts.js';
 import { isWet, season } from './weather.js';
@@ -23,8 +23,10 @@ import { REACH, fell, sellLogs, bestWood, woodBuyerAt } from './forestry.js';
  * A helper sent from the office (remote) also drives there along the roads (roadnet.js), takes a full
  * harvester's grain to the best buyer and comes back to carry on, and drives home when the field is done.
  * The forestry harvester's helper fells mature trees he can reach and takes the wood to the best buyer.
- * Modes: travel (to the field), field, sell (to a buyer), unload, back (to where he stopped), home,
- * and for wood: log (picking the next tree), approach, sellwood.
+ * Only one helper works at a time. Sent with a tractor and another implement, he first drives to where
+ * the implement is parked and hitches it.
+ * Modes: fetch (to the implement), travel (to the field), field, sell (to a buyer), unload, back (to where
+ * he stopped), home, and for wood: log (picking the next tree), approach, sellwood.
  */
 export const WAGE = HELPER_WAGE; // Kč per hour of work; an hour = 60 s real time, so time speed-up does not inflate it
 const PAD = 1.0; // how far inside the field edge the vehicle origin stays
@@ -65,21 +67,37 @@ const matureTrees = () => trees.reduce((n, t) => n + (t.g >= MATURE && !t.fall ?
  * Can a helper take over vehicle v? Without a field: on the field where v stands (H key).
  * Returns { f } for field work, { wood: true } for the forestry harvester, or { why }.
  */
-export function canHire(v, target) {
-  if (v.type === 'jeep') return { why: 'Jeep pomocník neřídí, ten je na přejezdy.' };
+/** The machine a helper drives now, other than v: only one helper works at a time. */
+export const busyHelper = v => vehicles.find(o => o !== v && o.helper) || null;
+/** Tractor v as if implement im were hitched (for checking a job before the helper fetches it). */
+const withTool = (v, im) => (im && im !== v.tool ? Object.assign(Object.create(v), { tool: im, impl: im.key }) : v);
+
+/**
+ * Can a helper take over vehicle v? Without a field: on the field where v stands (H key).
+ * im = implement for a tractor (default: the one hitched; another one he fetches first).
+ * Returns { f } for field work, { wood: true } for the forestry harvester, or { why }.
+ */
+export function canHire(v, target, im = v.tool) {
+  if (v.type === 'jeep') return { why: 'Auto pomocník neřídí, to je na přejezdy.' };
   if (v.helper) return { why: 'Tenhle stroj už řídí pomocník.' };
+  const other = busyHelper(v);
+  if (other) return { why: 'Pomocník už pracuje (' + labelOf(other) + '). Najednou může pracovat jen jeden.' };
   if (v.fuel <= 1) return { why: 'Stroj nemá naftu.' };
   if (G.money < WAGE) return { why: 'Na mzdu pomocníka nemáš peníze.' };
   if (v.type === 'forest') return matureTrees() ? { wood: true } : { why: 'V lese teď není žádný vzrostlý strom.' };
   const f = target || fieldAt(v.x, v.z);
   if (!f) return { why: 'Zajeď na pole, které má pomocník obdělat, a stiskni H. Na vzdálené pole ho pošleš z Kanceláře.' };
-  if (!f.owned && !contractAllows(f, v)) return { why: 'Na cizím poli může pomocník pracovat jen při zakázce s tímto nářadím.' };
-  if (v.type === 'tractor' && !v.tool) return { why: 'Traktor nemá nářadí. Připoj ho v kůlně.' };
-  if (v.type === 'tractor' && !FIELD_TOOLS.includes(v.impl)) return { why: 'S přívěsem pomocník nepracuje. Připoj v kůlně polní nářadí.' };
-  if (v.impl === 'seeder' && v.type === 'tractor' && !season().sow) return { why: 'V zimě se nesije.' };
-  if (!workLeft(f, v)) return { why: 'Na poli ' + f.id + ' pomocník s tímhle strojem nemá co dělat.' };
+  const w = v.type === 'tractor' ? withTool(v, im) : v;
+  if (v.type === 'tractor' && !im) return { why: 'Traktor nemá nářadí. Připoj ho v kůlně.' };
+  if (v.type === 'tractor' && im.on && im.on !== v) return { why: 'Nářadí je připojené k jinému traktoru.' };
+  if (!f.owned && !contractAllows(f, w)) return { why: 'Na cizím poli může pomocník pracovat jen při zakázce s tímto nářadím.' };
+  if (v.type === 'tractor' && !FIELD_TOOLS.includes(w.impl)) return { why: 'S přívěsem pomocník nepracuje. Připoj v kůlně polní nářadí.' };
+  if (w.impl === 'seeder' && v.type === 'tractor' && !season().sow) return { why: 'V zimě se nesije.' };
+  if (!workLeft(f, w)) return { why: 'Na poli ' + f.id + ' pomocník s tímhle strojem nemá co dělat.' };
   return { f };
 }
+/** The implements a helper could take with tractor v: its own field tool and the free ones. */
+export const helperTools = v => tools.filter(t => FIELD_TOOLS.includes(t.key) && (t.on === v || !t.on));
 
 /* ---------- route ---------- */
 const line = (a, b, work) => ({ kind: 'line', a, b, work, len: Math.hypot(b.x - a.x, b.z - a.z), h: Math.atan2(b.x - a.x, b.z - a.z) });
@@ -169,7 +187,7 @@ function setPath(v, mode, path, seg = 0, s = 0) {
 }
 const roadTo = (v, x, z) => pathOf(route(v.x, v.z, x, z));
 /** On these trips (roads and the short legs to and from them) helpers drive past trees, hedges and sheds instead of stopping; they still wait for machines. */
-const TRIPS = new Set(['travel', 'sell', 'back', 'home', 'sellwood', 'travel-wood']);
+const TRIPS = new Set(['fetch', 'travel', 'sell', 'back', 'home', 'sellwood', 'travel-wood']);
 
 /* ---------- hiring ---------- */
 function newHelper(v, extra) {
@@ -199,25 +217,38 @@ export function hire(v) {
  * Office: sends a helper with v to field f (or to the forest when f is null and v is the harvester).
  * He drives there along the roads, sells a full harvester's load on the way and comes home at the end.
  */
-export function sendHelper(v, f) {
-  const { f: field, wood, why } = canHire(v, f);
+export function sendHelper(v, f, im = v.tool) {
+  const { f: field, wood, why } = canHire(v, f, im);
   if (why) { toast(why, 'bad'); return false; }
   if (wood) {
     newHelper(v, { job: 'wood', mode: 'log', remote: true });
     toast('Pomocník jede s harvestorem do lesa kácet. Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
     return true;
   }
+  if (v.type === 'tractor' && im !== v.tool) {
+    // first to the implement's parking place: the tractor stops with its hitch over the implement's
+    newHelper(v, { field, remote: true, fetch: im });
+    setPath(v, 'fetch', roadTo(v, im.park[0], im.park[1] - v.hitchZ));
+    toast('Pomocník jede s ' + v.noun + ' pro ' + labelOf(im).toLowerCase() + ' a pak na pole ' + field.id + ' (' + jobName(withTool(v, im)) + '). Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
+    return true;
+  }
+  const hp = newHelper(v, { field, remote: true });
+  fieldTrip(v, field);
+  toast('Pomocník jede s ' + v.noun + ' na pole ' + field.id + ' (' + jobName(v) + '). Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
+  return !!hp;
+}
+/** Along the roads to field, then the planned field route (helper already hired). */
+function fieldTrip(v, field) {
   // plan the field from the road point nearest to the field, so the work starts at the corner by the road
   const way = route(v.x, v.z, field.x0 + field.w / 2, field.z0 + field.h / 2);
   way.pop(); // stop on the road, the field route takes over from there
   const entry = way[way.length - 1] || { x: v.x, z: v.z };
   const work = plan(Object.assign(Object.create(v), { x: entry.x, z: entry.z }), field);
   if (work[0] && !work[0].work) work[0].ghost = true; // from the road into the field corner, through the roadside trees
-  const hp = newHelper(v, { field, remote: true, work });
+  const hp = v.helper;
+  hp.work = work;
   setPath(v, 'travel', [...pathOf(way)]);
   hp.total += work.reduce((a, x) => a + x.len, 0);
-  toast('Pomocník jede s ' + v.noun + ' na pole ' + field.id + ' (' + jobName(v) + '). Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
-  return true;
 }
 
 /* ---------- saving ---------- */
@@ -236,7 +267,7 @@ function segIn(sg) {
   return null;
 }
 const pathIn = list => { if (!Array.isArray(list)) return null; const out = list.map(segIn); return out.every(Boolean) ? out : null; };
-const MODES = ['travel', 'field', 'sell', 'unload', 'back', 'home', 'log', 'approach', 'sellwood', 'travel-wood'];
+const MODES = ['fetch', 'travel', 'field', 'sell', 'unload', 'back', 'home', 'log', 'approach', 'sellwood', 'travel-wood'];
 
 /** Helper state for the save file: job, the current route and how far along it, the field route to come back to. */
 export function serializeHelper(v) {
@@ -245,7 +276,7 @@ export function serializeHelper(v) {
   return {
     job: hp.job, field: hp.field?.id ?? null, mode: hp.mode, remote: hp.remote, after: hp.after, tree: hp.tree,
     seg: hp.seg, s: r3(hp.s), wage: Math.round(hp.wage), time: r3(hp.time), done: r3(hp.done), total: r3(hp.total),
-    path: hp.path.map(segOut), work: hp.work && hp.work !== hp.path ? hp.work.map(segOut) : null, resume: hp.resume,
+    path: hp.path.map(segOut), work: hp.work && hp.work !== hp.path ? hp.work.map(segOut) : null, resume: hp.resume, fetch: hp.fetch?.id ?? null,
   };
 }
 
@@ -260,9 +291,11 @@ export function restoreHelper(v, d) {
   if (!path || (job === 'field' && !path.length)) return false;
   const work = d.work ? pathIn(d.work) : null;
   const mode = MODES.includes(d.mode) ? d.mode : 'field'; // saves from before the modes: a field route
+  const fetch = mode === 'fetch' ? tools.find(t => t.id === d.fetch && (!t.on || t.on === v)) : null;
+  if (mode === 'fetch' && !fetch) return false;
   const seg = Math.max(0, Math.min(Math.max(0, path.length - 1), d.seg | 0));
   newHelper(v, {
-    job, field: job === 'field' ? f : null, mode, remote: !!d.remote, after: d.after === 'home' ? 'home' : null, tree: -1,
+    job, field: job === 'field' ? f : null, mode, remote: !!d.remote, after: d.after === 'home' ? 'home' : null, tree: -1, fetch,
     path, seg, s: path.length ? Math.max(0, Math.min(path[seg].len, +d.s || 0)) : 0, work: work || (mode === 'field' ? path : null),
     resume: d.resume && num(d.resume.seg) && num(d.resume.s) ? d.resume : null,
     wage: Math.max(0, +d.wage || 0), time: Math.max(0, +d.time || 0), done: Math.max(0, +d.done || 0),
@@ -306,6 +339,14 @@ function finishField(v) {
 function onPathEnd(v) {
   const hp = v.helper;
   switch (hp.mode) {
+    case 'fetch': {
+      const im = hp.fetch;
+      hp.fetch = null;
+      if (!tools.includes(im) || (im.on && im.on !== v)) { dismiss(v, 'Pomocník nářadí nenašel, mezitím je připojené jinde.'); return; }
+      attachTool(v, im);
+      fieldTrip(v, hp.field);
+      return;
+    }
     case 'travel': setPath(v, 'field', hp.work); return;
     case 'field': finishField(v); return;
     case 'sell':
@@ -480,7 +521,7 @@ export function helperTick(v, dt) {
 export const helperProgress = v => Math.min(1, v.helper.done / Math.max(1, v.helper.total));
 export const helperWaitText = { full: 'čeká na vyložení', wet: 'čeká, až oschne', blocked: 'čeká, něco mu stojí v cestě' };
 export const helperModeText = {
-  travel: 'jede na pole', sell: 'veze úrodu na výkup', unload: 'vykládá na výkupu', back: 'vrací se na pole', home: 'jede domů',
+  fetch: 'jede pro nářadí', travel: 'jede na pole', sell: 'veze úrodu na výkup', unload: 'vykládá na výkupu', back: 'vrací se na pole', home: 'jede domů',
   log: 'hledá strom', approach: 'jede ke stromu', sellwood: 'veze dřevo', 'travel-wood': 'jede do lesa',
 };
 /** One line about what the helper on v is doing (HUD and office). */

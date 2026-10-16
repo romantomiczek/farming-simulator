@@ -146,6 +146,22 @@ try {
   });
   check('vozový park', park.t2 && park.hitched && park.rows === park.pieces, 'druhý traktor na odstavné ploše s přívěsem · ' + park.rows + ' řádků v Kanceláři');
 
+  // a helper with the second tractor fetches a plough from the yard, hitches it and drives to field 2; a second helper is refused
+  const fetch = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), M = await import('/src/game/machines.js'), H = await import('/src/game/helpers.js'), z = window.__zl;
+    for (const v of V.vehicles) if (v.helper) H.dismiss(v);
+    z.G.money = 5e7; M.buy('pluh-5');
+    const pl = V.tools.filter(t => t.key === 'plough').pop(), t2 = V.vehicles.filter(v => v.type === 'tractor')[1], f2 = z.fields.find(x => x.id === 2);
+    const sent = H.sendHelper(t2, f2, pl);
+    const block = H.canHire(V.firstOf('combine'), z.fields.find(x => x.id === 1)).why || '';
+    const modes = [t2.helper?.mode];
+    for (let i = 0; i < 2400 && t2.helper && t2.helper.mode !== 'field'; i++) { z.step(1, 0.05); if (modes[modes.length - 1] !== t2.helper?.mode) modes.push(t2.helper?.mode); }
+    const hitched = pl.on === t2;
+    if (t2.helper) H.dismiss(t2);
+    return { sent, block: block.includes('jen jeden'), modes: modes.join(' → '), hitched };
+  });
+  check('pomocník dojede pro nářadí', fetch.sent && fetch.block && fetch.hitched && fetch.modes === 'fetch → travel → field', fetch.modes + (fetch.block ? ' · druhého pomocníka nepustí' : ' · DRUHÝ POMOCNÍK PROŠEL'));
+
   // level of detail: the parked second tractor far from the camera uses the simplified model, near it the detailed one
   const lod = await page.evaluate(async () => {
     const V = await import('/src/vehicles/vehicles.js'), z = window.__zl, t2 = V.vehicles.filter(v => v.type === 'tractor')[1];
