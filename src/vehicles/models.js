@@ -372,8 +372,16 @@ export function buildTrailer() {
   return { group: g, tip, grain, grainMat, wheels, baleMeshes };
 }
 
-export function buildCombine() {
-  const g = new THREE.Group(), red = P('#cf5a4a'), redLt = P('#dc6a58'), light = P('#ebe4d2'), frame = F(), black = F(BLACK);
+/**
+ * Combine. o = look: body, bodyLt, light, frame and rim colours, scale (size against the Klas 7), header
+ * (cutting width in m: the headers are stretched to it), brand and model names with text colours.
+ */
+const COMBINE = { body: '#cf5a4a', bodyLt: '#dc6a58', light: '#ebe4d2', frame: '#3a3f42', rim: '#ebe4d2', scale: 1, header: 5.4, brand: 'KLAS', model: '7', text: '#fbf7ee', stroke: '#5a1f17' };
+export function buildCombine(o = {}) {
+  const L = { ...COMBINE, ...o }, sc = L.scale, style = { fill: L.text, stroke: L.stroke };
+  const root = new THREE.Group(), g = new THREE.Group(); g.scale.setScalar(sc); root.add(g);
+  const red = P(L.body), redLt = P(L.bodyLt), light = P(L.light), frame = F(L.frame), black = F(BLACK);
+  const kx = L.header / (5.4 * sc), pipeLen = Math.max(4.6, (L.header / 2 + 1.6) / sc - 1.05);
   // --- chassis and body with panel seams, doors, vents, name and stripe
   RB(2.0, 0.7, 4.6, 0.08, frame, 0, 0.95, -0.4, g);
   RB(2.5, 2.2, 5.4, 0.16, red, 0, 2.3, -0.5, g, 3);
@@ -384,7 +392,8 @@ export function buildCombine() {
     for (const z of [-2.1, -0.85, 0.4]) B(0.03, 0.05, 0.22, CHROME, sx * 1.262, 2.3, z, g);
     for (const z of [-2.62, -1.52, -0.17]) for (const yy of [1.7, 2.9]) CY(0.025, 0.025, 0.12, 8, black, sx * 1.262, yy, z + 0.06, g);
   }
-  sideDecals('klas', 1.9, 0.38, 1.25, 2.72, -0.35, g);
+  sideText(L.brand, 0.42, 2.6, 1.25, 2.78, -0.35, g, style);
+  sideText(L.model, 0.3, 1.6, 1.25, 2.38, -0.35, g, style);
   sideDecals('stripeR', 4.9, 0.2, 1.25, 1.5, -0.5, g);
   sideDecals('vent', 1.0, 0.85, 1.25, 2.35, -2.55, g);
   decal('fill', 0.24, 0.06, -1.264, 1.75, -1.1, -Math.PI / 2, g);
@@ -445,19 +454,19 @@ export function buildCombine() {
   decal('plate2', 0.42, 0.21, 0, 1.95, -3.22, Math.PI, g);
   const wheels = [], rear = [];
   for (const sx of [-1, 1]) {
-    const w = wheel(1.05, 0.75, '#ebe4d2', 'lug'); w.position.set(sx * 1.5, 1.05, 1.25); g.add(w); wheels.push(w);
+    const w = wheel(1.05, 0.75, L.rim, 'lug'); w.position.set(sx * 1.5, 1.05, 1.25); g.add(w); wheels.push(w);
     fender(g, red, sx * 1.5, 1.05, 1.25, 1.18, Math.PI * 0.42, Math.PI * 0.97, 0.84, 0.06); // rear half of the guard, clear of the header
     CY(0.28, 0.22, 0.4, 14, frame, sx * 1.02, 1.05, 1.25, g).rotation.z = -sx * Math.PI / 2; // final drive
   }
   for (const sx of [-1, 1]) {
     const p = new THREE.Group(); p.position.set(sx * 1.2, 0.62, -2.75); g.add(p);
-    const w = wheel(0.62, 0.45, '#ebe4d2', 'lug'); p.add(w); wheels.push(w); rear.push(p);
+    const w = wheel(0.62, 0.45, L.rim, 'lug'); p.add(w); wheels.push(w); rear.push(p);
   }
   // headers: the grain header (with a spinning reel) and the row header for corn and sunflower.
   // Both are built here; the unused one is parked in the yard by setHeader() in vehicles.js.
   const header = new THREE.Group(); header.position.set(0, 0, 3.75); g.add(header);
   const hl = new THREE.Group(); header.add(hl);
-  const grainHdr = new THREE.Group(); hl.add(grainHdr);
+  const grainHdr = new THREE.Group(); hl.add(grainHdr); grainHdr.scale.x = kx;
   RB(5.8, 0.35, 1.4, 0.05, red, 0, 0.55, 0.3, grainHdr);
   RB(5.8, 1.1, 0.15, 0.05, red, 0, 1.0, -0.35, grainHdr);
   RB(5.84, 0.08, 0.19, 0.02, light, 0, 1.5, -0.35, grainHdr);
@@ -491,21 +500,22 @@ export function buildCombine() {
     hose([[sx * 2.55, 1.0, -0.4], [sx * 2.3, 1.3, -0.5], [sx * 1.2, 1.45, -0.45], [sx * 0.4, 1.2, -0.45]], 0.022, grainHdr);
   }
   const cornHdr = buildRowHeader(red, frame, light);
-  hl.add(cornHdr);
+  hl.add(cornHdr); cornHdr.scale.x = kx;
   // unloading pipe, folded backwards; swings out to the left (+x) when unloading
   const pipe = new THREE.Group(); pipe.position.set(1.05, 4.05, -1.9); g.add(pipe);
-  const pc = mk(new THREE.CylinderGeometry(0.17, 0.17, 4.6, 14), red, 0, 0, -2.3, pipe); pc.rotation.x = Math.PI / 2;
-  for (const z of [-0.6, -1.45, -2.3, -3.15, -4.0]) mk(new THREE.TorusGeometry(0.18, 0.025, 6, 16), light, 0, 0, z, pipe);
+  const pc = mk(new THREE.CylinderGeometry(0.17, 0.17, pipeLen, 14), red, 0, 0, -pipeLen / 2, pipe); pc.rotation.x = Math.PI / 2;
+  for (let z = -0.6; z > -pipeLen + 0.4; z -= 0.85) mk(new THREE.TorusGeometry(0.18, 0.025, 6, 16), light, 0, 0, z, pipe);
   CY(0.22, 0.22, 0.3, 14, frame, 0, 0, -0.1, pipe).rotation.x = Math.PI / 2;
-  RB(0.36, 0.5, 0.36, 0.05, frame, 0, -0.2, -4.6, pipe);
-  CY(0.17, 0.2, 0.25, 12, RUBBER, 0, -0.55, -4.6, pipe);
-  const spot = spotAt(g, 4.75, 2.3);
-  bake(g, NO_SNOW);
+  RB(0.36, 0.5, 0.36, 0.05, frame, 0, -0.2, -pipeLen, pipe);
+  CY(0.17, 0.2, 0.25, 12, RUBBER, 0, -0.55, -pipeLen, pipe);
+  const spot = spotAt(g, 4.75 * sc, 2.3 * sc);
+  bake(root, NO_SNOW);
+  for (const w of wheels) w.userData.r *= sc;
   return {
-    group: g, wheels, front: [], rear, headerLift: hl, grainHdr, cornHdr, reel, pipe, grain, grainMat, spot,
-    exhaust: new THREE.Vector3(-0.8, 5.5, -2.7),
-    pipeTip: new THREE.Vector3(0, -0.3, -4.6), // pipe-local spout, for the grain stream
-    pipeReach: { lx: 1.05 + 4.6, lz: -1.9 }, // vehicle-local spout position when the pipe is out
+    group: root, wheels, front: [], rear, headerLift: hl, grainHdr, cornHdr, reel, pipe, grain, grainMat, spot, scale: sc, hdrScale: kx,
+    exhaust: new THREE.Vector3(-0.8, 5.5, -2.7).multiplyScalar(sc),
+    pipeTip: new THREE.Vector3(0, -0.3, -pipeLen), // pipe-local spout, for the grain stream
+    pipeReach: { lx: (1.05 + pipeLen) * sc, lz: -1.9 * sc }, // vehicle-local spout position when the pipe is out
   };
 }
 
@@ -645,14 +655,20 @@ export function buildBaler() {
  * Self-propelled six-row sugar beet harvester: lifting unit in front, cab, big bunker in the middle,
  * unloading elevator on the left that swings out like the combine pipe.
  */
-export function buildBeetHarvester() {
-  const g = new THREE.Group(), blue = P('#4d7c9e'), blueDk = P('#426d8b'), light = P('#e8e4da'), frame = F(), black = F(BLACK);
+/** Beet harvester. o = look: body, dark, light, rim colours, scale, rows (the lifting unit is built row by row), names. */
+const BEET = { body: '#4d7c9e', dark: '#426d8b', light: '#e8e4da', rim: '#e8e4da', scale: 1, rows: 6, brand: 'BULVA', model: '6', text: '#fbf7ee', stroke: '#1d3445' };
+export function buildBeetHarvester(o = {}) {
+  const L = { ...BEET, ...o }, sc = L.scale, style = { fill: L.text, stroke: L.stroke };
+  const root = new THREE.Group(), g = new THREE.Group(); g.scale.setScalar(sc); root.add(g);
+  const blue = P(L.body), blueDk = P(L.dark), light = P(L.light), frame = F(), black = F(BLACK);
+  const sp = 0.75 / sc, W = L.rows * sp + 0.3; // rows 75 cm apart in the world
   RB(2.2, 0.8, 7.0, 0.08, frame, 0, 1.0, -0.6, g);
   RB(3.0, 2.0, 4.0, 0.14, blue, 0, 2.6, -1.8, g, 3);
   for (const sx of [-1, 1]) RB(0.14, 0.16, 4.1, 0.04, light, sx * 1.5, 3.65, -1.8, g); // bunker rim
   for (const sz of [-1, 1]) RB(3.1, 0.16, 0.14, 0.04, light, 0, 3.65, -1.8 + sz * 2.0, g);
   for (const sx of [-1, 1]) for (const z of [-3.2, -2.3, -1.4, -0.5]) RB(0.06, 1.7, 0.1, 0.02, blueDk, sx * 1.52, 2.6, z, g); // bunker ribs
-  sideDecals('bulva', 2.2, 0.36, 1.57, 2.95, -1.85, g);
+  sideText(L.brand, 0.4, 2.6, 1.57, 3.05, -1.85, g, style);
+  sideText(L.model, 0.28, 1.6, 1.57, 2.6, -1.85, g, style);
   sideDecals('stripeR', 3.8, 0.18, 1.501, 1.75, -1.8, g);
   // engine at the back with vents, exhaust and the radiator grille on top
   RB(2.4, 1.4, 1.5, 0.12, blue, 0, 2.3, -4.5, g);
@@ -665,7 +681,7 @@ export function buildBeetHarvester() {
   // cab on its base, beacon, ladder
   RB(2.2, 0.9, 1.8, 0.1, blue, 0, 2.1, 2.3, g);
   for (const sx of [-1, 1]) headlamp(g, sx * 0.75, 2.2, 3.21, 0.36, 0.16);
-  decal('logo', 0.28, 0.28, 0, 2.2, 3.205, 0, g);
+  if (L.brand === 'BULVA') decal('logo', 0.28, 0.28, 0, 2.2, 3.205, 0, g);
   cab(g, { y: 2.55, z: 2.3, w: 2.05, h: 1.5, d: 1.65, roof: light, lights: 6, passenger: true });
   beacon(g, 0.9, 4.3, 1.75, beaconMat);
   steps(g, -1.55, 0.7, 2.4, 2.65, 5, 0.24, 0.45);
@@ -683,44 +699,45 @@ export function buildBeetHarvester() {
   grain.userData.noBake = true; grain.visible = false;
   const wheels = [], rear = [];
   for (const sx of [-1, 1]) {
-    const w = wheel(1.05, 0.8, '#e8e4da', 'lug'); w.position.set(sx * 1.6, 1.05, 1.4); g.add(w); wheels.push(w);
+    const w = wheel(1.05, 0.8, L.rim, 'lug'); w.position.set(sx * 1.6, 1.05, 1.4); g.add(w); wheels.push(w);
     fender(g, blue, sx * 1.6, 1.05, 1.4, 1.18, Math.PI * 0.4, Math.PI * 0.95, 0.88, 0.06);
   }
   for (const sx of [-1, 1]) {
     const p = new THREE.Group(); p.position.set(sx * 1.6, 1.05, -3.3); g.add(p);
-    const w = wheel(1.05, 0.8, '#e8e4da', 'lug'); p.add(w); wheels.push(w); rear.push(p);
+    const w = wheel(1.05, 0.8, L.rim, 'lug'); p.add(w); wheels.push(w); rear.push(p);
   }
   // six-row lifting unit with a topper roller
   const header = new THREE.Group(); header.position.set(0, 0, 3.7); g.add(header);
   const hl = new THREE.Group(); header.add(hl);
-  RB(4.8, 0.6, 1.3, 0.08, blue, 0, 0.75, 0.2, hl);
-  RB(4.8, 0.12, 0.2, 0.03, light, 0, 1.1, 0.85, hl);
+  RB(W, 0.6, 1.3, 0.08, blue, 0, 0.75, 0.2, hl);
+  RB(W, 0.12, 0.2, 0.03, light, 0, 1.1, 0.85, hl);
   for (const sx of [-1, 1]) {
-    decal('warnR', 1.0, 0.36, sx * 2.402, 0.75, 0.2, sx * Math.PI / 2, hl);
+    decal('warnR', 1.0, 0.36, sx * (W / 2 + 0.002), 0.75, 0.2, sx * Math.PI / 2, hl);
     hose([[sx * 1.6, 1.05, -0.2], [sx * 1.2, 1.4, -0.5], [sx * 0.6, 1.5, -0.7], [sx * 0.3, 1.6, -1.0]], 0.025, hl);
   }
-  for (let i = 0; i < 6; i++) {
-    const x = -1.875 + i * 0.75;
+  for (let i = 0; i < L.rows; i++) {
+    const x = (i - (L.rows - 1) / 2) * sp;
     RB(0.22, 0.55, 0.9, 0.04, frame, x, 0.35, 0.8, hl);
     const c = mk(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 14), S('#8d9396'), x + 0.15, 0.25, 1.2, hl); c.rotation.z = Math.PI / 2;
     B(0.08, 0.06, 0.35, S(), x - 0.1, 0.1, 1.25, hl).rotation.x = -0.3; // lifting share
   }
   const reel = new THREE.Group(); reel.position.set(0, 0.55, 1.35); hl.add(reel);
-  const rc = mk(new THREE.CylinderGeometry(0.22, 0.22, 4.6, 12), F('#6a6f72'), 0, 0, 0, reel); rc.rotation.z = Math.PI / 2;
-  for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; B(4.5, 0.06, 0.12, light, 0, Math.cos(a) * 0.25, Math.sin(a) * 0.25, reel); }
+  const rc = mk(new THREE.CylinderGeometry(0.22, 0.22, W - 0.2, 12), F('#6a6f72'), 0, 0, 0, reel); rc.rotation.z = Math.PI / 2;
+  for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; B(W - 0.3, 0.06, 0.12, light, 0, Math.cos(a) * 0.25, Math.sin(a) * 0.25, reel); }
   // unloading elevator, folded back along the left side
   const pipe = new THREE.Group(); pipe.position.set(1.3, 3.7, -0.5); g.add(pipe);
   RB(0.55, 0.35, 5.0, 0.05, blue, 0, 0, -2.5, pipe);
   RB(0.6, 0.12, 4.8, 0.03, light, 0, 0.22, -2.5, pipe);
   for (let k = 0; k < 10; k++) B(0.5, 0.04, 0.06, frame, 0, 0.3, -0.3 - k * 0.48, pipe); // elevator slats
   RB(0.6, 0.5, 0.4, 0.05, frame, 0, -0.2, -5.0, pipe);
-  const spot = spotAt(g, 3.95, 3.15);
-  bake(g, NO_SNOW);
+  const spot = spotAt(g, 3.95 * sc, 3.15 * sc);
+  bake(root, NO_SNOW);
+  for (const w of wheels) w.userData.r *= sc;
   return {
-    group: g, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot,
-    exhaust: new THREE.Vector3(-0.8, 4.3, -4.6),
+    group: root, wheels, front: [], rear, headerLift: hl, reel, pipe, grain, grainMat, spot, scale: sc,
+    exhaust: new THREE.Vector3(-0.8, 4.3, -4.6).multiplyScalar(sc),
     pipeTip: new THREE.Vector3(0, -0.3, -5.0),
-    pipeReach: { lx: 1.3 + 5.0, lz: -0.5 },
+    pipeReach: { lx: (1.3 + 5.0) * sc, lz: -0.5 * sc },
   };
 }
 
@@ -764,8 +781,12 @@ export function buildWaterTank() {
 }
 
 /** Forestry harvester with a crane and a log bunk at the back. */
-export function buildForester() {
-  const g = new THREE.Group(), yel = P('#e0b13a'), yelDk = P('#c99a2c'), frame = F(), black = F(BLACK);
+/** Forestry harvester. o = look: body, dark, frame and rim colours, scale, names. */
+const FORESTER = { body: '#e0b13a', dark: '#c99a2c', frame: '#3a3f42', rim: '#e8e4da', scale: 1, brand: 'LES', model: '8', text: '#26282a', stroke: null };
+export function buildForester(o = {}) {
+  const L = { ...FORESTER, ...o }, sc = L.scale, style = { fill: L.text, stroke: L.stroke };
+  const root = new THREE.Group(), g = new THREE.Group(); g.scale.setScalar(sc); root.add(g);
+  const yel = P(L.body), yelDk = P(L.dark), frame = F(L.frame), black = F(BLACK);
   RB(2.2, 0.9, 6.6, 0.08, frame, 0, 1.15, -0.6, g);
   // front frame with the cab and engine hood
   RB(2.3, 1.2, 2.2, 0.12, yel, 0, 2.0, 1.6, g, 3);
@@ -775,7 +796,7 @@ export function buildForester() {
   beacon(g, 0.85, 4.25, 1.15, beaconMat);
   RB(2.2, 1.0, 1.4, 0.1, yel, 0, 2.0, -0.6, g, 3);
   sideDecals('vent', 0.9, 0.7, 1.1, 2.0, -0.6, g);
-  sideDecals('les', 1.4, 0.34, 1.15, 2.05, 1.6, g);
+  sideText(L.brand + ' ' + L.model, 0.34, 2.0, 1.15, 2.05, 1.6, g, style);
   CY(0.08, 0.08, 1.2, 10, black, 0.7, 3.0, -0.9, g);
   CY(0.13, 0.13, 0.5, 14, S('#aeb4b7'), 0.7, 2.85, -0.9, g);
   CY(0.1, 0.08, 0.1, 10, black, 0.7, 3.62, -0.9, g);
@@ -804,7 +825,7 @@ export function buildForester() {
   }
   const wheels = [], rear = [];
   for (const sz of [1.4, -1.3, -3.6]) for (const sx of [-1, 1]) {
-    const w = wheel(0.75, 0.6, '#e8e4da', 'lug');
+    const w = wheel(0.75, 0.6, L.rim, 'lug');
     if (sz === 1.4) { const p = new THREE.Group(); p.position.set(sx * 1.25, 0.75, sz); g.add(p); p.add(w); rear.push(p); }
     else { w.position.set(sx * 1.25, 0.75, sz); g.add(w); }
     wheels.push(w);
@@ -832,7 +853,8 @@ export function buildForester() {
     CY(0.09, 0.09, 0.14, 10, F('#56595b'), sx * 0.31, 0.0, 6.92, boom).rotation.x = Math.PI / 2; // feed rollers
   }
   CY(0.32, 0.32, 0.04, 16, S(), 0, -0.18, 6.6, boom); // saw disc guard
-  const spot = spotAt(g, 2.5, 2.75);
-  bake(g, NO_SNOW);
-  return { group: g, wheels, front: rear, rear: [], crane, boom, logMeshes: logs, spot, exhaust: new THREE.Vector3(0.7, 3.7, -0.9) };
+  const spot = spotAt(g, 2.5 * sc, 2.75 * sc);
+  bake(root, NO_SNOW);
+  for (const w of wheels) w.userData.r *= sc;
+  return { group: root, wheels, front: rear, rear: [], crane, boom, logMeshes: logs, spot, scale: sc, exhaust: new THREE.Vector3(0.7, 3.7, -0.9).multiplyScalar(sc) };
 }

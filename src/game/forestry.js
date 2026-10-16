@@ -36,7 +36,7 @@ export function forestryTick(dt) {
 }
 function fellTick(v, dt) {
   const c = v.cutting;
-  if (!stepFell(c.i, dt)) return;
+  if (!stepFell(c.i, dt * (v.cutSpeed || 1))) return;
   const got = Math.min(c.vol, v.logCap - v.logs);
   v.logs = +(v.logs + got).toFixed(2);
   v.cutting = null;

@@ -10,7 +10,11 @@ const GROUP = {
   tractor: 'Traktory', combine: 'Sklízecí stroje', beet: 'Sklízecí stroje', cultivator: 'Nářadí', plough: 'Nářadí', seeder: 'Nářadí', spreader: 'Nářadí',
   baler: 'Nářadí', mower: 'Nářadí', trailer: 'Nářadí', watertank: 'Nářadí', jeep: 'Osobní auta', forest: 'Lesnictví',
 };
-const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh + ' km/h, nádrž ' + m.fuel + ' l.' : '');
+const n = x => x.toLocaleString('cs-CZ');
+const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh + ' km/h, nádrž ' + m.fuel + ' l.'
+  : m.kind === 'combine' ? ' Lišta ' + String(m.header).replace('.', ',') + ' m, zásobník ' + n(m.tank) + ' l, vykládání ' + n(m.unload) + ' l/s.'
+  : m.kind === 'beet' ? ' ' + m.rows + ' řádků, zásobník ' + n(m.tank) + ' l.'
+  : m.kind === 'forest' ? ' Uveze ' + m.logs + ' m³ dřeva.' : '');
 const modelRows = kinds => MODELS.filter(m => kinds.includes(m.kind)).map(m => ({ key: m.id, name: modelName(m), kind: GROUP[m.kind], price: m.price, desc: m.desc + specs(m), machine: m.kind }));
 
 /**
@@ -31,7 +35,6 @@ export const CATALOG = [
   { key: 'greenhouse1', name: 'Skleník s rajčaty', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Pěstuje rajčata, potřebuje vodu z cisterny. Rajčata se prodají o půlnoci.' },
   { key: 'greenhouse2', name: 'Druhý skleník', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Zdvojnásobí sklizeň rajčat i spotřebu vody.' },
   { key: 'upCultivator', name: 'Široký kultivátor', kind: 'Vylepšení', price: 140000, noLease: true, desc: 'Záběr kultivátoru 6,3 m místo 4,2 m.' },
-  { key: 'upCombine', name: 'Větší zásobník kombajnu', kind: 'Vylepšení', price: 220000, noLease: true, desc: '13 000 l místo 9 000 l.' },
   { key: 'upTrailer', name: 'Nástavba přívěsu', kind: 'Vylepšení', price: 90000, noLease: true, desc: '22 000 l místo 14 000 l.' },
 ];
 /** Buildings and upgrades have no wear. */

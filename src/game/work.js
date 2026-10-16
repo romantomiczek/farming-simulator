@@ -258,7 +258,7 @@ function unloadHarvester(h, dt, onDone) {
   else if (h.pipe.rotation.y < -1.3) { // pipe is out
     h.waiting = null;
     const crop = h.tank.crop;
-    let amt = Math.min(h.tank.amount, PIPE_RATE * dt);
+    let amt = Math.min(h.tank.amount, (h.pipeRate || PIPE_RATE) * dt);
     if (t) {
       amt = Math.min(amt, t.tank.cap - t.tank.amount);
       t.tank.crop = crop; t.tank.amount += amt; h.moved += amt;

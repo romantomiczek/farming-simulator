@@ -116,6 +116,8 @@ function readFleet(d) {
   if (!fleet.some(e => e.type === 'tractor')) fleet.unshift({ id: 'tractor-new', type: 'tractor', own: 'own', fresh: true });
   // the old engine upgrade (50 km/h): its tractors become the 50 km/h Case IH Puma 185
   if (d.machines?.upTractor) for (const e of fleet) if (e.type === 'tractor' && !e.model) e.model = 'case-puma-185';
+  // the old bigger grain tank (13 000 l): its combines become the Case IH Axial-Flow 7250 (12 300 l)
+  if (d.machines?.upCombine) for (const e of fleet) if (e.type === 'combine' && !e.model) e.model = 'caseih-7250';
   return { fleet, tools: toolList, active: src.active };
 }
 

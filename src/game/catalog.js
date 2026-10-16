@@ -55,10 +55,80 @@ export const MODELS = [
     desc: 'Vlajková loď: 420 koní, dvojmontáž zadních kol, 60 km/h. Utáhne cokoli.',
   },
 
+  /* ---------- combines: header = cutting width (m), tank (l), unload (l/s), fuel (l) ---------- */
+  {
+    id: 'sampo-sr2045', kind: 'combine', brand: 'Sampo Rosenlew', name: 'SR2045', price: 1600000, header: 3.9, tank: 4500, unload: 1200, fuel: 300,
+    look: { body: '#c8352b', bodyLt: '#d64a3d', light: '#f1f1ec', frame: '#2f3335', rim: '#d9dcdc', scale: 0.82, header: 3.9, brand: 'SAMPO', model: 'SR2045', stroke: '#3a1410' },
+    desc: 'Malý levný kombajn na menší pole. Úzká lišta a malý zásobník, často jezdí k silům.',
+  },
+  {
+    id: 'klas-7', kind: 'combine', brand: 'Klas', name: '7', title: 'Kombajn Klas 7', price: 3200000, header: 5.4, tank: 9000, unload: 1800, fuel: 500, start: true, look: {},
+    desc: 'Obilí, řepka; s řádkovým adaptérem i kukuřice a slunečnice.',
+  },
+  {
+    id: 'claas-tucano-450', kind: 'combine', brand: 'Claas', name: 'Tucano 450', price: 3900000, header: 6.0, tank: 9500, unload: 2000, fuel: 600,
+    look: { body: '#a9bf2b', bodyLt: '#b8cc3e', light: '#f1f1ec', frame: '#5d6366', rim: '#d9dcd8', brand: 'CLAAS', text: '#fbf7ee', stroke: '#3d4a10', scale: 1.04, header: 6.0, model: 'TUCANO 450' },
+    desc: 'Střední kombajn s o něco širší lištou a rychlejším vykládáním.',
+  },
+  {
+    id: 'df-c6205', kind: 'combine', brand: 'Deutz-Fahr', name: 'C6205', price: 4200000, header: 6.3, tank: 10000, unload: 2100, fuel: 650,
+    look: { body: '#7aa53b', bodyLt: '#8cb64a', light: '#dcdcd6', frame: '#4a4f52', rim: '#c9ccce', scale: 1.06, header: 6.3, brand: 'DEUTZ-FAHR', model: 'C6205', stroke: '#2b3d14' },
+    desc: 'Lišta 6,3 m a zásobník 10 000 l.',
+  },
+  {
+    id: 'caseih-7250', kind: 'combine', brand: 'Case IH', name: 'Axial-Flow 7250', price: 5600000, header: 7.6, tank: 12300, unload: 2600, fuel: 900,
+    look: { body: '#b32025', bodyLt: '#c42b2f', light: '#2a2d2f', frame: '#232527', rim: '#c9ccce', scale: 1.15, header: 7.6, brand: 'CASE IH', model: 'AXIAL-FLOW 7250', stroke: '#1d1f20' },
+    desc: 'Velký rotorový kombajn s lištou 7,6 m.',
+  },
+  {
+    id: 'jd-s790', kind: 'combine', brand: 'John Deere', name: 'S790', price: 7400000, header: 10.7, tank: 14100, unload: 3000, fuel: 1000,
+    look: { body: '#367c2b', bodyLt: '#418f34', light: '#f2c200', frame: '#2a2d2f', rim: '#f2c200', scale: 1.25, header: 10.7, brand: 'JOHN DEERE', model: 'S790', text: '#f2c200', stroke: '#1c3a16' },
+    desc: 'Lišta 10,7 m: pole sklidí skoro dvakrát rychleji než Klas 7.',
+  },
+  {
+    id: 'claas-lexion-8900', kind: 'combine', brand: 'Claas', name: 'Lexion 8900', price: 8900000, header: 12.3, tank: 18000, unload: 3600, fuel: 1150,
+    look: { body: '#a9bf2b', bodyLt: '#b8cc3e', light: '#f1f1ec', frame: '#5d6366', rim: '#d9dcd8', brand: 'CLAAS', text: '#fbf7ee', stroke: '#3d4a10', scale: 1.32, header: 12.3, model: 'LEXION 8900' },
+    desc: 'Největší kombajn: lišta 12,3 m a zásobník 18 000 l.',
+  },
+
+  /* ---------- beet harvesters: rows, tank (l), work = working speed factor ---------- */
+  { id: 'bulva-6', kind: 'beet', brand: 'Bulva', name: '6', title: 'Sklízeč cukrovky Bulva 6', price: 4100000, rows: 6, tank: 20000, fuel: 600, start: true, look: {}, desc: 'Šestiřádkový samojízdný sklízeč.' },
+  {
+    id: 'grimme-rexor-620', kind: 'beet', brand: 'Grimme', name: 'Rexor 620', price: 4900000, rows: 6, tank: 26000, fuel: 700,
+    look: { body: '#c1272d', dark: '#9e1f24', light: '#d9dcd8', rim: '#d9dcd8', scale: 1.05, brand: 'GRIMME', model: 'REXOR 620', stroke: '#3a1410' },
+    desc: 'Šest řádků a větší bunkr, méně cest k výkupu.',
+  },
+  {
+    id: 'holmer-t440', kind: 'beet', brand: 'Holmer', name: 'Terra Dos T4-40', price: 5800000, rows: 6, tank: 30000, fuel: 800, work: 1.15,
+    look: { body: '#4f8f3a', dark: '#3f7430', light: '#2a2d2f', rim: '#c9ccce', scale: 1.1, brand: 'HOLMER', model: 'TERRA DOS T4-40', stroke: '#1c3a16' },
+    desc: 'Šest řádků, o 15 % rychlejší sklizeň a bunkr 30 000 l.',
+  },
+  {
+    id: 'ropa-tiger-6s', kind: 'beet', brand: 'Ropa', name: 'Tiger 6S', price: 7200000, rows: 9, tank: 35000, fuel: 900,
+    look: { body: '#e9e9e2', dark: '#3c7f3a', light: '#3c7f3a', rim: '#3c7f3a', scale: 1.15, rows: 9, brand: 'ROPA', model: 'TIGER 6S', text: '#3c7f3a', stroke: null },
+    desc: 'Devět řádků najednou a bunkr 35 000 l.',
+  },
+
+  /* ---------- forestry harvesters: logs = load (m³), cut = felling speed factor ---------- */
+  {
+    id: 'les-6', kind: 'forest', brand: 'Les', name: '6', title: 'Harvestor Les 6', price: 1100000, logs: 16, cut: 0.8, fuel: 220,
+    look: { scale: 0.9, model: '6' }, desc: 'Menší a levnější harvestor, kácí pomaleji a uveze 16 m³.',
+  },
+  { id: 'les-8', kind: 'forest', brand: 'Les', name: '8', title: 'Harvestor Les 8', price: WOOD.harvesterPrice, logs: WOOD.logCap, cut: 1, fuel: 300, start: true, look: {}, desc: 'Kácí vzrostlé stromy v lesních parcelách a veze dřevo na pilu nebo do dřevoskladu.' },
+  {
+    id: 'komatsu-931', kind: 'forest', brand: 'Komatsu', name: '931XC', price: 2300000, logs: 28, cut: 1.2, fuel: 350,
+    look: { body: '#d9a320', dark: '#bf8d1a', frame: '#3b3f40', scale: 1.06, brand: 'KOMATSU', model: '931XC' }, desc: 'Rychlejší kácení a 28 m³ dřeva.',
+  },
+  {
+    id: 'jd-1270g', kind: 'forest', brand: 'John Deere', name: '1270G', price: 2600000, logs: 30, cut: 1.25, fuel: 380,
+    look: { body: '#367c2b', dark: '#2a6221', rim: '#f2c200', scale: 1.08, brand: 'JOHN DEERE', model: '1270G', text: '#f2c200', stroke: '#1c3a16' }, desc: 'Silný harvestor na 30 m³.',
+  },
+  {
+    id: 'ponsse-scorpion', kind: 'forest', brand: 'Ponsse', name: 'Scorpion King', price: 3100000, logs: 32, cut: 1.4, fuel: 400,
+    look: { body: '#f0b400', dark: '#2a2d2f', frame: '#2a2d2f', scale: 1.1, brand: 'PONSSE', model: 'SCORPION KING' }, desc: 'Nejrychlejší kácení a 32 m³ dřeva.',
+  },
+
   /* ---------- the rest: start models (more come with the next builders) ---------- */
-  { id: 'klas-7', kind: 'combine', brand: 'Klas', name: '7', title: 'Kombajn Klas 7', price: 3200000, start: true, look: {}, desc: 'Obilí, řepka; s řádkovým adaptérem i kukuřice a slunečnice. Zásobník 9 000 l.' },
-  { id: 'bulva-6', kind: 'beet', brand: 'Bulva', name: '6', title: 'Sklízeč cukrovky Bulva 6', price: 4100000, start: true, look: {}, desc: 'Šestiřádkový samojízdný sklízeč, zásobník 20 000 l.' },
-  { id: 'les-8', kind: 'forest', brand: 'Les', name: '8', title: 'Harvestor Les 8', price: WOOD.harvesterPrice, start: true, look: {}, desc: 'Kácí vzrostlé stromy v lesních parcelách a veze až ' + WOOD.logCap + ' m³ dřeva na pilu nebo do dřevoskladu.' },
   { id: 'lesak', kind: 'jeep', brand: 'Jeep', name: 'Lesák 4×4', price: 290000, start: true, look: {}, desc: 'Rychlý terénní vůz, až 80 km/h. Nic netáhne a nepracuje, ale rychle tě doveze k poli, do lesa i do městečka. Mezerník troubí.' },
   { id: 'kult-42', kind: 'cultivator', brand: '', name: 'Kultivátor', price: 180000, start: true, look: {}, desc: 'Záběr 4,2 m, připraví strniště k setí.' },
   { id: 'pluh-5', kind: 'plough', brand: '', name: 'Pluh', price: 220000, start: true, look: {}, desc: 'Záběr 3,2 m, pomalejší, ale +15 % výnosu.' },

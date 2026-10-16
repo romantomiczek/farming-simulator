@@ -168,18 +168,25 @@ function makeVehicle(type, mid) {
     Object.assign(v, {
       gen: 'kombajnu', harvester: true, r: 3.0, wb: 3.6, vmax: 6.9, vwork: 2.8, acc: 1.8, brk: 5, vrev: 2.4,
       toolW: 5.4, toolZ: 4.4, header: 'grain', mapCol: '#cf5a4a', home: [-10, -8], chaff: col('#eadba6'), fuelCap: 500, fuelDrive: 0.08, fuelWork: 0.16,
-    }, buildCombine());
+    }, buildCombine(look));
+    const s = v.scale;
+    Object.assign(v, { r: 3.0 * s, wb: 3.6 * s, toolW: m.header, toolZ: 4.4 * s, fuelCap: m.fuel, pipeRate: m.unload, hdrScale: v.hdrScale });
+    v.tank.cap = m.tank;
   } else if (type === 'beet') {
     Object.assign(v, {
       gen: 'sklízeče', harvester: true, r: 3.2, wb: 4.6, vmax: 6.4, vwork: 2.5, acc: 1.6, brk: 5, vrev: 2.2,
       toolW: 4.5, toolZ: 4.6, header: 'beet', mapCol: '#4d7c9e', home: [18, -27], chaff: col('#a98a66'), fuelCap: 600, fuelDrive: 0.09, fuelWork: 0.18,
-    }, buildBeetHarvester());
-    v.tank.cap = 20000;
+    }, buildBeetHarvester(look));
+    const s = v.scale;
+    Object.assign(v, { r: 3.2 * s, wb: 4.6 * s, toolW: m.rows * 0.75, toolZ: 4.6 * s, fuelCap: m.fuel, vwork: 2.5 * (m.work || 1) });
+    v.tank.cap = m.tank;
   } else if (type === 'forest') {
     Object.assign(v, {
       gen: 'harvestoru', r: 2.6, wb: 3.8, vmax: 8.3, vwork: 3, acc: 2.2, brk: 6, vrev: 3, mapCol: '#e0b13a',
       home: [0, 116], fuelCap: 300, fuelDrive: 0.07, fuelWork: 0.12, logs: 0, logCap: WOOD.logCap, cutting: null,
-    }, buildForester());
+    }, buildForester(look));
+    const s = v.scale;
+    Object.assign(v, { r: 2.6 * s, wb: 3.8 * s, fuelCap: m.fuel, logCap: m.logs, cutSpeed: m.cut });
   } else if (type === 'jeep') {
     Object.assign(v, {
       gen: 'jeepu', r: 1.6, wb: 2.6, vmax: 22.2, vwork: 0, acc: 4.6, brk: 9, vrev: 5, mapCol: '#d9a441',
@@ -239,8 +246,9 @@ export function setHeader(v, key) {
   const off = key === 'corn' ? v.grainHdr : v.cornHdr;
   v.header = key === 'corn' ? 'corn' : 'grain';
   v.lowered = false;
-  v.headerLift.add(on); on.position.set(0, 0, 0); on.rotation.set(0, 0, 0);
-  scene.add(off); off.position.set(v.headerPark[0], 0, v.headerPark[1]); off.rotation.set(0, 0, 0);
+  v.headerLift.add(on); on.position.set(0, 0, 0); on.rotation.set(0, 0, 0); on.scale.set(v.hdrScale, 1, 1);
+  // in the yard the spare header keeps its size: the combine's scale is not around it there
+  scene.add(off); off.position.set(v.headerPark[0], 0, v.headerPark[1]); off.rotation.set(0, 0, 0); off.scale.set(v.hdrScale * v.scale, v.scale, v.scale);
   if (v.lodFar) setFar(v, true);
 }
 
@@ -578,7 +586,6 @@ export function applyUpgrades(up) {
 /** One machine or implement: the upgrades bought so far (also for pieces added later). */
 function applyUpgradesTo(o) {
   const up = G.upgrades || {};
-  if (o.type === 'combine') o.tank.cap = up.combine ? 13000 : 9000;
   if (o.key === 'cultivator') { o.width = up.cultivator ? 6.3 : 4.2; o.group.scale.x = up.cultivator ? 1.5 : 1; }
   if (o.key === 'trailer') { o.tank.cap = up.trailer ? 22000 : 14000; o.tip.scale.y = up.trailer ? 1.35 : 1; }
 }
