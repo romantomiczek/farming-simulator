@@ -1,9 +1,10 @@
 import { G } from './state.js';
 import {
-  vehicles, tools, VEHICLE_TYPES, isToolKey, firstOf, addVehicle, addTool, removeVehicle, removeTool, clearFleet, attachTool, setHeader, applyUpgrades,
+  vehicles, tools, VEHICLE_TYPES, isToolKey, firstOf, addVehicle, addTool, removeVehicle, removeTool, clearFleet, attachTool, setHeader,
 } from '../vehicles/vehicles.js';
 import { COWS, HENS, SHEEP, PIGS, MIXER, GREENHOUSE } from './balance.js';
 import { MODELS, MODEL, START_MODEL, modelName } from './catalog.js';
+import { trailerBales } from '../vehicles/models.js';
 
 /** Shop groups of the machine kinds, in shop order. */
 const GROUP = {
@@ -15,13 +16,16 @@ const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh +
   : m.kind === 'combine' ? ' Lišta ' + String(m.header).replace('.', ',') + ' m, zásobník ' + n(m.tank) + ' l, vykládání ' + n(m.unload) + ' l/s.'
   : m.kind === 'beet' ? ' ' + m.rows + ' řádků, zásobník ' + n(m.tank) + ' l.'
   : m.kind === 'forest' ? ' Uveze ' + m.logs + ' m³ dřeva.'
-  : m.kind === 'jeep' ? ' Až ' + m.kmh + ' km/h, mimo cesty ' + Math.round(m.kmh * m.offroad) + ' km/h.' : '');
+  : m.kind === 'jeep' ? ' Až ' + m.kmh + ' km/h, mimo cesty ' + Math.round(m.kmh * m.offroad) + ' km/h.'
+  : m.kind === 'trailer' ? ' ' + n(m.cap) + ' l zrna nebo ' + trailerBales(m.look.len || 5.6) + ' balíků, potřebuje ' + m.hp + ' koní.'
+  : m.kind === 'watertank' ? ' ' + n(m.cap) + ' l, potřebuje ' + m.hp + ' koní.'
+  : m.hp ? ' Záběr ' + String(m.width).replace('.', ',') + ' m, potřebuje ' + m.hp + ' koní.' : '');
 const modelRows = kinds => MODELS.filter(m => kinds.includes(m.kind)).map(m => ({ key: m.id, name: modelName(m), kind: GROUP[m.kind], price: m.price, desc: m.desc + specs(m), machine: m.kind }));
 
 /**
  * Everything the player can own. Machines and implements are models (catalog.js; key = model id),
  * bought as pieces into the fleet (vehicles.js), each owned or leased with its own condition.
- * cornHeader is the combine's row header. Buildings and upgrades (noLease) can only be bought;
+ * cornHeader is the combine's row header. Buildings (noLease) can only be bought;
  * they and the header live in G.machines / G.cond by key. Prices in Kč.
  */
 export const CATALOG = [
@@ -35,10 +39,8 @@ export const CATALOG = [
   { key: 'hens', name: 'Kurník se 40 slepicemi', kind: 'Budovy', price: HENS.price, noLease: true, desc: 'Slepice žerou pšenici nebo ječmen a snášejí vejce. Vejce se prodají o půlnoci.' },
   { key: 'greenhouse1', name: 'Skleník s rajčaty', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Pěstuje rajčata, potřebuje vodu z cisterny. Rajčata se prodají o půlnoci.' },
   { key: 'greenhouse2', name: 'Druhý skleník', kind: 'Budovy', price: GREENHOUSE.price, noLease: true, desc: 'Zdvojnásobí sklizeň rajčat i spotřebu vody.' },
-  { key: 'upCultivator', name: 'Široký kultivátor', kind: 'Vylepšení', price: 140000, noLease: true, desc: 'Záběr kultivátoru 6,3 m místo 4,2 m.' },
-  { key: 'upTrailer', name: 'Nástavba přívěsu', kind: 'Vylepšení', price: 90000, noLease: true, desc: '22 000 l místo 14 000 l.' },
 ];
-/** Buildings and upgrades have no wear. */
+/** Buildings have no wear. */
 export const hasCondition = c => !c.noLease;
 /** Called after every ownership change (the farmstead uses it to show its buildings). */
 export const ownershipHooks = [];
@@ -92,7 +94,6 @@ export function applyOwnership() {
     if (!has('cornHeader') && v.header === 'corn') setHeader(v, 'grain');
   }
   if (!vehicles.includes(G.active)) G.active = firstOf('combine') || vehicles[0];
-  applyUpgrades({ cultivator: has('upCultivator'), combine: has('upCombine'), trailer: has('upTrailer') });
   ownershipHooks.forEach(f => f());
 }
 
@@ -115,8 +116,6 @@ export function blockReasonOf(p) {
 export function blockReason(key) {
   if (isMachine(key)) return piecesOf(key)[0] ? blockReasonOf(piecesOf(key)[0]) : null;
   if (key === 'cornHeader' && vehicles.some(v => v.type === 'combine' && v.header === 'corn')) return 'Je nasazený na kombajnu. V kůlně nasaď žací lištu.';
-  if (key === 'upCombine' && vehicles.some(v => v.type === 'combine' && v.tank.amount > 9000)) return 'Zásobník kombajnu je plnější než 9 000 l.';
-  if (key === 'upTrailer' && tools.some(t => t.key === 'trailer' && t.tank.amount > 14000)) return 'Přívěs je plnější než 14 000 l.';
   if (G.contracts.active && key === contractNeeds(G.contracts.active)) return 'Potřebuješ ho na rozpracovanou zakázku.';
   return null;
 }

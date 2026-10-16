@@ -20,7 +20,6 @@ export const G = {
   lastDay: 0, // last day the daily costs were charged for
   contracts: { offers: [], active: null },
   farm: { cowFeed: 0, henFeed: 0, sheepFeed: 0, pigFeed: 0, water: 0, milk: 0, eggs: 0, wool: 0, pork: 0, tomatoes: 0, hungry: {}, mix: { grain: 0, hay: 0, beet: 0 } }, // see farm.js emptyFarm()
-  upgrades: {},
   stats: null, // see goals.js emptyStats()
   goals: [], // ids of finished goals
 };

@@ -118,6 +118,9 @@ function readFleet(d) {
   if (d.machines?.upTractor) for (const e of fleet) if (e.type === 'tractor' && !e.model) e.model = 'case-puma-185';
   // the old bigger grain tank (13 000 l): its combines become the Case IH Axial-Flow 7250 (12 300 l)
   if (d.machines?.upCombine) for (const e of fleet) if (e.type === 'combine' && !e.model) e.model = 'caseih-7250';
+  // the old wide cultivator (6,3 m) and trailer extension (22 000 l) became models of their own
+  if (d.machines?.upCultivator) for (const e of toolList) if (e.key === 'cultivator' && !e.model) e.model = 'horsch-terrano-6';
+  if (d.machines?.upTrailer) for (const e of toolList) if (e.key === 'trailer' && !e.model) e.model = 'fliegl-22';
   return { fleet, tools: toolList, active: src.active };
 }
 

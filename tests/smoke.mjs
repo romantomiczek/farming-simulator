@@ -156,6 +156,26 @@ try {
   });
   check('vzdálené stroje', lod.far && lod.near && lod.tris < 8000, 'zjednodušený traktor ' + lod.tris + ' △');
 
+  // every model in the catalog: buy one piece, it has the catalog's numbers
+  const models = await page.evaluate(async () => {
+    const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;
+    z.G.money = 1e11; const bad = [];
+    for (const m of C.MODELS) {
+      if (!M.buy(m.id)) { bad.push(m.id + ' nejde koupit'); continue; }
+      const p = [...V.vehicles, ...V.tools].filter(x => x.model === m.id).pop();
+      if (m.width && Math.abs(p.width - m.width) > 1e-6) bad.push(m.id + ' záběr ' + p.width);
+      if (m.cap && (p.tank?.cap ?? p.waterCap) !== m.cap) bad.push(m.id + ' objem');
+      if (m.header && p.toolW !== m.header) bad.push(m.id + ' lišta');
+      if (m.tank && p.tank.cap !== m.tank) bad.push(m.id + ' zásobník');
+      if (m.kmh && Math.round(p.vmax * 3.6) !== m.kmh) bad.push(m.id + ' rychlost');
+      if (m.logs && p.logCap !== m.logs) bad.push(m.id + ' dřevo');
+    }
+    z.step(3);
+    for (const p of [...V.vehicles, ...V.tools]) if (!Number.isFinite(p.x ?? p.group.position.x)) bad.push(p.id + ' poloha');
+    return { n: C.MODELS.length, bad };
+  });
+  check('všechny modely', models.bad.length === 0, models.n + ' modelů' + (models.bad.length ? ' · ' + models.bad.slice(0, 6).join(', ') : ''));
+
   // an hour of game time at full speed: traffic, animals, growth, helpers' world
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });
   check('hodina herního času', true);
@@ -182,18 +202,18 @@ try {
       { x: -5, z: 0, h: 1, tank: { crop: 0, amount: 3000, cap: 9000 }, header: 'grain', fuel: 400 },
       { x: 18, z: -27, h: 0 }, { x: 0, z: 116, h: 0 }, { x: -27, z: -27, h: 0 },
     ];
-    v4.machines = { tractor: 'own', combine: 'own', cultivator: 'own', seeder: 'lease', trailer: 'own', forest: 'own', cows: 'own' };
+    v4.machines = { tractor: 'own', combine: 'own', cultivator: 'own', seeder: 'lease', trailer: 'own', forest: 'own', cows: 'own', upTrailer: 'own' };
     v4.cond = { tractor: 0.5, trailer: 0.8 };
     v4.trailer = { tank: { crop: 0, amount: 7000 }, bales: 0, hay: 0 }; v4.logs = 6;
     const ok = save.applySave(v4);
     const t = z.vehicles.find(v => v.type === 'tractor'), c = z.vehicles.find(v => v.type === 'combine'), f = z.vehicles.find(v => v.type === 'forest');
     return {
       ok, types: z.vehicles.map(v => v.type).join(','), tools: z.tools.map(x => x.key + (x.own === 'lease' ? '*' : '')).join(','),
-      hitch: t.tool?.key, trailer: Math.round(t.tool?.tank.amount || 0), cond: t.cond, seed: t.seedCrop, combine: Math.round(c.tank.amount), logs: f?.logs, active: z.G.active.type, cows: !!z.G.machines.cows,
+      hitch: t.tool?.key, trailer: Math.round(t.tool?.tank.amount || 0), trailerModel: t.tool?.model, trailerCap: t.tool?.tank.cap, cond: t.cond, seed: t.seedCrop, combine: Math.round(c.tank.amount), logs: f?.logs, active: z.G.active.type, cows: !!z.G.machines.cows,
     };
   });
   check('převod uložení z verze 4', old.ok && old.types === 'tractor,combine,forest' && old.tools === 'cultivator,seeder*,trailer' && old.hitch === 'trailer' && old.trailer === 7000 &&
-    old.cond === 0.5 && old.seed === 2 && old.combine === 3000 && old.logs === 6 && old.active === 'combine' && old.cows, JSON.stringify(old));
+    old.cond === 0.5 && old.seed === 2 && old.combine === 3000 && old.logs === 6 && old.active === 'combine' && old.cows && old.trailerModel === 'fliegl-22' && old.trailerCap === 22000, JSON.stringify(old));
 
   // rendering on every preset
   await page.evaluate(() => { const z = window.__zl; z.renderer.render = z.realRender; });

@@ -45,8 +45,6 @@ export const tools = [];
 export const HARVESTERS = [];
 
 const HITCH_Z = -1.75;
-/** Distance from the trailer axle to its drawbar eye. */
-export const TRAILER_L = 4.2;
 /** Straw cells the baler needs for one bale. */
 export const BALE_CELLS = 60;
 
@@ -104,9 +102,16 @@ const modelFor = (kind, id) => (MODEL[id]?.kind === kind ? MODEL[id] : MODEL[STA
 
 function makeTool(key, mid) {
   const s = TOOL_SPEC[key], m = modelFor(key, mid);
-  const im = Object.assign(s.build(m.look), { key, model: m.id, name: modelName(m), width: s.width, workZ: s.workZ, speed: s.speed, dust: s.dust, own: 'own', cond: 1, on: null });
-  if (key === 'trailer') Object.assign(im, { x: 0, z: 0, h: 0, tank: { crop: -1, amount: 0, cap: 14000 }, bales: 0, hay: 0, baleCap: 8, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0 });
-  if (key === 'watertank') Object.assign(im, { water: 0, waterCap: 8000, milk: false });
+  const im = Object.assign(s.build(m.look), {
+    key, model: m.id, name: modelName(m), width: m.width ?? s.width, workZ: s.workZ, speed: m.speed ?? s.speed, dust: s.dust, own: 'own', cond: 1, on: null,
+  });
+  if (key === 'trailer') {
+    // drawbar = axle to eye; two or three collision circles along the body
+    const L = im.bodyLen, n = L > 7 ? 3 : 2, shape = [];
+    for (let k = 0; k < n; k++) shape.push([-2 + 1.1 + (k * (L - 2.2)) / (n - 1), 1.45]);
+    Object.assign(im, { x: 0, z: 0, h: 0, tank: { crop: -1, amount: 0, cap: m.cap }, bales: 0, hay: 0, baleCap: im.baleMeshes.length, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0, shape, centerZ: -2 + L / 2 });
+  }
+  if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
   return im;
 }
 
@@ -120,7 +125,6 @@ export function addTool(key, o = {}) {
   if (im.slot >= 0 && key === 'trailer') im.park[1] += 0.5;
   tools.push(im);
   parkTool(im);
-  applyUpgradesTo(im);
   updParkPad();
   return im;
 }
@@ -139,7 +143,7 @@ export function parkTool(im) {
   if (im.on) { const v = im.on; v.tool = null; v.impl = null; v.lowered = false; im.on = null; }
   if (im.key === 'trailer') {
     im.tipping = false;
-    im.h = 0; im.x = im.park[0]; im.z = im.park[1] - TRAILER_L;
+    im.h = 0; im.x = im.park[0]; im.z = im.park[1] - im.drawbar;
     im.group.position.set(im.x, 0, im.z); im.group.rotation.y = 0;
     scene.add(im.group);
     return;
@@ -213,7 +217,6 @@ export function addVehicle(type, o = {}) {
   vehicles.push(v);
   if (v.harvester) HARVESTERS.push(v);
   if (v.type === 'combine') { v.headerPark = v.slot < 0 ? [-17, -27] : [v.home[0], v.home[1] - 9.5]; setHeader(v, 'grain'); }
-  applyUpgradesTo(v);
   updParkPad();
   return v;
 }
@@ -265,8 +268,8 @@ export function attachTool(v, im) {
     // put the trailer straight behind the tractor
     im.h = v.h;
     const [hx, hz] = hitchPos(v);
-    im.x = hx - Math.sin(im.h) * TRAILER_L;
-    im.z = hz - Math.cos(im.h) * TRAILER_L;
+    im.x = hx - Math.sin(im.h) * im.drawbar;
+    im.z = hz - Math.cos(im.h) * im.drawbar;
     return;
   }
   v.group.add(im.group);
@@ -283,11 +286,10 @@ export function toolLine(v) {
 const hitchPos = v => [v.x + Math.sin(v.h) * v.hitchZ, v.z + Math.cos(v.h) * v.hitchZ];
 const MAX_ARTICULATION = 1.3; // rad, the drawbar stops a full jackknife
 
-/** A trailer's collision shape: two circles along the body (local z, radius). */
-const TRAILER_SHAPE = [[-0.9, 1.45], [2.3, 1.45]];
+/** A trailer's collision shape: circles along the body (t.shape: local z, radius). */
 export function trailerCircles(t, out = []) {
   const s = Math.sin(t.h), c = Math.cos(t.h);
-  for (const [lz, r] of TRAILER_SHAPE) out.push({ x: t.x + s * lz, z: t.z + c * lz, r });
+  for (const [lz, r] of t.shape) out.push({ x: t.x + s * lz, z: t.z + c * lz, r });
   return out;
 }
 
@@ -315,7 +317,7 @@ const trailerBuf = [];
 const trailerPen = t => { trailerBuf.length = 0; return trailerCircles(t, trailerBuf).reduce((a, c) => a + penetration(c.x, c.z, c.r, [t.on, t]), 0); };
 
 /** Centre of trailer t's body in world space (for zone checks). */
-export const trailerCenter = t => ({ x: t.x + Math.sin(t.h) * 0.8, z: t.z + Math.cos(t.h) * 0.8 });
+export const trailerCenter = t => ({ x: t.x + Math.sin(t.h) * t.centerZ, z: t.z + Math.cos(t.h) * t.centerZ });
 
 /** Every trailer: an attached one is dragged behind its tractor's hitch (also in reverse); all sit on the ground and show their load. */
 export function updateTrailers(dt) {
@@ -330,7 +332,7 @@ function updateTrailer(t, dt) {
     if (Math.hypot(dx, dz) > 1e-3) t.h = Math.atan2(dx, dz);
     const rel = angDiff(v.h, t.h);
     if (Math.abs(rel) > MAX_ARTICULATION) t.h = v.h + Math.sign(rel) * MAX_ARTICULATION;
-    const nx = hx - Math.sin(t.h) * TRAILER_L, nz = hz - Math.cos(t.h) * TRAILER_L;
+    const nx = hx - Math.sin(t.h) * t.drawbar, nz = hz - Math.cos(t.h) * t.drawbar;
     let ds = (nx - t.x) * Math.sin(t.h) + (nz - t.z) * Math.cos(t.h);
     t.x = nx; t.z = nz;
     // the trailer would run into something: undo this frame's move of tractor and trailer
@@ -343,11 +345,11 @@ function updateTrailer(t, dt) {
     trailerBuf.length = 0;
     for (const c of trailerCircles(t, trailerBuf)) pushBales(c.x, c.z, c.r);
   }
-  sitOnGround(t.group, t.x, t.z, t.h, 3.2, 2.3, 0.8);
+  sitOnGround(t.group, t.x, t.z, t.h, t.bodyLen * 0.57, 2.3, t.centerZ);
   t.tip.rotation.x += ((t.tipping ? -0.6 : 0) - t.tip.rotation.x) * Math.min(1, dt * 1.5);
   const fill = t.tank.amount / t.tank.cap;
   t.grain.visible = fill > 0;
-  t.grain.scale.y = Math.max(0.02, fill * 1.15);
+  t.grain.scale.y = Math.max(0.02, fill * t.grainH);
   if (t.tank.crop >= 0) t.grainMat.color.copy(CROPS[t.tank.crop].heapCol);
   t.baleMeshes.forEach((m, i) => (m.visible = i < t.bales));
 }
@@ -580,17 +582,4 @@ export function visual(v, dt, tankCropColor) {
     _v.copy(v.exhaust); v.group.localToWorld(_v);
     emit(_v.x, _v.y, _v.z, SMOKE, 0.35, (Math.random() - 0.5) * 0.3, 1.4, (Math.random() - 0.5) * 0.3, 1.3);
   }
-}
-
-/** Applies bought upgrades to every machine (called whenever ownership changes). */
-export function applyUpgrades(up) {
-  G.upgrades = up;
-  for (const v of vehicles) applyUpgradesTo(v);
-  for (const t of tools) applyUpgradesTo(t);
-}
-/** One machine or implement: the upgrades bought so far (also for pieces added later). */
-function applyUpgradesTo(o) {
-  const up = G.upgrades || {};
-  if (o.key === 'cultivator') { o.width = up.cultivator ? 6.3 : 4.2; o.group.scale.x = up.cultivator ? 1.5 : 1; }
-  if (o.key === 'trailer') { o.tank.cap = up.trailer ? 22000 : 14000; o.tip.scale.y = up.trailer ? 1.35 : 1; }
 }

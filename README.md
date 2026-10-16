@@ -41,7 +41,27 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 
 **Vozový park:** strojů a nářadí můžeš mít kolik chceš, i víc kusů stejného druhu (dva traktory, tři přívěsy…). První kus každého druhu stojí u kůlny jako dřív, další parkují na odstavné ploše jižně od dvora, která roste podle potřeby. Nářadí se připojuje ke konkrétnímu traktoru: v kůlně klávesy 1–8 nabízejí volné kusy, nářadí na jiném traktoru je obsazené. Kombajn přeloží zrno do kteréhokoli přívěsu pod rourou. V Kanceláři (K) → **Vozový park** vidíš každý kus s místem, stavem, naftou a nákladem, odtud do něj přesedneš nebo ho prodáš či vrátíš z pronájmu.
 
-Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disky, náboji a maticemi, kabiny s rámy, dveřmi, stěrači, sedadlem a palubní deskou, světla a majáky, hydrauliku s hadicemi a spojkami, schůdky s plechem, SPZ, výstražné pruhy a nápisy (Brázda 140, Klas 7, Bulva 6, Les 8, Lesák).
+Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disky, náboji a maticemi, kabiny s rámy, dveřmi, stěrači, sedadlem a palubní deskou, světla a majáky, hydrauliku s hadicemi a spojkami, schůdky s plechem, SPZ, výstražné pruhy a nápisy.
+
+**Modely a značky:** obchod nabízí 60 modelů od nejlevnějších po nejlepší (katalog v `src/game/catalog.js`). Liší se barvami a velikostí podle značky i parametry. Značky jsou jen jako názvy, stroje nenesou loga.
+
+| Druh | Modely |
+| --- | --- |
+| Traktory | Zetor Major 80, Brázda 140 (start), Zetor Forterra 150 HD, Massey Ferguson 6S.165, Case IH Puma 185, New Holland T7.210, John Deere 6R 250, Claas Axion 870, Fendt 942 Vario (80–420 koní, 40–60 km/h) |
+| Kombajny | Sampo Rosenlew SR2045, Klas 7 (start), Claas Tucano 450, Deutz-Fahr C6205, Case IH Axial-Flow 7250, John Deere S790, Claas Lexion 8900 (lišta 3,9–12,3 m, zásobník 4 500–18 000 l) |
+| Sklízeče cukrovky | Bulva 6, Grimme Rexor 620, Holmer Terra Dos T4-40, Ropa Tiger 6S (6–9 řádků, 20–35 tisíc l) |
+| Harvestory | Les 6, Les 8, Komatsu 931XC, John Deere 1270G, Ponsse Scorpion King (16–32 m³, rychlost kácení) |
+| Auta | Jeep Lesák 4×4, Dacia Duster 4×4, Toyota Hilux (80–100 km/h, mimo cesty pomalejší podle modelu) |
+| Kultivátory | Bednar Fenix 3 m, Kultivátor 4,2 m, Lemken Karat 5, Horsch Terrano 6 FX a 10 FX |
+| Pluhy | Kverneland 3 radlice, Pluh 5 radlic, Lemken Juwel 6 radlic, Kuhn Vari-Master 8 radlic |
+| Secí stroje | 3 m, 4 m, Amazone Cirrus 6003, Väderstad Rapid 800S, Horsch Pronto 12 SW |
+| Rozmetadla | 12 m, Amazone ZA-TS 24 m, Rauch Axis 30 m |
+| Žací lišty | 3 m, Pöttinger Novacat 352, Krone EasyCut B 870 (motýlková 8,7 m) |
+| Lisy | Lis na balíky, John Deere V461R, Krone Comprima V150 (rychlejší) |
+| Přívěsy | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků) |
+| Cisterny | 5 000 l, 8 000 l, Joskin Modulo2 11000, Zunhammer SKE 18.5 |
+
+Každé nářadí má i výkon, který potřebuje od traktoru (v obchodě „potřebuje … koní“); mechanika výkonu přijde v dalším kroku.
 
 | Nářadí traktoru | Šířka | Co dělá |
 | --- | --- | --- |
@@ -115,9 +135,8 @@ Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v
 - **Mlékárna:** cisterna veze vodu nebo mléko. Prázdnou cisternu naplníš mlékem klávesou F v bílém kruhu u chladicí nádrže kravína a mléko prodáš v mlékárně v městečku za 12 Kč/l. Co neodvezeš, koupí o půlnoci odvoz za 9 Kč/l. Mléčnou cisternu nejde naplnit vodou, dokud ji neprodáš.
 - **Voda:** cisternou (kůlna, klávesa 7) naber vodu klávesou F u rybníka a vylij ji v modrém kruhu u skleníků.
 - **Les:** na severu je smrková plantáž. Harvestor kácí stromy, které dorostly aspoň na 85 % (F u stromu), a pojme 24 m³ dřeva. Dřevo prodáš na pile na konci polní cesty (F, kolem 1 500 Kč/m³) nebo v dřevoskladu v městečku. Místo pokáceného stromu vyroste asi za tři dny nový, v zimě roste pomaleji.
-- **Vylepšení:** výkonnější motor traktoru (50 km/h, o 10 % rychlejší práce), široký kultivátor 6,3 m, větší zásobník kombajnu (13 000 l) a nástavba přívěsu (22 000 l).
 
-Budovy a vylepšení se nedají pronajmout, jen koupit.
+Budovy se nedají pronajmout, jen koupit. Dřívější vylepšení nahradily modely: uložená hra s nimi dostane odpovídající stroj (silnější motor → Case IH Puma 185, větší zásobník → Case IH Axial-Flow 7250, široký kultivátor → Horsch Terrano 6 FX, nástavba → Fliegl TMK 22).
 
 ## Pomocníci
 
@@ -269,7 +288,7 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 
 ## Jeep
 
-Jeep Lesák 4×4 (obchod, 290 000 Kč, dá se i pronajmout) jezdí až 80 km/h a hodí se na přejezdy po kraji: k polím na kopcích, do lesa nebo do městečka. Nic netáhne a nepracuje, pomocník ho neřídí. Tankuje se jako ostatní stroje, mezerník troubí.
+Auta (obchod: Jeep Lesák 4×4 290 000 Kč, Dacia Duster 4×4 420 000 Kč, Toyota Hilux 750 000 Kč, dají se i pronajmout) se hodí na přejezdy po kraji: k polím na kopcích, do lesa nebo do městečka. Lesák jede všude 80 km/h, Duster po cestě 95 a mimo ni 71 km/h, Hilux 100 a 90 km/h. Nic netáhnou a nepracují, pomocník je neřídí. Tankují se jako ostatní stroje, mezerník troubí.
 
 ## Louky a seno
 
