@@ -286,7 +286,7 @@ try {
     V.surface.wet = wet; V.surface.snow = snow;
     return { g, head, glance, through };
   });
-  check('jízda a nárazy', phys.g > 0.6 && phys.g < 0.95 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
+  check('jízda a nárazy', phys.g > 0.8 && phys.g < 1.1 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
     'auto v plném rejdu ' + phys.g.toFixed(2) + ' g · čelně do zdi ' + Math.round(phys.head.kmh) + ' km/h, ve zdi ' + phys.head.deep.toFixed(2) + ' m · šikmo 20° dál ' + Math.round(phys.glance.kmh) + ' km/h · mezera 2,4 m ' + (phys.through ? 'projel' : 'neprojel'));
 
   // every model in the catalog: buy one piece, it has the catalog's numbers

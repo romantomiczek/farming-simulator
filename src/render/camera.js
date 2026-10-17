@@ -69,9 +69,9 @@ export function updateCamera(dt, v) {
   if (shake > 0.002) {
     // a few fast wobbles of the view that die away
     shakeT += dt;
-    camera.rotateX(Math.sin(shakeT * 47) * shake * 0.025);
-    camera.rotateY(Math.sin(shakeT * 61 + 1) * shake * 0.02);
-    camera.rotateZ(Math.sin(shakeT * 37 + 2) * shake * 0.015);
+    camera.rotateX(Math.sin(shakeT * 47) * shake * 0.012);
+    camera.rotateY(Math.sin(shakeT * 61 + 1) * shake * 0.01);
+    camera.rotateZ(Math.sin(shakeT * 37 + 2) * shake * 0.007);
     shake *= Math.exp(-dt * 6);
   }
 }

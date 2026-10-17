@@ -145,7 +145,7 @@ function tick(dt) {
   updateTrailers(dt);
   // a crash of the machine you drive: the view shakes and it is heard (small knocks only shake a little)
   const hit = G.active.hit || 0;
-  if (hit > 0.8) { const k = Math.min(1, (hit - 0.8) / 8); shakeCamera(0.15 + 0.85 * k); playImpact(k); }
+  if (hit > 0.8) { const k = Math.min(1, (hit - 0.8) / 8); shakeCamera(0.15 + 0.6 * k); playImpact(k); }
   for (const v of vehicles) v.hit = 0;
   if (DEV.tracks) updTracks(dt, vehicles, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
   updateLogistics(dt, saveLocal);

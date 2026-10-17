@@ -575,11 +575,11 @@ const treeBuf = [];
  * how the body leans (rad per g).
  */
 const PHYS = {
-  tractor: { grip: 0.42, lock: 0.55, rate: 1.1, back: 1.6, tau: 0.15, roll: 0.03, pitch: 0.02 },
-  combine: { grip: 0.3, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
-  beet: { grip: 0.3, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
-  forest: { grip: 0.35, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
-  jeep: { grip: 0.85, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
+  tractor: { grip: 0.5, lock: 0.55, rate: 1.1, back: 1.6, tau: 0.15, roll: 0.03, pitch: 0.02 },
+  combine: { grip: 0.36, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  beet: { grip: 0.36, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  forest: { grip: 0.42, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
+  jeep: { grip: 1, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
 };
 const GRAV = 9.81;
 /** The ground under the wheels: wet after rain, snow in winter (set by the main loop). */
@@ -602,9 +602,9 @@ export function drive(v, dt, input) {
   if (v.offroad < 1 && (v.offT = (v.offT || 0) - dt) <= 0) { v.offT = 0.25; v.offRoad = !roadAt(v.x, v.z, 1.5) && !inRect(v.x, v.z, PAD, 4); }
   if (v.offroad < 1 && v.offRoad) vmax *= v.offroad;
 
-  // steering wheel: turns at a steady rate and comes back faster; at speed full lock is cut to what
-  // the tyres hold on a dry road, so that steering with the keys stays drivable
-  const lock = Math.min(P.lock, Math.atan((0.95 * P.grip * GRAV * v.wb) / Math.max(1, u0 * u0)));
+  // steering wheel: turns at a steady rate and comes back faster; at speed full lock is cut to
+  // what the tyres hold on a dry road, so that steering with the keys stays drivable
+  const lock = Math.min(P.lock, Math.atan((0.98 * P.grip * GRAV * v.wb) / Math.max(1, u0 * u0)));
   const rate = (st ? P.rate : P.back) * dt;
   v.steer += clamp(st * lock - v.steer, -rate, rate);
 

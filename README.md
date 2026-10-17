@@ -295,9 +295,9 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 
 ## Jízda a nárazy
 
-- **Řízení:** volant se natáčí plynule a sám se vrací. V rychlosti se plný rejd omezí na to, co pneumatiky udrží: auto zatáčí nejvýš asi 0,8 g, traktor 0,4 g, kombajn 0,3 g. Na mokru (v dešti a dokud neoschne), mimo silnici a na sněhu drží kola méně: stroj se v zatáčce rozšiřuje a zpomaluje, auto dostane smyk a záď mu ujede. Stroj se otáčí kolem nápravy, která nezatáčí: auto a traktor kolem zadní, kombajn a sklízeč kolem přední (zatáčejí zadními koly). Karoserie se v zatáčce naklání a při brzdění kývne dopředu.
+- **Řízení:** volant se natáčí plynule a sám se vrací. V rychlosti se plný rejd omezí na to, co pneumatiky udrží: auto zatáčí nejvýš asi 1 g, traktor 0,5 g, kombajn 0,35 g. Na mokru (v dešti a dokud neoschne), mimo silnici a na sněhu drží kola méně: stroj se v zatáčce rozšiřuje a zpomaluje, auto dostane smyk a záď mu ujede. Stroj se otáčí kolem nápravy, která nezatáčí: auto a traktor kolem zadní, kombajn a sklízeč kolem přední (zatáčejí zadními koly). Karoserie se v zatáčce naklání a při brzdění kývne dopředu.
 - **Tvar pro kolize:** každý stroj je jeden nebo víc obdélníků změřených z jeho 3D modelu: tělo (bez výsypné roury a jeřábu harvestoru), lišta kombajnu a sklízeče cukrovky a zapojené nářadí, takže narážejí i lišta a 12m secí stroj. Stromy překážejí kmenem, ne korunou. Kód je v `src/vehicles/body.js` a `drive()` v `src/vehicles/vehicles.js`.
-- **Náraz:** stroj se o překážku zastaví a trochu odskočí. Když narazí šikmo, klouže podél ní a ztratí jen část rychlosti. Když narazí rohem, pootočí se. Chvíli po nárazu klouže, než ho kola znovu chytí. Silný náraz zatřese kamerou a je slyšet. Stroje se nárazem nepoškozují.
+- **Náraz:** stroj se o překážku zastaví a trochu odskočí. Když narazí šikmo, klouže podél ní a ztratí jen část rychlosti. Když narazí rohem, pootočí se. Chvíli po nárazu klouže, než ho kola znovu chytí. Silný náraz krátce zatřese kamerou a je slyšet. Stroje se nárazem nepoškozují.
 - **Odstavná plocha** má místa po 14 m, aby se vedle sebe vešly i kombajny s nejširšími lištami.
 - **Omezení:** Claas Lexion 8900 (lišta 14 m) neprojede alejemi podél silnic, John Deere S790 (12,4 m) jen přesně středem. Pomocníci objíždějí překážky podle těla stroje bez lišty a nářadí.
 
