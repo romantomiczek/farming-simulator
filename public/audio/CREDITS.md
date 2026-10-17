@@ -28,7 +28,6 @@ Všechny skladby: **Kevin MacLeod ([incompetech.com](https://incompetech.com))**
 
 | Soubor | Skladba | Styl ve hře |
 |---|---|---|
-| `music/clear-air.ogg` | Clear Air | Kytara |
 | `music/windswept.ogg` | Windswept | Kytara |
 | `music/morning.ogg` | Morning | Kytara |
 | `music/fresh-air.ogg` | Fresh Air | Klavír |

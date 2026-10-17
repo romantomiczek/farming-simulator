@@ -8,7 +8,6 @@ import { settings } from '../core/settings.js';
  * longer fits the choice fades out.
  */
 export const TRACKS = [
-  { file: 'clear-air.ogg', title: 'Clear Air', style: 'guitar' },
   { file: 'windswept.ogg', title: 'Windswept', style: 'guitar' },
   { file: 'morning.ogg', title: 'Morning', style: 'guitar' },
   { file: 'fresh-air.ogg', title: 'Fresh Air', style: 'piano' },
