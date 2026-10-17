@@ -58,9 +58,9 @@ export function updateCamera(dt, v) {
     const d = angDiff(cam.yaw, v.h);
     cam.yaw += d * Math.min(1, dt * 3);
     if (Math.abs(d) < 0.01) cam.manual = -50;
-  } else if (!foot && t - cam.manual > 2.5 && v.speed > 0.8) {
-    // behind a driving machine (on foot the keys walk where the camera looks, so it stays put)
-    cam.yaw += angDiff(cam.yaw, v.h) * Math.min(1, dt * 1.2);
+  } else if (foot ? t - cam.manual > 1 : t - cam.manual > 2.5 && v.speed > 0.8) {
+    // behind a driving machine, and behind the farmer (he turns quickly, so the camera keeps up)
+    cam.yaw += angDiff(cam.yaw, v.h) * Math.min(1, dt * (foot ? 5 : 1.2));
   }
   if (foot) desired.set(v.x, (v.y || 0) + 1.3, v.z);
   else desired.set(v.x + Math.sin(v.h) * 3, (v.y || 0) + 1, v.z + Math.cos(v.h) * 3);

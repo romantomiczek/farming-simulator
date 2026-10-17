@@ -175,9 +175,10 @@ function shedPanel(v) {
 function footPanel() {
   const a = G.active, d = Math.round(Math.hypot(a.x - person.x, a.z - person.z));
   setText(ui.vName, 'vname', 'Pěšky');
-  setText(ui.vChip, 'chip', person.speed > 3 ? 'Běží' : person.speed > 0.3 ? 'Jde' : 'Stojí');
+  const sp = Math.abs(person.speed);
+  setText(ui.vChip, 'chip', sp > 3 ? 'Běží' : person.speed < -0.3 ? 'Couvá' : sp > 0.3 ? 'Jde' : 'Stojí');
   ui.vChip.className = 'chip';
-  setText(ui.vSpeed, 'spd', String(Math.round(person.speed * 3.6)));
+  setText(ui.vSpeed, 'spd', String(Math.round(sp * 3.6)));
   setHTML(ui.vKv, 'kv', '<div><dt>Naposledy</dt><dd>' + labelOf(a) + ' · ' + fmt(d) + ' m</dd></div>');
   ui.vTank.hidden = true;
   ui.shed.hidden = true;
@@ -188,7 +189,7 @@ function footPanel() {
   if (m) pr.push(m.helper ? ['', 'Ve stroji ' + labelOf(m) + ' pracuje pomocník'] : ['E', 'Nastoupit: ' + labelOf(m)]);
   const fa = fPrompt(fAction());
   if (fa) pr.push(['F', fa]);
-  if (person.speed > 0.3 && person.speed < 3) pr.push(['Shift', 'Běžet']);
+  if (person.speed > 0.3 && sp < 3) pr.push(['Shift', 'Běžet']);
   if (!m) pr.push(['Tab', 'Přenést se do nejbližšího stroje']);
   setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
 }

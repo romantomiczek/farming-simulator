@@ -292,7 +292,7 @@ try {
     'auto v plném rejdu ' + phys.g.toFixed(2) + ' g · čelně do zdi ' + Math.round(phys.head.kmh) + ' km/h, ve zdi ' + phys.head.deep.toFixed(2) + ' m · šikmo 20° dál ' + Math.round(phys.glance.kmh) + ' km/h · mezera 2,4 m ' + (phys.through ? 'projel' : 'neprojel'));
 
   // on foot: a new game starts at the farmhouse; E gets into the tractor beside you and out again
-  // beside its cab; W walks where the camera looks; the farmhouse wall stops you; Tab seats you
+  // beside its cab; W walks the way he faces, A turns him; the farmhouse wall stops him; Tab seats you
   const foot = await page.evaluate(async () => {
     const V = await import('/src/vehicles/vehicles.js'), P = await import('/src/world/person.js'), z = window.__zl, out = { start: window.__startFoot };
     const was = z.G.active, t = V.firstOf('tractor');
@@ -309,19 +309,21 @@ try {
     z.hold('KeyW', 60);
     out.walked = Math.hypot(z.person.x - x0, z.person.z - z0);
     // walk into the farmhouse wall (box x −38.6…−29.4, z −22.6…−15.4) from the south
-    Object.assign(z.person, { x: -34, z: -12, speed: 0 }); z.G.active = t;
-    const cam = (await import('/src/render/camera.js')).cam;
-    cam.yaw = Math.PI; cam.manual = performance.now() / 1000; // looking north, at the house
+    Object.assign(z.person, { x: -34, z: -12, speed: 0, h: Math.PI }); z.G.active = t; // facing north, the house
     z.hold('KeyW', 90);
     out.wall = z.person.z;
+    // A turns him left without moving him
+    const h0 = z.person.h, at = [z.person.x, z.person.z];
+    z.hold('KeyA', 15);
+    out.turn = z.person.h - h0; out.still = Math.hypot(z.person.x - at[0], z.person.z - at[1]) < 0.3;
     // Tab from foot: into the nearest machine
     z.act('Tab');
     out.tab = !z.G.onFoot;
     P.seat(was);
     return out;
   });
-  check('chůze a nastupování', foot.start && foot.in && foot.sits && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.tab,
-    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + (foot.sits ? ', sedí v kabině' : ', v kabině není vidět') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
+  check('chůze a nastupování', foot.start && foot.in && foot.sits && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.wall < -14.5 && foot.turn > 1 && foot.still && foot.tab,
+    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + (foot.sits ? ', sedí v kabině' : ', v kabině není vidět') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · A otočí o ' + foot.turn.toFixed(2) + ' rad · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
 
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {

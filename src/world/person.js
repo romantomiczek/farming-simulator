@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
-import { clamp, angDiff } from '../core/util.js';
+import { clamp } from '../core/util.js';
 import { G } from '../game/state.js';
 import { nearShapes, BOUNDS, movers } from './layout.js';
 import { groundH } from './terrain.js';
@@ -16,7 +16,7 @@ import { worldPart, partCircle } from '../vehicles/body.js';
  * stays the machine he drove last.
  */
 export const REACH = 2.5;
-const R = 0.35, WALK = 2.2, RUN = 6.5;
+const R = 0.35, WALK = 2.2, RUN = 6.5, BACK = 1.4, TURN = 2.6; // m/s, rad/s
 
 /* ---------- model: legs, arms and the body with the head are separate meshes, legs and arms swing ---------- */
 const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
@@ -112,16 +112,14 @@ function pushOut() {
 }
 
 /**
- * One step on foot. input = { thr, st } from W/S/A/D, camYaw = where the camera looks, run = Shift.
- * The farmer goes where the keys point as seen from the camera and turns that way.
+ * One step on foot, steered like a machine. input = { thr, st } from W/S/A/D or the arrows: forward
+ * (Shift runs) and back, A/D turn the farmer (st > 0 = left); the camera follows behind him.
  */
-export function walk(dt, input, camYaw, run) {
-  const fx = Math.sin(camYaw), fz = Math.cos(camYaw), rx = -Math.cos(camYaw), rz = Math.sin(camYaw);
-  let dx = 0, dz = 0;
-  if (input) { dx = fx * input.thr - rx * input.st; dz = fz * input.thr - rz * input.st; }
-  const len = Math.hypot(dx, dz), want = len > 0.01 ? (run ? RUN : WALK) : 0;
+export function walk(dt, input, run) {
+  const thr = input ? input.thr : 0, st = input ? input.st : 0;
+  const want = thr > 0 ? (run ? RUN : WALK) : thr < 0 ? -BACK : 0;
   person.speed += clamp(want - person.speed, -12 * dt, 8 * dt);
-  if (len > 0.01) person.h += angDiff(person.h, Math.atan2(dx, dz)) * Math.min(1, dt * 12);
+  person.h += st * TURN * dt;
   person.x += Math.sin(person.h) * person.speed * dt;
   person.z += Math.cos(person.h) * person.speed * dt;
   pushOut();
@@ -159,10 +157,10 @@ export function showPerson(dt) {
   }
   if (g.parent !== scene) moveTo(model, scene);
   g.visible = true;
-  const before = Math.sin(person.phase);
-  person.phase += dt * person.speed * 2.9;
-  if (person.speed > 0.5 && Math.sign(Math.sin(person.phase)) !== Math.sign(before)) person.step = true; // a foot touches the ground
-  const run = person.speed > WALK + 0.5, swing = Math.min(1, person.speed / WALK) * (run ? 0.85 : 0.5), s = Math.sin(person.phase);
+  const before = Math.sin(person.phase), sp = Math.abs(person.speed);
+  person.phase += dt * person.speed * 2.9; // backwards the stride runs backwards
+  if (sp > 0.5 && Math.sign(Math.sin(person.phase)) !== Math.sign(before)) person.step = true; // a foot touches the ground
+  const run = sp > WALK + 0.5, swing = Math.min(1, sp / WALK) * (run ? 0.85 : 0.5), s = Math.sin(person.phase);
   model.legs.forEach((l, i) => {
     const k = i ? -s : s;
     l.hip.rotation.x = k * swing;
@@ -170,7 +168,7 @@ export function showPerson(dt) {
   });
   model.arms.forEach((a, i) => {
     a.sh.rotation.x = (i ? s : -s) * swing * 0.9;
-    a.el.rotation.x = -(run ? 1.1 : 0.25) * Math.min(1, person.speed / WALK);
+    a.el.rotation.x = -(run ? 1.1 : 0.25) * Math.min(1, sp / WALK);
   });
   person.y = groundH(person.x, person.z);
   g.position.set(person.x, person.y + Math.abs(Math.cos(person.phase)) * 0.04 * swing, person.z);

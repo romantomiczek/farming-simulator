@@ -147,11 +147,11 @@ function tick(dt) {
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
   updateTrailers(dt);
-  if (G.onFoot && G.playing) walk(dt, input, cam.yaw, keys.ShiftLeft || keys.ShiftRight);
+  if (G.onFoot && G.playing) walk(dt, input, keys.ShiftLeft || keys.ShiftRight);
   showPerson(dt);
   if (person.step) { // footsteps: crunching on the roads, soft on the fields and the grass
     person.step = false;
-    playStep(isWinter() ? 'snow' : roadAt(person.x, person.z, 0.5) ? 'gravel' : fieldAt(person.x, person.z) ? 'soil' : 'grass', person.speed > 3);
+    playStep(isWinter() ? 'snow' : roadAt(person.x, person.z, 0.5) ? 'gravel' : fieldAt(person.x, person.z) ? 'soil' : 'grass', Math.abs(person.speed) > 3);
   }
   // a crash of the machine you drive: the view shakes and it is heard (small knocks only shake a little)
   const hit = G.onFoot ? 0 : G.active.hit || 0;
