@@ -27,9 +27,11 @@ try {
 
   // a new game with rendering paused while the simulation runs (software rendering is slow)
   await page.evaluate(async () => {
+    const z0 = () => window.__zl;
     const save = await import('/src/game/save.js'); const menu = await import('/src/ui/menu.js');
     const machines = await import('/src/game/machines.js');
     save.newGame(); menu.hideMenu();
+    window.__startFoot = z0().G.onFoot; z0().seat(z0().G.active); // a new game starts on foot; the checks drive
     const z = window.__zl; z.G.playing = true; z.G.tsIdx = 0; z.G.money = 5e7;
     for (const k of ['beet', 'forest', 'jeep']) machines.buy(k);
     z.realRender = z.renderer.render; z.renderer.render = () => {};
@@ -288,6 +290,37 @@ try {
   });
   check('jízda a nárazy', phys.g > 0.8 && phys.g < 1.1 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
     'auto v plném rejdu ' + phys.g.toFixed(2) + ' g · čelně do zdi ' + Math.round(phys.head.kmh) + ' km/h, ve zdi ' + phys.head.deep.toFixed(2) + ' m · šikmo 20° dál ' + Math.round(phys.glance.kmh) + ' km/h · mezera 2,4 m ' + (phys.through ? 'projel' : 'neprojel'));
+
+  // on foot: a new game starts at the farmhouse; E gets into the tractor beside you and out again
+  // beside its cab; W walks where the camera looks; the farmhouse wall stops you; Tab seats you
+  const foot = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), P = await import('/src/world/person.js'), z = window.__zl, out = { start: window.__startFoot };
+    const was = z.G.active, t = V.firstOf('tractor');
+    Object.assign(t, { speed: 0, helper: null });
+    // stand 1.5 m left of the tractor's cab and press E
+    z.G.onFoot = true; Object.assign(z.person, { x: t.x + Math.cos(t.h) * (t.bodyPart.hx + 1.5), z: t.z - Math.sin(t.h) * (t.bodyPart.hx + 1.5), speed: 0 });
+    z.act('KeyE');
+    out.in = !z.G.onFoot && z.G.active === t;
+    z.act('KeyE');
+    out.out = z.G.onFoot && Math.hypot(z.person.x - t.x, z.person.z - t.z) < t.bodyPart.hz + 3;
+    // walk 2 s straight ahead
+    const x0 = z.person.x, z0 = z.person.z;
+    z.hold('KeyW', 60);
+    out.walked = Math.hypot(z.person.x - x0, z.person.z - z0);
+    // walk into the farmhouse wall (box x −38.6…−29.4, z −22.6…−15.4) from the south
+    Object.assign(z.person, { x: -34, z: -12, speed: 0 }); z.G.active = t;
+    const cam = (await import('/src/render/camera.js')).cam;
+    cam.yaw = Math.PI; cam.manual = performance.now() / 1000; // looking north, at the house
+    z.hold('KeyW', 90);
+    out.wall = z.person.z;
+    // Tab from foot: into the nearest machine
+    z.act('Tab');
+    out.tab = !z.G.onFoot;
+    P.seat(was);
+    return out;
+  });
+  check('chůze a nastupování', foot.start && foot.in && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.tab,
+    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
 
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {

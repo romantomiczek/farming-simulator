@@ -4,13 +4,15 @@ import { quality, settings, saveSettings } from './core/settings.js';
 import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
-import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD } from './world/fields.js';
+import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD, fieldAt } from './world/fields.js';
+import { roadAt } from './world/layout.js';
 import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD, surface } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper, toggleSeat } from './game/actions.js';
+import { person, walk, showPerson, seat } from './world/person.js';
 import { helperTick } from './game/helpers.js';
 import { buildFarmstead } from './world/farmstead.js';
 import { buildWildlife } from './world/wildlife.js';
@@ -24,7 +26,7 @@ import { generateOffers, checkContract } from './game/contracts.js';
 import { checkGoals } from './game/goals.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
 import { flushBales, bales, addBale } from './world/bales.js';
-import { bindInput, driveInput, releaseAll } from './core/input.js';
+import { bindInput, driveInput, releaseAll, keys } from './core/input.js';
 import { cam, bindCamera, updateCamera, shakeCamera } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
 import { updSnow, snapSnow } from './render/snow.js';
@@ -41,7 +43,7 @@ import { pumpPreviews } from './render/previews.js';
 import { toast } from './ui/toast.js';
 import { initDev, toggleDev, updDev, devEnabled } from './ui/devpanel.js';
 import { mapEditorOpen } from './ui/mapeditor.js';
-import { toggleSound, updAudio, sound, playImpact } from './audio.js';
+import { toggleSound, updAudio, sound, playImpact, playStep } from './audio.js';
 
 /* ---------- world ---------- */
 const terrain = buildTerrain(scene);
@@ -65,15 +67,17 @@ const hasSave = loadLocal();
 if (!hasSave) newGame();
 snapSeasonTint(terrain.material, vegetation.leafMat, season());
 snapSnow(isWinter());
-cam.yaw = G.active.h;
-wildlife.update(0.001, { vehicles, active: G.active, hour: 12, cows: false, hens: false }); // place the animals before the first frame
-traffic.update(0.001, { vehicles, listener: G.active });
-cam.t.set(G.active.x, 1, G.active.z);
+/** Who the player is right now: the farmer on foot or the machine he drives. */
+const player = () => (G.onFoot ? person : G.active);
+cam.yaw = player().h;
+wildlife.update(0.001, { vehicles, active: player(), hour: 12, cows: false, hens: false }); // place the animals before the first frame
+traffic.update(0.001, { vehicles, listener: player() });
+cam.t.set(player().x, 1, player().z);
 
 /* ---------- input & menu ---------- */
 /** Big map: clicking one of your machines puts you in it. */
-const openMap = () => toggleBigMap(undefined, v => { G.active = v; cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
-const ACTIONS = { KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
+const openMap = () => toggleBigMap(undefined, v => { seat(v); cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
+const ACTIONS = { KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
 bindInput(code => {
   if (mapEditorOpen()) return; // the map editor handles its own keys
   if (code === 'F9' && devEnabled) { toggleDev(); return; }
@@ -138,13 +142,19 @@ function tick(dt) {
   surface.wet = WX.rain > 0.15 || G.gameMin < WX.wetUntil; surface.snow = isWinter();
   for (const v of vehicles) {
     if (v.helper && G.playing) helperTick(v, dt);
-    else if (!v.helper) drive(v, dt, v === G.active && !v.cutting ? input : null);
+    else if (!v.helper) drive(v, dt, v === G.active && !G.onFoot && !v.cutting ? input : null);
     work(v, dt);
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
   updateTrailers(dt);
+  if (G.onFoot && G.playing) walk(dt, input, cam.yaw, keys.ShiftLeft || keys.ShiftRight);
+  showPerson(dt);
+  if (person.step) { // footsteps: crunching on the roads, soft on the fields and the grass
+    person.step = false;
+    playStep(isWinter() ? 'snow' : roadAt(person.x, person.z, 0.5) ? 'gravel' : fieldAt(person.x, person.z) ? 'soil' : 'grass', person.speed > 3);
+  }
   // a crash of the machine you drive: the view shakes and it is heard (small knocks only shake a little)
-  const hit = G.active.hit || 0;
+  const hit = G.onFoot ? 0 : G.active.hit || 0;
   if (hit > 0.8) { const k = Math.min(1, (hit - 0.8) / 8); shakeCamera(0.15 + 0.6 * k); playImpact(k); }
   for (const v of vehicles) v.hit = 0;
   if (DEV.tracks) updTracks(dt, vehicles, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
@@ -153,15 +163,15 @@ function tick(dt) {
   flushBales();
   forestryTick(dt);
   farmstead.update(dt);
-  if (G.playing) traffic.update(dt, { vehicles, listener: G.active });
-  if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: G.active, hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
+  if (G.playing) traffic.update(dt, { vehicles, listener: player() });
+  if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: player(), hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
-  updateCamera(dt, G.active);
+  updateCamera(dt, player());
   updLOD(camera.position, quality().machineLod);
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
-  updEnv(cam.t, G.gameMin, vehicles, G.active, WX);
+  updEnv(cam.t, G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season());
   updRain(dt, cam.t, WX.rain, isWinter());
   if (DEV.wind) updWind(dt, WX.rain, WX.cloud);
@@ -172,8 +182,8 @@ function tick(dt) {
     const e = camera.matrixWorld.elements, n = Math.hypot(e[0], e[2]) || 1;
     Object.assign(ear, { x: cam.t.x, z: cam.t.z, rx: e[0] / n, rz: e[2] / n });
   }
-  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.active, vehicles, traffic: traffic.cars, ear });
-  slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(G.active.x, G.active.z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
+  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: traffic.cars, ear });
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) { pumpPreviews(dt); renderer.render(scene, camera); }
 }
@@ -182,7 +192,7 @@ function tick(dt) {
 // the menu is usable and the 3D view stays empty. Compiling them on the first frame instead froze
 // the page for several seconds on Intel graphics.
 let shadersReady = false;
-updateCamera(0, G.active);
+updateCamera(0, player());
 renderer.compileAsync(scene, camera).catch(() => {}).finally(() => { shadersReady = true; });
 
 let last = performance.now();
@@ -201,7 +211,7 @@ if (import.meta.env.DEV) {
     step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) tick(dt); },
     act: code => ACTIONS[code]?.(),
     set: o => Object.assign(G.active, o),
-    G, vehicles, tools, renderer, wildlife, traffic, pick: pickInShed,
+    G, vehicles, tools, renderer, wildlife, traffic, pick: pickInShed, person, seat,
     /** Hitches the first piece of implement key to tractor v (default: the first tractor). */
     attach: (key, v = vehicles.find(x => x.type === 'tractor')) => attachTool(v, tools.find(t => t.key === key && t.on === v) || tools.find(t => t.key === key && !t.on) || tools.find(t => t.key === key)), fields: FIELDS, forest: forestTrees, bales, addBale,
     size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },

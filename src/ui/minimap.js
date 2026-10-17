@@ -1,4 +1,5 @@
 import { FIELDS } from '../world/fields.js';
+import { person } from '../world/person.js';
 import { vehicles, tools, parkExtent, parkHooks, labelOf } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import {
@@ -143,11 +144,15 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
       c.fillText(u.name.split(' ')[0] + (labelOf(u).match(/ #\d+$/)?.[0] || '') + (u.helper ? ' · pomocník' : ''), mx(u.x), my(u.z) - r - opts.font * 0.6);
     }
   }
+  if (G.onFoot) { // the farmer: a dot with a white ring
+    c.beginPath(); c.arc(mx(person.x), my(person.z), opts.icon * 0.55, 0, 7);
+    c.fillStyle = '#b5463a'; c.fill(); c.lineWidth = Math.max(1, opts.icon * 0.2); c.strokeStyle = '#fff'; c.stroke();
+  }
 }
 
 export function drawMinimap() {
   if (!W || !bg) return;
-  const v = G.active;
+  const v = G.onFoot ? person : G.active;
   const vx = (BOUNDS.x1 + PAD_M - v.x) * s, vy = (BOUNDS.z1 + PAD_M - v.z) * s;
   // keep the active vehicle centred, but do not scroll past the map edges
   const ox = Math.min(Math.max(vx - W / 2, 0), Math.max(0, bg.width - W));

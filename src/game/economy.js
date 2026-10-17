@@ -62,7 +62,7 @@ export const dailyInterest = () => Math.round(G.loan * INTEREST_DAILY);
  * (the rest stand still). Litres per real second, so speeding up time does not burn more diesel.
  */
 export function upkeep(dt) {
-  for (const v of vehicles) if (v === G.active || v.helper) burn(v, dt, v === G.active);
+  for (const v of vehicles) if ((v === G.active && !G.onFoot) || v.helper) burn(v, dt, v === G.active && !G.onFoot);
 }
 
 function burn(v, dt, player) {

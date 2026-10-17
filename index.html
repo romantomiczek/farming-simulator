@@ -51,7 +51,7 @@
         <div class="kv"><dt id="vTankLabel">Zásobník</dt><dd id="vTankTxt">0 / 9 000 l</dd></div>
         <div class="bar"><i id="vTankBar"></i></div>
       </div>
-      <div>
+      <div id="vFuelRow">
         <div class="kv"><dt>Nafta</dt><dd id="vFuelTxt">250 / 250 l</dd></div>
         <div class="bar fuel"><i id="vFuelBar"></i></div>
       </div>
@@ -71,7 +71,7 @@
       <div class="tpad left"><button data-hold="KeyA" aria-label="Doleva">◀</button><button data-hold="KeyD" aria-label="Doprava">▶</button></div>
       <div class="tright">
         <div class="tacts">
-          <button data-tap="Space">Nářadí</button><button data-tap="KeyF">Akce F</button>
+          <button data-tap="KeyE">Nastoupit</button><button data-tap="Space">Nářadí</button><button data-tap="KeyF">Akce F</button>
           <button data-tap="Tab">Stroj</button><button data-tap="KeyC">Osivo</button>
           <button data-tap="KeyH">Pomocník</button><button data-tap="KeyK">Kancelář</button>
         </div>
@@ -103,13 +103,13 @@
     <div class="card" role="dialog" aria-labelledby="menuTitle">
       <section id="menuMain" class="cardsec">
         <h1 id="menuTitle">Zlaté lány</h1>
-        <p class="lede">Hospodářství uprostřed kraje s lesy, kopci, rybníky a řekou. Pole 1 je zralé a kombajn stojí na cestě. Skliď, prodej úrodu ve výkupu, slisuj slámu, zoráš, pohnojíš, zaseješ a za výdělek kupuješ další pole a louky. Vzdálenější výkupy ve vesnici a v městečku za řekou platí víc.</p>
+        <p class="lede">Hospodářství uprostřed kraje s lesy, kopci, rybníky a řekou. Pole 1 je zralé a kombajn stojí na cestě, kousek od domu. Skliď, prodej úrodu ve výkupu, slisuj slámu, zoráš, pohnojíš, zaseješ a za výdělek kupuješ další pole a louky. Vzdálenější výkupy ve vesnici a v městečku za řekou platí víc.</p>
         <div class="cycle" aria-label="Cyklus pole">
           <div class="c1">Sklizeň</div><div class="c2">Kultivace</div><div class="c3">Setí</div><div class="c4">Růst</div>
         </div>
         <div class="controls">
-          <div><span class="k"><kbd>W</kbd><kbd>S</kbd></span>plyn, brzda, couvání</div>
-          <div><span class="k"><kbd>A</kbd><kbd>D</kbd></span>zatáčení</div>
+          <div><span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>pěšky chůze (<kbd>Shift</kbd> běh), ve stroji plyn, brzda a zatáčení</div>
+          <div><span class="k"><kbd>E</kbd></span>nastoupit do stroje / vystoupit</div>
           <div><span class="k"><kbd>Mezerník</kbd></span>spustit / zvednout nářadí, v jeepu troubit</div>
           <div><span class="k"><kbd>Tab</kbd></span>přesednout do dalšího stroje v okolí (<kbd>Shift</kbd>+<kbd>Tab</kbd> všechny)</div>
           <div><span class="k"><kbd>F</kbd></span>prodej, překládka do přívěsu, výměna nářadí, koupě pole</div>
@@ -120,7 +120,7 @@
           <div><span class="k"><kbd>H</kbd></span>najmout / propustit pomocníka</div>
           <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
           <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>
-          <div><span class="k"><kbd>Q</kbd><kbd>E</kbd></span>otočit kameru (nebo táhni myší)</div>
+          <div><span class="k"><kbd>Z</kbd><kbd>X</kbd></span>otočit kameru (nebo táhni myší)</div>
           <div><span class="k"><kbd>kolečko</kbd></span>přiblížení</div>
           <div><span class="k"><kbd>Esc</kbd></span>menu a nastavení</div>
         </div>

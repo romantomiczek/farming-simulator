@@ -1,4 +1,5 @@
 import { fmt } from '../core/util.js';
+import { seat } from '../world/person.js';
 import { G } from '../game/state.js';
 import {
   has, hasCondition, CATALOG, byKey, sellValue, leaseUpfront, leaseDaily, blockReason, buy, lease, release, dailyLeaseCost, status, condOf,
@@ -87,7 +88,7 @@ function act(a, key) {
     }
     case 'drive': {
       const v = vehicles.find(x => x.id === key);
-      if (v && !v.helper) { G.active = v; cam.manual = -99; toast('Sedíš v: ' + labelOf(v)); closeOffice(); return; }
+      if (v && !v.helper) { seat(v); cam.manual = -99; toast('Sedíš v: ' + labelOf(v)); closeOffice(); return; }
       break;
     }
     case 'sellp': {
@@ -304,7 +305,7 @@ function whereText(p) {
 /** What piece p is doing or carrying right now. */
 function doingText(p) {
   const out = [];
-  if (p === G.active) out.push('řídíš');
+  if (p === G.active && !G.onFoot) out.push('řídíš');
   if (p.helper) out.push('pomocník: ' + helperStatus(p));
   if (p.type === 'tractor') out.push(p.tool ? 'nářadí: ' + labelOf(p.tool).toLowerCase() : 'bez nářadí');
   if (p.on) out.push('na traktoru ' + labelOf(p.on));
@@ -324,9 +325,9 @@ function fleetHTML() {
     const why = blockReasonOf(p), key = p.model, lease = p.own === 'lease';
     const chips = (lease ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(key))} Kč/den</span>` : '<span class="chip on">Vlastníš</span>') +
       `<span class="muted">stav ${pct(p.cond)}${p.type ? ' · nafta ' + Math.round((p.fuel / p.fuelCap) * 100) + ' %' : ''}</span>`;
-    const acts = (p.type ? btn('drive', p.id, 'Přesednout', p === G.active || !!p.helper) : '') +
+    const acts = (p.type ? btn('drive', p.id, 'Přesednout', (p === G.active && !G.onFoot) || !!p.helper) : '') +
       btn('sellp', p.id, lease ? 'Vrátit' : 'Prodat · ' + fmt(sellValueOf(p)) + ' Kč', !!why, 'ghost');
-    return `<div class="row${p === G.active ? ' active' : ''}"><div class="rmain"><b>${labelOf(p)}</b><span>${whereText(p)}${doingText(p) ? ' · ' + doingText(p) : ''}</span>${why && why !== 'Právě v něm sedíš.' ? `<p class="why">${why}</p>` : ''}</div>
+    return `<div class="row${p === G.active && !G.onFoot ? ' active' : ''}"><div class="rmain"><b>${labelOf(p)}</b><span>${whereText(p)}${doingText(p) ? ' · ' + doingText(p) : ''}</span>${why && why !== 'Právě v něm sedíš.' ? `<p class="why">${why}</p>` : ''}</div>
       <div class="rstate">${chips}</div><div class="ract">${acts}</div></div>`;
   };
   out += '<h3 class="grp">Stroje</h3>';

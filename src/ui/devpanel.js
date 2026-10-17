@@ -18,6 +18,7 @@ import { SAWMILL, POND } from '../world/layout.js';
 import { saveLocal } from '../game/save.js';
 import { toast } from './toast.js';
 import { toggleMapEditor } from './mapeditor.js';
+import { person } from '../world/person.js';
 import { MODELS, modelName } from '../game/catalog.js';
 import { engineTest, engineInfo } from '../audio/engines.js';
 
@@ -183,6 +184,7 @@ function ripen(all) {
 }
 function teleport(i) {
   const [name, x, z] = PLACES[i], v = G.active;
+  if (G.onFoot) { Object.assign(person, { x, z, speed: 0 }); cam.t.set(x, 1, z); toast('Pěšky: ' + name); return; }
   if (v.helper) { toast('Stroj řídí pomocník.', 'bad'); return; }
   Object.assign(v, { x, z, speed: 0 });
   if (v.tool) attachTool(v, v.tool); // puts the trailer or tool back behind the tractor

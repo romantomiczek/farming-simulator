@@ -100,6 +100,16 @@ export function playImpact(strength) {
   if (k > 0.35) for (const fr of [310, 467]) tone('square', fr, fr * 0.96, t + 0.02, 0.25, 0.02 * k, fx, A.filt('bandpass', fr * 2, 6));
 }
 
+/** A footstep of the farmer: ground = 'grass' | 'gravel' | 'soil' | 'snow', run = louder and sharper. */
+export function playStep(ground, run) {
+  if (!A || !sound.on) return;
+  const t = A.ac.currentTime, s = A.ac.createBufferSource(), g = A.gain(), k = run ? 1.4 : 1;
+  const f = ground === 'gravel' ? A.filt('bandpass', 3200, 1.1) : ground === 'soil' ? A.filt('lowpass', 650) : ground === 'snow' ? A.filt('bandpass', 1300, 2) : A.filt('bandpass', 1700, 0.8);
+  const vol = (ground === 'gravel' ? 0.05 : ground === 'soil' ? 0.06 : 0.035) * k, dur = (ground === 'gravel' ? 0.13 : 0.09) * (run ? 0.8 : 1);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.buffer = A.noise; s.connect(f); f.connect(g); g.connect(A.bus.effects); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
+}
+
 /** Animal and other calls at a world position; quieter with distance (heard up to range metres). */
 export function playAt(kind, x, z, listener, range = 90) {
   if (!A || !sound.on) return;
@@ -149,8 +159,8 @@ export function updAudio(dt, env) {
     return;
   }
 
-  // work sounds of the machine you sit in
-  const v = env.active, working = v.lowered && Math.abs(v.speed) > 0.3, threshing = v.harvester && v.lowered;
+  // work sounds of the machine you sit in (none on foot)
+  const v = env.active || {}, working = v.lowered && Math.abs(v.speed) > 0.3, threshing = v.harvester && v.lowered;
   set(A.thresh.gain, threshing ? 0.022 + (working ? 0.025 : 0) : 0, t, 0.3);
   set(A.threshLow.gain, threshing ? 0.06 : 0, t, 0.3);
   set(A.soil.gain, v.type === 'tractor' && working ? 0.05 + Math.abs(v.speed) * 0.006 : 0, t, 0.2);

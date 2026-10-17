@@ -10,6 +10,7 @@ import { bales, setBales, flushBales } from '../world/bales.js';
 import { serializeForest, loadForest } from '../world/forest.js';
 import { MAP_DEFAULTS } from '../world/layout.js';
 import { emptyFarm } from './farm.js';
+import { person, startOnFoot } from '../world/person.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
 import { emptyStats, loadStats, loadGoals, GOALS, progressOf } from './goals.js';
 
@@ -51,6 +52,7 @@ export function newGame() {
   loadForest(null);
   startFleet();
   G.active = firstOf('combine');
+  startOnFoot();
   applyOwnership();
   afterLoad();
   generateOffers();
@@ -60,6 +62,7 @@ const r2 = x => Math.round(x * 100) / 100;
 export function serialize() {
   return {
     v: VERSION, money: G.money, gameMin: G.gameMin, tsIdx: G.tsIdx, active: G.active.id,
+    onFoot: G.onFoot, person: { x: r2(person.x), z: r2(person.z), h: r2(person.h) },
     fields: FIELDS.map(f => ({
       id: f.id, x0: f.x0, z0: f.z0, owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir),
       growth: b64.enc(new Uint8Array(f.growth.buffer)), bonus: b64.enc(f.bonus), straw: b64.enc(f.straw),
@@ -186,6 +189,9 @@ export function applySave(d) {
   // only one helper works at a time: from older saves with several, the first one carries on
   for (const e of plan.fleet) { const v = vehicles.find(x => x.id === e.id); if (v && !moved.has(e.helper?.field) && !vehicles.some(x => x.helper)) restoreHelper(v, e.helper); }
   if (G.active.helper) G.active = vehicles.find(v => !v.helper) || G.active;
+  // on foot where he was (older saves: in the machine he drove)
+  G.onFoot = !!d.onFoot && Number.isFinite(d.person?.x) && Number.isFinite(d.person?.z);
+  if (G.onFoot) Object.assign(person, { x: d.person.x, z: d.person.z, h: num(d.person.h, 0), speed: 0 });
   G.stats = loadStats(d.stats);
   // saves from before goals existed: whatever is already achieved counts as done, without a reward
   G.goals = d.stats ? loadGoals(d.goals) : GOALS.filter(g => progressOf(g) >= 1).map(g => g.id);

@@ -12,7 +12,8 @@ export const G = {
   gameMin: 8 * 60, // game minutes since day 1, 00:00; 1 real second = 1 game minute at 1×
   tsIdx: 0,
   playing: false,
-  active: null, // the vehicle the player drives
+  active: null, // the vehicle the player drives (or drove last, when on foot)
+  onFoot: false, // the player walks (world/person.js) instead of driving G.active
   flashT: 0, // money highlight timer
   loan: 0,
   machines: {}, // catalog key → 'own' | 'lease' | null

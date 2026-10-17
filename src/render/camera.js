@@ -11,7 +11,9 @@ import { groundH } from '../world/terrain.js';
  */
 /** Lowest camera tilt: almost level, so the player can look at the horizon and the sky. */
 const PITCH_MIN = 0.12;
-export const cam = { yaw: 0, pitch: 0.66, dist: 52, manual: -99, t: new THREE.Vector3(-10, 1, -4) };
+export const cam = { yaw: 0, pitch: 0.66, dist: 52, manual: -99, t: new THREE.Vector3(-10, 1, -4), foot: false, distOther: 12 };
+/** Zoom range: close behind the farmer on foot, further out behind a machine. */
+const zoomMin = () => (cam.foot ? 3.5 : 14), zoomMax = () => (cam.foot ? 40 : 120);
 
 export function bindCamera(canvas) {
   const ptrs = new Map();
@@ -32,13 +34,13 @@ export function bindCamera(canvas) {
     p.x = e.clientX; p.y = e.clientY;
     if (ptrs.size === 2 && pinch0 > 0) {
       const [a, b] = [...ptrs.values()];
-      cam.dist = clamp((dist0 * pinch0) / Math.hypot(a.x - b.x, a.y - b.y), 14, 120);
+      cam.dist = clamp((dist0 * pinch0) / Math.hypot(a.x - b.x, a.y - b.y), zoomMin(), zoomMax());
     }
   });
   const up = e => { ptrs.delete(e.pointerId); pinch0 = 0; };
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * (1 + Math.sign(e.deltaY) * 0.1), 14, 120); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * (1 + Math.sign(e.deltaY) * 0.1), zoomMin(), zoomMax()); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 }
 
@@ -47,17 +49,21 @@ let shake = 0, shakeT = 0;
 /** A short shake of the view after a crash: a = strength 0..1. */
 export function shakeCamera(a) { shake = Math.max(shake, a); }
 export function updateCamera(dt, v) {
-  const t = performance.now() / 1000;
-  if (keys.KeyQ) { cam.yaw += 1.7 * dt; cam.manual = t; }
-  if (keys.KeyE) { cam.yaw -= 1.7 * dt; cam.manual = t; }
+  const t = performance.now() / 1000, foot = v.type === 'person';
+  // getting out or in: each has its own zoom
+  if (foot !== cam.foot) { const d = cam.dist; cam.dist = cam.distOther; cam.distOther = d; cam.foot = foot; }
+  if (keys.KeyZ) { cam.yaw += 1.7 * dt; cam.manual = t; }
+  if (keys.KeyX) { cam.yaw -= 1.7 * dt; cam.manual = t; }
   if (cam.manual === -99) {
     const d = angDiff(cam.yaw, v.h);
     cam.yaw += d * Math.min(1, dt * 3);
     if (Math.abs(d) < 0.01) cam.manual = -50;
-  } else if (t - cam.manual > 2.5 && v.speed > 0.8) {
+  } else if (!foot && t - cam.manual > 2.5 && v.speed > 0.8) {
+    // behind a driving machine (on foot the keys walk where the camera looks, so it stays put)
     cam.yaw += angDiff(cam.yaw, v.h) * Math.min(1, dt * 1.2);
   }
-  desired.set(v.x + Math.sin(v.h) * 3, (v.y || 0) + 1, v.z + Math.cos(v.h) * 3);
+  if (foot) desired.set(v.x, (v.y || 0) + 1.3, v.z);
+  else desired.set(v.x + Math.sin(v.h) * 3, (v.y || 0) + 1, v.z + Math.cos(v.h) * 3);
   cam.t.lerp(desired, 1 - Math.exp(-dt * 6));
   const cp = Math.cos(cam.pitch) * cam.dist;
   camera.position.set(cam.t.x - Math.sin(cam.yaw) * cp, cam.t.y + Math.sin(cam.pitch) * cam.dist, cam.t.z - Math.cos(cam.yaw) * cp);

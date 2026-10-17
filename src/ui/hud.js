@@ -21,6 +21,7 @@ import { COWS } from '../game/balance.js';
 const ANIMALS = { cows: 'Krávám', hens: 'Slepicím', sheep: 'Ovcím', pigs: 'Prasatům' };
 import { logPrice, bestWood, woodBuyerAt } from '../game/forestry.js';
 import { trees, volume, matureCount, nearestTree, MATURE } from '../world/forest.js';
+import { person, machineInReach } from '../world/person.js';
 
 const $ = id => document.getElementById(id);
 const ui = {
@@ -28,7 +29,7 @@ const ui = {
   prices: $('priceList'), vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'),
   vTankLabel: $('vTankLabel'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
   shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'), wx: $('wxLine'), helpers: $('helperLine'),
-  vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), job: $('jobLine'), goal: $('goalLine'),
+  vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), vFuelRow: $('vFuelRow'), job: $('jobLine'), goal: $('goalLine'),
 };
 
 // Only touch the DOM when a value actually changed: layout work is expensive on weak machines.
@@ -104,6 +105,7 @@ function taskText() {
   else t = 'Všechno je hotové. V Kanceláři (K) najdeš zvířata, skleníky, harvestor do lesa i vylepšení strojů.';
   const cheapest = FIELDS.filter(f => !f.owned).sort((a, b) => a.price - b.price)[0];
   if (cheapest && G.money >= cheapest.price) t += ' Máš na koupi pole ' + cheapest.id + '.';
+  if (G.onFoot) t = 'Jsi pěšky: dojdi ke stroji a nastup klávesou E. ' + t;
   return t;
 }
 
@@ -169,6 +171,27 @@ function shedPanel(v) {
   setHTML(ui.shedNote, 'shedNote', q >= 1 ? '<kbd>R</kbd> Opravit za ' + fmt(q) + ' Kč' : 'Stroj je v pořádku.');
 }
 
+/** On foot: the farmer instead of the machine, where the last machine is, getting in, buying a field. */
+function footPanel() {
+  const a = G.active, d = Math.round(Math.hypot(a.x - person.x, a.z - person.z));
+  setText(ui.vName, 'vname', 'Pěšky');
+  setText(ui.vChip, 'chip', person.speed > 3 ? 'Běží' : person.speed > 0.3 ? 'Jde' : 'Stojí');
+  ui.vChip.className = 'chip';
+  setText(ui.vSpeed, 'spd', String(Math.round(person.speed * 3.6)));
+  setHTML(ui.vKv, 'kv', '<div><dt>Naposledy</dt><dd>' + labelOf(a) + ' · ' + fmt(d) + ' m</dd></div>');
+  ui.vTank.hidden = true;
+  ui.shed.hidden = true;
+  const f = fieldAt(person.x, person.z);
+  ui.vField.hidden = !f;
+  if (f) setHTML(ui.vField, 'fl', '<b>' + (f.meadow ? 'Louka ' : 'Pole ') + f.id + '</b>' + (f.owned ? '' : ' · cizí'));
+  const pr = [], m = machineInReach();
+  if (m) pr.push(m.helper ? ['', 'Ve stroji ' + labelOf(m) + ' pracuje pomocník'] : ['E', 'Nastoupit: ' + labelOf(m)]);
+  const fa = fPrompt(fAction());
+  if (fa) pr.push(['F', fa]);
+  if (!m) pr.push(['Tab', 'Přenést se do nejbližšího stroje']);
+  setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
+}
+
 /** Every frame: money, clock, vehicle panel, shed panel and key prompts. */
 export function updUI() {
   setText(ui.money, 'money', fmt(G.money));
@@ -177,6 +200,8 @@ export function updUI() {
   setText(ui.day, 'day', 'Den ' + day);
   setText(ui.time, 'time', String((m / 60) | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
   setText(ui.speed, 'ts', TIME_SCALES[G.tsIdx] + '×');
+  ui.vFuelRow.hidden = G.onFoot;
+  if (G.onFoot) { footPanel(); return; }
 
   const v = G.active;
   const tr = towed(v), withTrailer = !!tr;

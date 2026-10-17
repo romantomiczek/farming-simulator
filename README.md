@@ -20,10 +20,12 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 
 | Klávesa            | Akce                                                                                                                                                                                                           |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| W / S              | plyn, brzda, couvání                                                                                                                                                                                           |
-| A / D              | zatáčení                                                                                                                                                                                                       |
+| W / S              | pěšky dopředu a dozadu, ve stroji plyn, brzda, couvání                                                                                                                                                         |
+| A / D              | pěšky doleva a doprava (vůči kameře), ve stroji zatáčení                                                                                                                                                       |
+| Shift              | pěšky běh                                                                                                                                                                                                      |
+| E                  | nastoupit do stroje (do 2,5 m od něj) / vystoupit vedle kabiny                                                                                                                                                 |
 | Mezerník           | spustit / zvednout nářadí; v jeepu troubí                                                                                                                                                                      |
-| Tab                | přesednout do dalšího stroje v okolí (150 m), Shift+Tab do dalšího ze všech strojů                                                                                                                             |
+| Tab                | přesednout do dalšího stroje v okolí (150 m), pěšky do nejbližšího stroje; Shift+Tab do dalšího ze všech strojů                                                                                                |
 | F                  | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
 | 1–8                | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2)                                                                                                                                        |
 | R                  | v kůlně: oprava stroje a připojeného nářadí                                                                                                                                                                    |
@@ -32,7 +34,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 | H                  | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit                                                                                                                                                |
 | C                  | změnit osivo                                                                                                                                                                                                   |
 | T                  | rychlost času 1× / 5× / 20×                                                                                                                                                                                    |
-| Q / E, tažení myší | otočení kamery                                                                                                                                                                                                 |
+| Z / X, tažení myší | otočení kamery                                                                                                                                                                                                 |
 | kolečko            | přiblížení                                                                                                                                                                                                     |
 | Esc                | menu, nastavení grafiky a zvuku, uložení do souboru                                                                                                                                                            |
 | F9                 | vývojářský režim (jen při vývoji, viz níže)                                                                                                                                                                    |
@@ -258,7 +260,7 @@ src/
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc, obloha (sky.js),
                        vítr ve vegetaci (wind.js)
-  world/               rozvržení mapy (layout.js, úpravy z editoru v map.json), terén s terasami, řekou a rybníky,
+  world/               panáček pěšky (person.js), rozvržení mapy (layout.js, úpravy z editoru v map.json), terén s terasami, řekou a rybníky,
                        budovy a vesnice, městečko, nádraží a pískovna (landmarks.js),
                        vegetace, pole a louky, balíky, kravín, kurník a skleníky
                        (farmstead.js), les (forest.js), zvířata (wildlife.js),
@@ -292,6 +294,13 @@ godot-demo/            ukázka v enginu Godot (jedno pole, traktor, kombajn), vi
 13. **Vozový park:** víc kusů každého stroje a odstavná plocha, záložka Vozový park, zjednodušené vzdálené stroje, 60 modelů známých značek, výkon traktoru, jeden pomocník s volbou nářadí, nový obchod s protiúčtem a fotkami strojů.
 14. **Zvuk:** motory z nahrávek (5 sad, řazení, startování, stroje okolo a doprava), hudba (kytara a klavír), nastavení zvuku v menu, zkušebna motorů.
 15. **Jízda a nárazy:** řízení omezené přilnavostí pneumatik, smyk auta, otáčení kolem nápravy, náklon karoserie, kolize podle tvaru strojů včetně lišt a nářadí, realistický náraz s otřesem a zvukem.
+16. **Pěšky:** panáček, který chodí a běhá, nastupuje do strojů (E) a vystupuje, kolize s budovami a stroji, kroky, nová hra začíná pěšky.
+
+## Pěšky
+
+Nová hra začíná pěšky u dveří statku; kombajn stojí kousek odsud na cestě. Panáček (farmář v kostkované košili a kšiltovce) chodí W/A/D/S tam, kam se dívá kamera, s Shiftem běží. Klávesou E nastoupí do stroje, u kterého stojí (do 2,5 m od něj), a ze stroje vystoupí vedle kabiny (vlevo, když tam není místo, tak vpravo, za strojem nebo před ním). Vystoupit jde jen ze stojícího stroje. Opuštěný stroj zastaví a za pár sekund zhasne motor. Do stroje, který řídí pomocník, nenastoupíš. Tab, velká mapa i Vozový park v Kanceláři tě do stroje dál přenesou odkudkoli.
+
+Pěšky narážíš do budov, plotů, kmenů stromů, strojů, přívěsů, aut a vody a chodíš po terénu. Kamera je blíž (kolečkem 3,5–40 m) a za tebou se sama neotáčí, otočíš ji myší nebo Z/X. HUD ukazuje, že jdeš pěšky, kde stojí stroj, ve kterém jsi seděl naposledy, a nabídne nastoupení nebo koupi pole u cedule (F). Klávesy, které ovládají stroj (mezerník, H, R, 1–8), pěšky jen připomenou, že máš nastoupit. Kroky je slyšet jinak na cestě, na poli, v trávě a ve sněhu. Hra si pamatuje, jestli jsi pěšky a kde. Kód je v `src/world/person.js`.
 
 ## Jízda a nárazy
 

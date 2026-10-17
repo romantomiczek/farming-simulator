@@ -101,7 +101,7 @@ export function applyOwnership() {
 export function blockReasonOf(p) {
   const key = kindOf(p);
   if (key === 'tractor' && piecesOf(key).length < 2) return 'Bez traktoru by farma nefungovala.';
-  if (G.active === p) return 'Právě v něm sedíš.';
+  if (G.active === p && !G.onFoot) return 'Právě v něm sedíš.';
   if (p.helper) return 'Pracuje na něm pomocník.';
   if (p.on?.helper) return 'Pracuje s ním pomocník.';
   if (p.on) return 'Je připojené k traktoru. V kůlně připoj jiné nářadí.';

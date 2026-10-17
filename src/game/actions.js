@@ -21,6 +21,7 @@ import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
 import { cam } from '../render/camera.js';
 import { toast } from '../ui/toast.js';
+import { person, machineInReach, seat, leave } from '../world/person.js';
 
 export const inShed = v => v.x > shedZone.x0 && v.x < shedZone.x1 && v.z > shedZone.z0 && v.z < shedZone.z1;
 export const nearSign = v => signs.find(s => !s.f.owned && Math.hypot(v.x - s.x, v.z - s.z) < 10);
@@ -34,8 +35,9 @@ export function otherImpl(v) {
 }
 export const otherHeader = v => (v.header === 'grain' ? (has('cornHeader') ? 'corn' : null) : 'grain');
 
-/** What F would do right now for the active vehicle, or null. Shared by doF() and the HUD prompts. */
+/** What F would do right now for the active vehicle (on foot: buying the field at a sign), or null. Shared by doF() and the HUD prompts. */
 export function fAction() {
+  if (G.onFoot) { const s = nearSign(person); return s ? { kind: 'buy', sign: s } : null; }
   const v = G.active;
   if (inFuel(v) && v.fuel < v.fuelCap - 1) return { kind: 'refuel', v };
   if (v.type === 'forest') {
@@ -74,16 +76,37 @@ export function fAction() {
   return null;
 }
 
+/** On foot, the keys that work a machine only say how to get into one. */
+const needSeat = () => { if (G.onFoot) toast('Jsi pěšky. Dojdi ke stroji a nastup klávesou E.'); return G.onFoot; };
+
+/** E: get into the machine within reach, or out of the one you drive. */
+export function toggleSeat() {
+  if (!G.onFoot) {
+    const why = leave();
+    if (why) toast(why, 'bad');
+    else { cam.yaw = person.h; cam.manual = -50; } // right behind the farmer: W walks the way he faces
+    return;
+  }
+  const v = machineInReach();
+  if (!v) { toast('Žádný stroj v dosahu. Dojdi až k němu (Tab tě přenese do dalšího stroje).'); return; }
+  if (v.helper) { toast('Ve stroji pracuje pomocník. Propustíš ho v Kanceláři (K).', 'bad'); return; }
+  seat(v);
+  cam.manual = -99;
+  toast('Sedíš v: ' + labelOf(v));
+}
+
 /** H: hire a helper for the vehicle you sit in (then hop to a free one), or send him home. */
 export function toggleHelper() {
+  if (needSeat()) return;
   const v = G.active;
   if (v.helper) { dismiss(v); return; }
   if (!hire(v)) return;
   const free = vehicles.find(o => o.available && !o.helper);
-  if (free) { G.active = free; cam.manual = -99; }
+  if (free) { seat(free); cam.manual = -99; }
 }
 
 export function toggleTool() {
+  if (needSeat()) return;
   const v = G.active;
   if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
   if (v.type === 'tractor' && !v.tool) { toast('Traktor nemá nářadí. Připojíš ho v kůlně klávesami 1–8.'); return; }
@@ -106,9 +129,13 @@ export function toggleTool() {
 const NEAR = 150;
 export function switchVehicle(all = keys.ShiftLeft || keys.ShiftRight) {
   // a running unload keeps going, so you can hop into the tractor and drive under the pipe
-  const a = G.active, near = vehicles.filter(v => v === a || Math.hypot(v.x - a.x, v.z - a.z) < NEAR);
+  const a = G.active, from = G.onFoot ? person : a, near = vehicles.filter(v => v === a || Math.hypot(v.x - from.x, v.z - from.z) < NEAR);
   const list = all || near.length < 2 ? vehicles : near;
-  G.active = list[(list.indexOf(a) + 1) % list.length];
+  // on foot: into the nearest free machine (the one you left last if it is near), driving: the next one
+  const next = G.onFoot
+    ? [...list].filter(v => !v.helper).sort((p, q) => Math.hypot(p.x - from.x, p.z - from.z) - Math.hypot(q.x - from.x, q.z - from.z))[0] || a
+    : list[(list.indexOf(a) + 1) % list.length];
+  seat(next);
   cam.manual = -99; // swing the camera behind the new vehicle
   toast('Sedíš v: ' + labelOf(G.active) + (!all && near.length < 2 && vehicles.length > 1 ? ' · v okolí žádný jiný stroj nestojí' : ''));
 }
@@ -142,6 +169,7 @@ function swapHeader(v, key) {
 
 /** Number key n (1-based) in the shed: pick that implement or header directly. */
 export function pickInShed(n) {
+  if (G.onFoot) return;
   const v = G.active;
   if (!inShed(v)) return;
   if (v.type === 'tractor' && IMPL_ORDER[n - 1]) swapImpl(v, IMPL_ORDER[n - 1]);
@@ -150,6 +178,7 @@ export function pickInShed(n) {
 
 /** R in the shed: repair the vehicle and its attached tool. */
 export function repairHere() {
+  if (needSeat()) return;
   const v = G.active;
   if (!inShed(v)) { toast('Opravit stroj můžeš v kůlně.'); return; }
   repair(v);
