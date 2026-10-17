@@ -42,14 +42,15 @@ function mergeAll(list) {
 }
 const JEANS = '#3c5576', SHIRT = '#b5463a', CHECK = '#7d2c25', SKIN = '#e0b08f', BOOT = '#4a3a2c', CAP = '#3f6b45';
 
-function buildFarmer() {
+/** A farmer: shirt and check colours; legs bend at the knee, arms at the elbow. */
+function buildFarmer(shirt, check) {
   const g = new THREE.Group();
   // body: hips, checked shirt, collar, head, nose, ears, cap with a brim
   const body = new THREE.Mesh(merge([
     box(0.36, 0.2, 0.22, JEANS, 0, 0.95, 0),
-    box(0.42, 0.52, 0.25, SHIRT, 0, 1.3, 0),
-    box(0.43, 0.06, 0.26, CHECK, 0, 1.18, 0), box(0.43, 0.06, 0.26, CHECK, 0, 1.38, 0), box(0.06, 0.53, 0.26, CHECK, 0.1, 1.3, 0),
-    box(0.2, 0.05, 0.2, SHIRT, 0, 1.58, 0),
+    box(0.42, 0.52, 0.25, shirt, 0, 1.3, 0),
+    box(0.43, 0.06, 0.26, check, 0, 1.18, 0), box(0.43, 0.06, 0.26, check, 0, 1.38, 0), box(0.06, 0.53, 0.26, check, 0.1, 1.3, 0),
+    box(0.2, 0.05, 0.2, shirt, 0, 1.58, 0),
     cyl(0.06, 0.07, 0.08, SKIN, 0, 1.6, 0, 8),
     box(0.22, 0.25, 0.23, SKIN, 0, 1.75, 0),
     box(0.05, 0.05, 0.05, SKIN, 0, 1.73, 0.13),
@@ -57,17 +58,25 @@ function buildFarmer() {
     box(0.24, 0.09, 0.25, CAP, 0, 1.9, 0), box(0.22, 0.02, 0.12, CAP, 0, 1.86, 0.17),
   ]), mat);
   g.add(body);
-  // limbs hang from their joints: a leg from the hip, an arm from the shoulder
-  const limb = (parts, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); const m = new THREE.Mesh(merge(parts), mat); p.add(m); g.add(p); return p; };
-  const legs = [-1, 1].map(s => limb([box(0.15, 0.78, 0.17, JEANS, 0, -0.42, 0), box(0.16, 0.1, 0.27, BOOT, 0, -0.84, 0.04)], s * 0.1, 0.92));
-  const arms = [-1, 1].map(s => limb([box(0.12, 0.3, 0.13, SHIRT, 0, -0.15, 0), box(0.11, 0.26, 0.11, SHIRT, 0, -0.42, 0), box(0.1, 0.1, 0.1, SKIN, 0, -0.6, 0)], s * 0.27, 1.53));
+  // two-part limbs: thigh from the hip and shin from the knee, upper arm from the shoulder and forearm from the elbow
+  const joint = (parent, parts, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.add(new THREE.Mesh(merge(parts), mat)); parent.add(p); return p; };
+  const legs = [-1, 1].map(s => {
+    const hip = joint(g, [box(0.15, 0.44, 0.17, JEANS, 0, -0.21, 0)], s * 0.1, 0.92);
+    const knee = joint(hip, [box(0.14, 0.38, 0.16, JEANS, 0, -0.19, 0), box(0.16, 0.1, 0.27, BOOT, 0, -0.42, 0.04)], 0, -0.42);
+    return { hip, knee };
+  });
+  const arms = [-1, 1].map(s => {
+    const sh = joint(g, [box(0.12, 0.3, 0.13, shirt, 0, -0.15, 0)], s * 0.27, 1.53);
+    const el = joint(sh, [box(0.11, 0.26, 0.11, shirt, 0, -0.13, 0), box(0.1, 0.1, 0.1, SKIN, 0, -0.3, 0)], 0, -0.3);
+    return { sh, el };
+  });
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  scene.add(g);
   return { group: g, legs, arms };
 }
 
-const model = buildFarmer();
-scene.add(model.group);
-/** The farmer: position, heading, speed (m/s) like a vehicle, so the camera, map and sound can follow him. */
+/** The player's farmer and the helper (blue shirt), who sits in the machine he drives. */
+const model = buildFarmer(SHIRT, CHECK), helperModel = buildFarmer('#4f7fa8', '#2c4f6e');
 export const person = { type: 'person', name: 'Pěšky', x: -35.4, z: -13.5, h: 1.36, y: 0, speed: 0, vmax: RUN, phase: 0, step: false, group: model.group };
 
 /* ---------- moving ---------- */
@@ -118,20 +127,54 @@ export function walk(dt, input, camYaw, run) {
   pushOut();
 }
 
-/** Places the model: on the ground, legs and arms swinging with the stride, a little bounce when running. */
+/** Puts rig on parent (the scene or a machine); its meshes show unless the machine is drawn far. */
+function moveTo(rig, parent, far = false) {
+  if (rig.group.parent !== parent) parent.add(rig.group);
+  rig.group.traverse(o => { if (o.isMesh) o.visible = !far; });
+}
+/** Sitting at the wheel: thighs forward, shins down, hands on the wheel. */
+function sit(rig, v) {
+  if (!v?.seat) { rig.group.visible = false; return; }
+  if (rig.group.parent !== v.group) moveTo(rig, v.group, v.lodFar);
+  rig.group.visible = true;
+  rig.group.position.set(v.seat.x, v.seat.y - 0.84, v.seat.z + 0.02);
+  rig.group.rotation.set(0, 0, 0);
+  for (const l of rig.legs) { l.hip.rotation.x = -1.45; l.knee.rotation.x = 1.4; }
+  for (const a of rig.arms) { a.sh.rotation.x = -0.65; a.el.rotation.x = -0.85; }
+}
+
+/**
+ * Every frame: the farmer walks in the world, or sits in the machine he drives; the helper sits in
+ * the machine he works with. Walking: legs and arms swing with the stride, knees bend, a little
+ * bounce when running.
+ */
 export function showPerson(dt) {
-  const g = model.group, on = G.onFoot;
-  g.visible = on;
-  if (!on) return;
+  const hv = vehicles.find(v => v.helper);
+  if (hv) sit(helperModel, hv); else helperModel.group.visible = false;
+  const g = model.group;
+  if (!G.onFoot) {
+    if (G.active.helper) g.visible = false; // the helper took the seat
+    else sit(model, G.active);
+    return;
+  }
+  if (g.parent !== scene) moveTo(model, scene);
+  g.visible = true;
   const before = Math.sin(person.phase);
   person.phase += dt * person.speed * 2.9;
   if (person.speed > 0.5 && Math.sign(Math.sin(person.phase)) !== Math.sign(before)) person.step = true; // a foot touches the ground
-  const swing = Math.min(1, person.speed / WALK) * (person.speed > WALK + 0.5 ? 0.85 : 0.5), s = Math.sin(person.phase);
-  model.legs[0].rotation.x = s * swing; model.legs[1].rotation.x = -s * swing;
-  model.arms[0].rotation.x = -s * swing * 0.9; model.arms[1].rotation.x = s * swing * 0.9;
+  const run = person.speed > WALK + 0.5, swing = Math.min(1, person.speed / WALK) * (run ? 0.85 : 0.5), s = Math.sin(person.phase);
+  model.legs.forEach((l, i) => {
+    const k = i ? -s : s;
+    l.hip.rotation.x = k * swing;
+    l.knee.rotation.x = Math.max(0, -k) * swing * (run ? 1.6 : 1.1); // the knee bends when the leg swings back
+  });
+  model.arms.forEach((a, i) => {
+    a.sh.rotation.x = (i ? s : -s) * swing * 0.9;
+    a.el.rotation.x = -(run ? 1.1 : 0.25) * Math.min(1, person.speed / WALK);
+  });
   person.y = groundH(person.x, person.z);
   g.position.set(person.x, person.y + Math.abs(Math.cos(person.phase)) * 0.04 * swing, person.z);
-  g.rotation.y = person.h;
+  g.rotation.set(0, person.h, 0);
 }
 
 /** A new game: the farmer stands at the farmhouse door, facing the yard. */
@@ -152,11 +195,10 @@ export function machineInReach() {
   }
   return best;
 }
-/** Gets into machine v: it becomes the one you drive and the farmer disappears into the cab. */
+/** Gets into machine v: it becomes the one you drive and the farmer sits in its cab. */
 export function seat(v) {
   G.active = v;
   G.onFoot = false;
-  model.group.visible = false;
 }
 /** Where the farmer stands up when leaving v: beside the cab on the left, else on the right, behind, in front. */
 export function exitAt(v) {

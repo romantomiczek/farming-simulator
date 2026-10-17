@@ -188,6 +188,7 @@ function footPanel() {
   if (m) pr.push(m.helper ? ['', 'Ve stroji ' + labelOf(m) + ' pracuje pomocník'] : ['E', 'Nastoupit: ' + labelOf(m)]);
   const fa = fPrompt(fAction());
   if (fa) pr.push(['F', fa]);
+  if (person.speed > 0.3 && person.speed < 3) pr.push(['Shift', 'Běžet']);
   if (!m) pr.push(['Tab', 'Přenést se do nejbližšího stroje']);
   setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
 }

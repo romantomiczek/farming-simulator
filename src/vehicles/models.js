@@ -3,7 +3,7 @@ import { M, mk, B, CY, bake, glassMat, beaconMat } from '../render/materials.js'
 import { col } from '../core/util.js';
 import {
   P, F, S, RUBBER, CHROME, RB, rod, ram, hose, profile, fender, decal, sideDecals, sideText, textDecal, wheel,
-  headlamp, tailCluster, workLight, beacon, mirrors, cabInside, glassFrame, wiper, steps, ATLAS,
+  headlamp, tailCluster, workLight, beacon, mirrors, cabInside, seatMark, glassFrame, wiper, steps, ATLAS,
 } from './parts.js';
 
 // Vehicle models. Local +z is forward, +x is the driver's left.
@@ -95,6 +95,7 @@ export function buildJeep() {
   }
   // seats and steering wheel, small mirrors on the windscreen frame
   for (const sx of [-0.4, 0.4]) { RB(0.5, 0.12, 0.5, 0.04, F(BLACK), sx, 1.35, -0.05, g); RB(0.5, 0.55, 0.1, 0.04, F(BLACK), sx, 1.62, -0.3, g); }
+  seatMark(g, 0.4, 1.41, -0.05);
   RB(1.4, 0.12, 0.5, 0.04, F(BLACK), 0, 1.35, -1.05, g);
   mk(new THREE.TorusGeometry(0.17, 0.02, 6, 18), F(BLACK), 0.4, 1.68, 0.25, g).rotation.x = Math.PI / 2 - 1.0;
   for (const sx of [-1, 1]) { rod([sx * 0.8, 1.9, 0.5], [sx * 0.98, 1.95, 0.6], 0.015, frame, g); RB(0.05, 0.16, 0.2, 0.02, F(BLACK), sx * 1.0, 1.95, 0.62, g); }

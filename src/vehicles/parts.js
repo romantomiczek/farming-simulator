@@ -384,9 +384,16 @@ export function mirrors(p, half, y, z) {
     B(0.02, 0.38, 0.22, M('#9fb8c0', { roughness: 0.05, metalness: 0.9, flatShading: false }), sx * (half + 0.5) - sx * 0.035, y - 0.2, z + 0.17, p);
   }
 }
+/** Where the driver sits (top of the seat cushion, facing forward): the farmer is placed there. */
+export function seatMark(p, x, y, z) {
+  const s = new THREE.Object3D();
+  s.userData.seat = true; s.position.set(x, y, z);
+  p.add(s);
+}
 /** Driver's seat with armrest, steering column, dashboard, wheel, joystick console and pedals. y = cab floor. */
 export function cabInside(p, y, z, w = 1.6) {
   if (LOD.low) return;
+  seatMark(p, 0, y + 0.55, z - 0.2);
   const seat = F('#2c3033'), trim = F('#45494c');
   RB(0.54, 0.14, 0.5, 0.06, seat, 0, y + 0.48, z - 0.2, p);
   RB(0.52, 0.66, 0.13, 0.06, seat, 0, y + 0.86, z - 0.47, p).rotation.x = -0.12;

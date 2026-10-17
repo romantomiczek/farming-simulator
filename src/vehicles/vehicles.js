@@ -208,11 +208,21 @@ function makeVehicle(type, mid) {
   v.bodyPart = partOf(footprint(v.group, v.group, [v.headerLift, v.pipe, v.crane].filter(Boolean)));
   v.inertia = ((2 * v.bodyPart.hx) ** 2 + (2 * v.bodyPart.hz) ** 2) / 12;
   v.pivotZ = pivotOf(v);
+  v.seat = seatOf(v);
   v.yaw = 0; v.lat = 0; v.axS = 0; v.ayS = 0; v.hit = 0;
   refreshParts(v);
   return v;
 }
 
+/** Where the driver sits, in the machine's own frame (top of the seat cushion), or null. */
+function seatOf(v) {
+  let mark = null;
+  v.group.traverse(o => { if (o.userData.seat) mark = o; });
+  if (!mark) return null;
+  v.group.updateMatrixWorld(true);
+  const p = new THREE.Vector3().setFromMatrixPosition(mark.matrixWorld).applyMatrix4(new THREE.Matrix4().copy(v.group.matrixWorld).invert());
+  return { x: p.x, y: p.y, z: p.z };
+}
 /** Local z of the axle that does not steer: the machine turns about it (rear axle of a car, front axle of a combine). */
 function pivotOf(v) {
   const steer = new Set([...v.front, ...v.rear]), inv = new THREE.Matrix4(), p = new THREE.Vector3(), zs = [];

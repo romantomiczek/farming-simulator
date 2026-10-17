@@ -299,8 +299,9 @@ try {
     Object.assign(t, { speed: 0, helper: null });
     // stand 1.5 m left of the tractor's cab and press E
     z.G.onFoot = true; Object.assign(z.person, { x: t.x + Math.cos(t.h) * (t.bodyPart.hx + 1.5), z: t.z - Math.sin(t.h) * (t.bodyPart.hx + 1.5), speed: 0 });
-    z.act('KeyE');
+    z.act('KeyE'); z.step(1);
     out.in = !z.G.onFoot && z.G.active === t;
+    out.sits = z.person.group.parent === t.group && z.person.group.visible; // seen sitting in the cab
     z.act('KeyE');
     out.out = z.G.onFoot && Math.hypot(z.person.x - t.x, z.person.z - t.z) < t.bodyPart.hz + 3;
     // walk 2 s straight ahead
@@ -319,8 +320,8 @@ try {
     P.seat(was);
     return out;
   });
-  check('chůze a nastupování', foot.start && foot.in && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.tab,
-    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
+  check('chůze a nastupování', foot.start && foot.in && foot.sits && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.tab,
+    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + (foot.sits ? ', sedí v kabině' : ', v kabině není vidět') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
 
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
