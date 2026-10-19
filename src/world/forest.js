@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { M } from '../render/materials.js';
-import { rng, col } from '../core/util.js';
+import { rng } from '../core/util.js';
+import { addSnow } from '../render/snow.js';
+import { spruceCrown } from './treegeo.js';
 import { FOREST_PLOTS } from './layout.js';
 import { groundH } from './terrain.js';
 import { WOOD } from '../game/balance.js';
@@ -29,9 +31,9 @@ for (const P of FOREST_PLOTS) {
 export const volume = t => +(WOOD.treeM3 * t.g * t.g * t.s).toFixed(2);
 
 const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 1, 6).translate(0, 0.5, 0);
-const crownGeo = new THREE.ConeGeometry(1, 1, 7).translate(0, 0.5, 0);
-const trunks = new THREE.InstancedMesh(trunkGeo, M('#7b6150'), trees.length);
-const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshStandardMaterial({ color: col('#4c7a4a'), roughness: 0.9, flatShading: true }), trees.length);
+const crownGeo = spruceCrown(1); // height 1 from y = 0, radius 1, like the trees around the map
+const trunks = new THREE.InstancedMesh(trunkGeo, M('#5b4434'), trees.length);
+const crowns = new THREE.InstancedMesh(crownGeo, addSnow(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.92 })), trees.length);
 for (const m of [trunks, crowns]) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
 const dummy = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0), axis = new THREE.Vector3(), q = new THREE.Quaternion();
 

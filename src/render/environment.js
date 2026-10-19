@@ -5,11 +5,11 @@ import { lampMat } from './materials.js';
 import { updSky } from './sky.js';
 
 // horizon (= fog) and zenith colours for day, dusk, night and overcast
-const C_SKY = col('#c3dbe4'), C_DUSK = col('#f6c584'), C_NIGHT = col('#1d2940');
-const C_ZEN = col('#6c9fd0'), C_ZDUSK = col('#8fa6c8'), C_ZNIGHT = col('#0a1222');
+const C_SKY = col('#b4cbd9'), C_DUSK = col('#f6c584'), C_NIGHT = col('#1d2940');
+const C_ZEN = col('#3d78c2'), C_ZDUSK = col('#8fa6c8'), C_ZNIGHT = col('#0a1222');
 const C_GREY = col('#9ea9ae'), C_ZGREY = col('#87949b');
 const C_NOON = col('#fff0d4'), C_DAWN = col('#ffa865'), C_MOON = col('#9cb2ff'), C_GLOW = col('#ffa040');
-const C_HSKY = col('#d5e6ef'), C_HGROUND = col('#9aa36c'), C_HNIGHT = col('#4a5a80'), C_HWARM = col('#ffd2a6');
+const C_HSKY = col('#b3cbe3'), C_HGROUND = col('#6e7346'), C_HNIGHT = col('#4a5a80'), C_HWARM = col('#ffd2a6');
 const c1 = new THREE.Color(), sky = new THREE.Color(), zen = new THREE.Color();
 const dir = new THREE.Vector3(), sunVisual = new THREE.Vector3();
 /** Direction to the visible sun (it really sets), for the rainbow. */
@@ -40,10 +40,10 @@ export function updEnv(target, gameMin, vehicles, active, wx) {
   c1.copy(C_NOON).lerp(C_DAWN, Math.min(1, dawn * 1.15));
   sun.color.copy(C_MOON).lerp(c1, day);
   const overcast = Math.max(wx.cloud * 0.45, wx.rain * 0.8);
-  sun.intensity = lerp(0.35, 1.45, day) * PI * (1 - overcast);
+  sun.intensity = lerp(0.35, 1.65, day) * PI * (1 - overcast);
   hemi.color.copy(C_HNIGHT).lerp(c1.copy(C_HSKY).lerp(C_HWARM, dawn * 0.55), day);
   hemi.groundColor.copy(C_HNIGHT).lerp(C_HGROUND, day);
-  hemi.intensity = lerp(0.38, 0.62, day) * PI * (1 - overcast * 0.35);
+  hemi.intensity = lerp(0.38, 0.48, day) * PI * (1 - overcast * 0.35);
   sky.copy(C_SKY).lerp(C_DUSK, dawn * 0.8).lerp(C_GREY, overcast * 0.8).lerp(C_NIGHT, 1 - day);
   zen.copy(C_ZEN).lerp(C_ZDUSK, dawn * 0.7).lerp(C_ZGREY, overcast * 0.85).lerp(C_ZNIGHT, 1 - day);
   scene.background = sky;

@@ -291,7 +291,7 @@ try {
     L0.movers.push(...keptMovers);
     return { g, head, glance, through };
   });
-  check('jízda a nárazy', phys.g > 0.8 && phys.g < 1.1 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
+  check('jízda a nárazy', phys.g > 1.15 && phys.g < 1.55 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
     'auto v plném rejdu ' + phys.g.toFixed(2) + ' g · čelně do zdi ' + Math.round(phys.head.kmh) + ' km/h, ve zdi ' + phys.head.deep.toFixed(2) + ' m · šikmo 20° dál ' + Math.round(phys.glance.kmh) + ' km/h · mezera 2,4 m ' + (phys.through ? 'projel' : 'neprojel'));
 
   // on foot: a new game starts at the farmhouse; E gets into the tractor beside you and out again
@@ -395,7 +395,7 @@ try {
   const dirt = await page.evaluate(async () => {
     const z = window.__zl, D = await import('/src/game/dirt.js'), L = await import('/src/world/layout.js'), W = await import('/src/game/weather.js'), S = await import('/src/game/save.js');
     const t = z.vehicles.find(v => v.type === 'tractor'), f2 = z.fields.find(x => x.id === 2), was = z.G.active, home = { x: t.x, z: t.z, h: t.h };
-    z.seat(t); z.attach('cultivator', t); t.dirtU.value = 0; t.tool.dirtU.value = 0;
+    z.seat(t); z.attach('cultivator', t); t.dirtU.value = 0.1; t.tool.dirtU.value = 0.1;
     W.WX.force = 'clear'; W.WX.rain = 0; W.WX.wetUntil = z.G.gameMin + 300; // a muddy field
     Object.assign(t, { x: f2.x0 + 8, z: f2.z0 + 4, h: 0, speed: 0, lowered: true, helper: null });
     z.hold('KeyW', 150);
@@ -410,7 +410,7 @@ try {
     Object.assign(t, home, { speed: 0 }); z.seat(was);
     return { dirty, saved, paid, clean };
   });
-  check('špína a myčka', dirt.dirty[0] > 0.03 && dirt.dirty[1] > 0.03 && dirt.saved > 0.03 && dirt.paid === 250 && dirt.clean[0] === 0 && dirt.clean[1] === 0,
+  check('špína a myčka', dirt.dirty[0] > 0.1 && dirt.dirty[1] > 0.1 && dirt.saved >= 0.1 && dirt.paid === 250 && dirt.clean[0] === 0 && dirt.clean[1] === 0,
     'po práci v blátě traktor ' + Math.round(dirt.dirty[0] * 100) + ' %, nářadí ' + Math.round(dirt.dirty[1] * 100) + ' % · uloženo ' + Math.round(dirt.saved * 100) + ' % · myčka za ' + dirt.paid + ' Kč → ' + Math.round(dirt.clean[0] * 100) + ' %');
 
   // people: walkers and talkers in the village by day (gone at night), a buyer at every intake

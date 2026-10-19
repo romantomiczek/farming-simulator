@@ -110,11 +110,11 @@ export function groundH(x, z) {
 }
 
 /* ---------- mesh ---------- */
-const grass = ['#8fb556', '#86ad4f', '#97ba5c', '#80a84c'].map(col);
-const forestFloor = ['#6f9447', '#76994a', '#688c43'].map(col);
+const grass = ['#6f9a3e', '#679236', '#77a044', '#618c33'].map(col);
+const forestFloor = ['#557a35', '#5c7f38', '#4f7230'].map(col);
 const C = {
-  gold: col('#dcc276'), light: col('#b7cf7d'), brown: col('#a37c5a'), mint: col('#9cc58c'),
-  mud: col('#b9a47c'), bed: col('#8a7a5e'), gravel: col('#cbbfa4'), gravel2: col('#b8aa8e'), meadow: col('#a7c96a'),
+  gold: col('#d0b05a'), light: col('#9fba5a'), brown: col('#8e6646'), mint: col('#7caa62'),
+  mud: col('#a08a62'), bed: col('#8a7a5e'), gravel: col('#cbbfa4'), gravel2: col('#b8aa8e'), meadow: col('#86ad4c'),
 };
 
 function faceColor(c, cx, cz, cy) {

@@ -8,9 +8,25 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
+// Colour grade right after tone mapping (no extra pass): ACES leaves colours pale, so they get a bit
+// more saturation and a gentle S-curve in display space (black and white stay where they are).
+// The sky dome is not tone mapped and has its colours picked to match.
+const GRADE_SAT = '1.22', GRADE_CURVE = '0.32';
+THREE.ShaderChunk.tonemapping_fragment = /* glsl */`
+#if defined( TONE_MAPPING )
+  gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+  vec3 gradeC = clamp( gl_FragColor.rgb, 0.0, 1.0 );
+  float gradeL = dot( gradeC, vec3( 0.2126, 0.7152, 0.0722 ) );
+  gradeC = max( mix( vec3( gradeL ), gradeC, ${GRADE_SAT} ), 0.0 );
+  vec3 gradeD = pow( gradeC, vec3( 1.0 / 2.2 ) );
+  gradeD = mix( gradeD, gradeD * gradeD * ( 3.0 - 2.0 * gradeD ), ${GRADE_CURVE} );
+  gl_FragColor.rgb = pow( clamp( gradeD, 0.0, 1.0 ), vec3( 2.2 ) );
+#endif
+`;
+
 export const scene = new THREE.Scene();
 export const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 900);
-scene.fog = new THREE.Fog(0xcfe0d8, 200, 560);
+scene.fog = new THREE.Fog(0xb4cbd9, 200, 560);
 
 // Light intensities are physical (three r155+): roughly π × the old "legacy" values.
 export const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.9);

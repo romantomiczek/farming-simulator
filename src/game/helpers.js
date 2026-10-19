@@ -2,7 +2,7 @@ import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_RIPE, S_NONE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
 import { fieldAt, FIELDS } from '../world/fields.js';
-import { vehicles, tools, toolLine, blockedAt, attachTool, labelOf } from '../vehicles/vehicles.js';
+import { vehicles, tools, toolLine, blockedAt, attachTool, labelOf, eyeOf } from '../vehicles/vehicles.js';
 import { pushBales } from '../world/bales.js';
 import { contractAllows } from './contracts.js';
 import { isWet, season } from './weather.js';
@@ -24,7 +24,7 @@ import { REACH, fell, sellLogs, bestWood, woodBuyerAt } from './forestry.js';
  * harvester's grain to the best buyer and comes back to carry on, and drives home when the field is done.
  * The forestry harvester's helper fells mature trees he can reach and takes the wood to the best buyer.
  * Only one helper works at a time. Sent with a tractor and another implement, he first drives to where
- * the implement is parked and hitches it.
+ * the implement stands and hitches it.
  * Modes: fetch (to the implement), travel (to the field), field, sell (to a buyer), unload, back (to where
  * he stopped), home, and for wood: log (picking the next tree), approach, sellwood.
  */
@@ -88,10 +88,10 @@ export function canHire(v, target, im = v.tool) {
   const f = target || fieldAt(v.x, v.z);
   if (!f) return { why: 'Zajeď na pole, které má pomocník obdělat, a stiskni H. Na vzdálené pole ho pošleš z Kanceláře.' };
   const w = v.type === 'tractor' ? withTool(v, im) : v;
-  if (v.type === 'tractor' && !im) return { why: 'Traktor nemá nářadí. Připoj ho v kůlně.' };
+  if (v.type === 'tractor' && !im) return { why: 'Traktor nemá nářadí. Zacouvej k nějakému a připoj ho klávesou Q.' };
   if (v.type === 'tractor' && im.on && im.on !== v) return { why: 'Nářadí je připojené k jinému traktoru.' };
   if (!f.owned && !contractAllows(f, w)) return { why: 'Na cizím poli může pomocník pracovat jen při zakázce s tímto nářadím.' };
-  if (v.type === 'tractor' && !FIELD_TOOLS.includes(w.impl)) return { why: 'S přívěsem pomocník nepracuje. Připoj v kůlně polní nářadí.' };
+  if (v.type === 'tractor' && !FIELD_TOOLS.includes(w.impl)) return { why: 'S přívěsem pomocník nepracuje. Odpoj ho (Q) a připoj polní nářadí.' };
   if (w.impl === 'seeder' && v.type === 'tractor' && !season().sow) return { why: 'V zimě se nesije.' };
   if (!workLeft(f, w)) return { why: 'Na poli ' + f.id + ' pomocník s tímhle strojem nemá co dělat.' };
   return { f };
@@ -226,9 +226,10 @@ export function sendHelper(v, f, im = v.tool) {
     return true;
   }
   if (v.type === 'tractor' && im !== v.tool) {
-    // first to the implement's parking place: the tractor stops with its hitch over the implement's
+    // first to where the implement stands: the tractor stops with its hitch over the implement's
+    const e = eyeOf(im);
     newHelper(v, { field, remote: true, fetch: im });
-    setPath(v, 'fetch', roadTo(v, im.park[0], im.park[1] - v.hitchZ));
+    setPath(v, 'fetch', roadTo(v, e.x - Math.sin(e.h) * v.hitchZ, e.z - Math.cos(e.h) * v.hitchZ));
     toast('Pomocník jede s ' + v.noun + ' pro ' + labelOf(im).toLowerCase() + ' a pak na pole ' + field.id + ' (' + jobName(withTool(v, im)) + '). Mzda ' + fmt(WAGE) + ' Kč/h.', 'good');
     return true;
   }

@@ -120,8 +120,15 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
   }
   c.fillStyle = '#f2dc8c'; c.strokeStyle = 'rgba(36,49,42,.6)'; c.lineWidth = 1;
   for (const b of bales) { c.beginPath(); c.arc(mx(b.x), my(b.z), Math.max(1.5, 0.9 * sc), 0, 7); c.fill(); c.stroke(); }
+  // implements standing on their own: a small square where they were unhitched
+  for (const t of tools) {
+    if (t.on || t.trailed) continue;
+    const k = opts.icon / 7;
+    c.fillStyle = '#8a8f6a'; c.strokeStyle = '#fff'; c.lineWidth = Math.max(1, k * 0.8);
+    c.fillRect(mx(t.x) - 1.6 * k, my(t.z) - 1.6 * k, 3.2 * k, 3.2 * k); c.strokeRect(mx(t.x) - 1.6 * k, my(t.z) - 1.6 * k, 3.2 * k, 3.2 * k);
+  }
   for (const trailer of tools) {
-    if (trailer.key !== 'trailer') continue;
+    if (!trailer.trailed) continue;
     c.save();
     c.translate(mx(trailer.x + Math.sin(trailer.h) * 0.8), my(trailer.z + Math.cos(trailer.h) * 0.8));
     c.rotate(Math.atan2(-Math.cos(trailer.h), -Math.sin(trailer.h)));

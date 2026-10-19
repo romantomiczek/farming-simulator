@@ -450,14 +450,14 @@ export const trailerBales = len => Math.max(2, Math.floor((len - 0.4) / 1.3)) * 
  */
 export function buildTrailer(o = {}) {
   const L = { body: '#c8794a', rib: '#b06a40', trim: '#e8a46f', len: 5.6, height: 1.3, axles: 2, brand: null, ...o };
-  const Lb = L.len, Hb = L.height, eye = -2 + Lb + 0.6;
+  const Lb = L.len, Hb = L.height, eye = -2 + Lb + 1.6; // the eye well ahead of the body: room to turn behind the tractor's wheels
   const g = new THREE.Group(), body = P(L.body), rib = P(L.rib), trim = P(L.trim), frame = F();
   const z0 = -2.1, z1 = -2 + Lb + 0.1;
   RB(1.0, 0.25, z1 - z0, 0.04, frame, 0, 0.72, (z0 + z1) / 2, g);
   for (let z = -1.6; z < z1 - 0.3; z += 1.5) RB(2.0, 0.12, 0.14, 0.03, frame, 0, 0.84, z, g);
   // A-frame drawbar, eye, parking leg with crank, hoses and brake lines to the tractor
-  for (const sx of [-1, 1]) rod([sx * 0.48, 0.72, eye - 1.3], [0, 0.66, eye - 0.1], 0.06, frame, g);
-  RB(0.2, 0.2, 1.2, 0.04, frame, 0, 0.66, eye - 0.5, g);
+  for (const sx of [-1, 1]) rod([sx * 0.48, 0.72, z1 - 0.3], [0, 0.66, eye - 0.1], 0.06, frame, g);
+  RB(0.2, 0.2, eye - z1, 0.04, frame, 0, 0.66, (eye + z1) / 2 - 0.1, g);
   mk(new THREE.TorusGeometry(0.1, 0.035, 6, 14), S(), 0, 0.62, eye, g).rotation.x = Math.PI / 2;
   rod([0.25, 0.7, eye - 0.8], [0.25, 0.08, eye - 0.8], 0.05, F('#56595b'), g);
   B(0.24, 0.04, 0.24, F('#56595b'), 0.25, 0.04, eye - 0.8, g);
@@ -466,7 +466,7 @@ export function buildTrailer(o = {}) {
   hose([[-0.12, 0.78, eye - 1.0], [-0.15, 0.92, eye - 0.5], [-0.2, 1.1, eye - 0.15], [-0.42, 1.38, eye + 0.1]], 0.02, g, P('#c4473a'));
   hose([[-0.18, 0.78, eye - 1.0], [-0.22, 0.9, eye - 0.5], [-0.25, 1.08, eye - 0.15], [-0.5, 1.36, eye + 0.1]], 0.02, g, P('#e8b84a'));
   // tipping ram at the front of the chassis
-  CY(0.12, 0.12, 0.7, 12, frame, 0, 1.2, eye - 0.45, g); CY(0.08, 0.08, 0.2, 10, CHROME, 0, 1.62, eye - 0.45, g);
+  CY(0.12, 0.12, 0.7, 12, frame, 0, 1.2, z1 + 0.05, g); CY(0.08, 0.08, 0.2, 10, CHROME, 0, 1.62, z1 + 0.05, g);
   const wheels = [], axz = L.axles === 1 ? [0] : L.axles === 3 ? [-1.24, 0, 1.24] : [-0.62, 0.62], span = axz[axz.length - 1] - axz[0];
   for (const sx of [-1, 1]) {
     for (const sz of axz) { const w = wheel(0.55, 0.4, '#d7dde2'); w.position.set(sx * 1.15, 0.55, sz); g.add(w); wheels.push(w); }

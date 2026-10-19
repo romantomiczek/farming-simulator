@@ -4,7 +4,7 @@ import { generateOffers } from './contracts.js';
 import { CROPS, S_STUB, S_SOWN, S_RIPE, S_NONE } from './crops.js';
 import { FIELDS, refreshField, flushFields, drawSigns, countFields, applyStart } from '../world/fields.js';
 import {
-  vehicles, tools, addVehicle, addTool, clearFleet, attachTool, setHeader, firstOf, IMPL_ORDER, VEHICLE_TYPES, isToolKey,
+  vehicles, tools, addVehicle, addTool, clearFleet, attachTool, setHeader, standFree, firstOf, IMPL_ORDER, VEHICLE_TYPES, isToolKey,
 } from '../vehicles/vehicles.js';
 import { bales, setBales, flushBales } from '../world/bales.js';
 import { serializeForest, loadForest } from '../world/forest.js';
@@ -74,7 +74,8 @@ export function serialize() {
     })),
     tools: tools.map(t => ({
       id: t.id, key: t.key, model: t.model, own: t.own, cond: t.cond, slot: t.slot, dirt: r2(t.dirtU?.value || 0),
-      ...(t.key === 'trailer' ? { x: r2(t.x), z: r2(t.z), h: t.h, tank: t.tank, bales: t.bales, hay: t.hay || 0 } : {}),
+      x: r2(t.x), z: r2(t.z), h: t.h, // where it stands (a hitched implement: thrown away on loading, a trailer keeps its angle)
+      ...(t.key === 'trailer' ? { tank: t.tank, bales: t.bales, hay: t.hay || 0 } : {}),
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
@@ -214,7 +215,10 @@ function loadFleet(plan) {
       if (t.tank.amount <= 0) t.tank.crop = -1;
       t.bales = Math.min(t.baleCap, Math.max(0, e.bales | 0));
       t.hay = Math.min(t.bales, Math.max(0, e.hay | 0));
-      if (Number.isFinite(e.x) && Number.isFinite(e.z)) { t.x = e.x; t.z = e.z; t.h = num(e.h, 0); }
+    }
+    if (Number.isFinite(e.x) && Number.isFinite(e.z)) { // left standing where it was unhitched
+      t.x = e.x; t.z = e.z; t.h = num(e.h, 0);
+      if (!t.trailed) standFree(t);
     }
     if (t.key === 'watertank') { t.water = Math.max(0, Math.min(t.waterCap, +e.water || 0)); t.milk = !!e.milk && t.water > 0; }
   }
@@ -229,7 +233,7 @@ function loadFleet(plan) {
     if (v.type === 'combine') setHeader(v, e.header === 'corn' ? 'corn' : 'grain');
     const t = e.tool && tools.find(x => x.id === e.tool && !x.on);
     if (t && v.type === 'tractor') {
-      const pos = t.key === 'trailer' ? { x: t.x, z: t.z, h: t.h } : null;
+      const pos = t.trailed ? { x: t.x, z: t.z, h: t.h } : null;
       attachTool(v, t);
       if (pos && Math.hypot(pos.x - t.x, pos.z - t.z) < 8) Object.assign(t, pos); // keep the trailer's saved angle
     }

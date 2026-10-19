@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { rng, lerp, col, fbm, smooth } from '../core/util.js';
+import { rng, lerp, col, fbm, smooth, hash2 } from '../core/util.js';
+import { broadleaf, birch, spruce, bush } from './treegeo.js';
 import { addWind } from '../render/wind.js';
 import { groundH } from './terrain.js';
 import {
@@ -12,7 +12,7 @@ import { addSnow } from '../render/snow.js';
 
 /**
  * Trees and hedges. A tree is one merged model (trunk + crown, vertex colours, a "leaf" flag so the
- * season tint only touches leaves). Trees are grouped into square tiles, one instanced mesh per
+ * season tint only touches leaves; see treegeo.js), a broadleaf, a birch or a spruce. Trees are grouped into square tiles, one instanced mesh per
  * kind and tile, so tiles off screen cost nothing. Inside the playable area every tree blocks
  * vehicles; outside it the trees are scenery and the quality preset thins them (setDensity).
  *
@@ -26,36 +26,9 @@ const NEAR = 170;
 /** Positions of the trees inside the playable area, flat [x, z, x, z, ...] (for the maps). */
 export const treeDots = [];
 
-function part(geo, hex, leaf) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  const n = g.attributes.position.count, c = new THREE.Color(hex), cols = new Float32Array(n * 3), lf = new Float32Array(n).fill(leaf);
-  for (let i = 0; i < n; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; }
-  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  g.setAttribute('leaf', new THREE.BufferAttribute(lf, 1));
-  g.deleteAttribute('uv');
-  return g;
-}
-const decidGeo = mergeGeometries([
-  part(new THREE.CylinderGeometry(0.2, 0.3, 2.4, 5, 1, true).translate(0, 1.2, 0), '#7b6150', 0),
-  part(new THREE.IcosahedronGeometry(1, 1).scale(2.2, 2.0, 2.2).translate(0, 3.9, 0), '#7fa653', 1),
-]);
-const conifGeo = mergeGeometries([
-  part(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 5, 1, true).translate(0, 0.7, 0), '#7b6150', 0),
-  part(new THREE.ConeGeometry(1.8, 4.2, 7).translate(0, 3.1, 0), '#4f7a4a', 1),
-  part(new THREE.ConeGeometry(1.25, 3.4, 7).translate(0, 5.6, 0), '#557f4c', 1),
-]);
-// low detail for far tiles: 20-sided crown, single cone, no trunk caps
-const decidLow = mergeGeometries([
-  part(new THREE.CylinderGeometry(0.2, 0.3, 2.4, 4, 1, true).translate(0, 1.2, 0), '#7b6150', 0),
-  part(new THREE.IcosahedronGeometry(1, 0).scale(2.3, 2.1, 2.3).translate(0, 3.9, 0), '#7fa653', 1),
-]);
-const conifLow = mergeGeometries([
-  part(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 3, 1, true).translate(0, 0.7, 0), '#7b6150', 0),
-  part(new THREE.ConeGeometry(1.7, 6.6, 6, 1, true).translate(0, 4.3, 0), '#527d4b', 1),
-]);
-const bushGeo = part(new THREE.IcosahedronGeometry(1, 1), '#6f9a4a', 1);
-const bushLow = part(new THREE.IcosahedronGeometry(1, 0), '#6f9a4a', 1);
-for (const g of [decidGeo, conifGeo, decidLow, conifLow, bushGeo, bushLow]) g.computeVertexNormals();
+/** Near and far model of each kind of tree (treegeo.js). */
+const GEO = { decid: [broadleaf(1), broadleaf(0)], birch: [birch(1), birch(0)], conif: [spruce(1), spruce(0)] };
+const bushGeo = bush(1), bushLow = bush(0);
 
 /** Season tint (material colour) on leaves only: trunks keep their own colour. */
 function leafOnly(mat) {
@@ -123,10 +96,14 @@ export function buildVegetation(scene) {
   };
 
   /* ---------- candidates ---------- */
-  // t = { x, y, z, s, r, kind: 'decid' | 'conif', solid (blocks vehicles), rank (thinning order) }
+  // t = { x, y, z, s, sy (height scale), r, kind: 'decid' | 'birch' | 'conif', solid (blocks vehicles), rank (thinning order) }
   const trees = [];
   const OUT = 500, X0 = BOUNDS.x0 - OUT, X1 = BOUNDS.x1 + OUT, Z0 = BOUNDS.z0 - OUT, Z1 = BOUNDS.z1 + OUT;
-  const add = (x, z, s, conifer, solid) => trees.push({ x, z, y: groundH(x, z), s, r: R(), kind: conifer ? 'conif' : 'decid', solid, rank: solid ? 0 : R() });
+  // a birch among the broadleaves is picked by position, so the rest of the layout stays as it was
+  const add = (x, z, s, conifer, solid) => {
+    const r = R();
+    trees.push({ x, z, y: groundH(x, z), s, sy: s * (0.85 + 0.3 * hash2(x * 0.37, z * 0.53)), r, kind: conifer ? 'conif' : hash2(x, z) < 0.2 ? 'birch' : 'decid', solid, rank: solid ? 0 : R() });
+  };
   const CELL = 6;
   for (let gx = X0; gx < X1; gx += CELL) {
     for (let gz = Z0; gz < Z1; gz += CELL) {
@@ -206,8 +183,8 @@ export function buildVegetation(scene) {
   }
 
   /* ---------- meshes per tile ---------- */
-  const decidMat = addSnow(leafOnly(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.88, flatShading: true }), { amp: 0.04, base: 1.8, spatial: 0.05 })));
-  const conifMat = addSnow(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.88, flatShading: true }), { amp: 0.02, base: 1.2, spatial: 0.05 }));
+  const decidMat = addSnow(leafOnly(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9 }), { amp: 0.035, base: 3.2, spatial: 0.05 })));
+  const conifMat = addSnow(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.92 }), { amp: 0.018, base: 2, spatial: 0.05 }));
   const tint = [col('#ffffff'), col('#f2ffe6'), col('#e6f2d9'), col('#fff7e0'), col('#dcebd0')];
   const dummy = new THREE.Object3D(), c = new THREE.Color();
   const tiles = new Map();
@@ -219,10 +196,10 @@ export function buildVegetation(scene) {
   const meshes = [];
   for (const list of tiles.values()) {
     list.sort((a, b) => a.rank - b.rank || a.r - b.r); // solid trees first (rank 0, mixed so a prefix thins evenly), then scenery in thinning order
-    const conif = list[0].kind === 'conif';
-    const m = new THREE.InstancedMesh(conif ? conifGeo : decidGeo, conif ? conifMat : decidMat, list.length);
+    const kind = list[0].kind;
+    const m = new THREE.InstancedMesh(GEO[kind][0], kind === 'conif' ? conifMat : decidMat, list.length);
     list.forEach((t, i) => {
-      dummy.position.set(t.x, t.y - 0.15, t.z); dummy.rotation.set(0, t.r * 6.28, 0); dummy.scale.setScalar(t.s); dummy.updateMatrix();
+      dummy.position.set(t.x, t.y - 0.15, t.z); dummy.rotation.set(0, t.r * 6.28, 0); dummy.scale.set(t.s, t.sy, t.s); dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
       m.setColorAt(i, c.copy(tint[(t.r * tint.length) | 0]).multiplyScalar(0.92 + t.r * 0.14));
     });
@@ -231,7 +208,7 @@ export function buildVegetation(scene) {
     m.userData.ranks = list.map(t => t.rank);
     m.userData.solid = list.filter(t => t.rank === 0).length;
     m.userData.base = list.length;
-    m.userData.geo = conif ? [conifGeo, conifLow] : [decidGeo, decidLow];
+    m.userData.geo = GEO[kind];
     let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
     for (const t of list) { bx0 = Math.min(bx0, t.x); bx1 = Math.max(bx1, t.x); bz0 = Math.min(bz0, t.z); bz1 = Math.max(bz1, t.z); }
     m.userData.box = { x0: bx0, x1: bx1, z0: bz0, z1: bz1 };
@@ -259,18 +236,18 @@ export function buildVegetation(scene) {
     cells.get(k).push(t);
   }
   const casterMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
-  const casters = { decid: new THREE.InstancedMesh(decidLow, casterMat, 1500), conif: new THREE.InstancedMesh(conifLow, casterMat, 1500) };
+  const casters = Object.fromEntries(Object.entries(GEO).map(([k, g]) => [k, new THREE.InstancedMesh(g[1], casterMat, 1500)]));
   for (const m of Object.values(casters)) { m.castShadow = true; m.frustumCulled = false; m.count = 0; scene.add(m); }
   let lastX = Infinity, lastZ = Infinity, lastR = 0;
   function updCasters(x, z, r) {
     if (Math.hypot(x - lastX, z - lastZ) < 8 && Math.abs(r - lastR) < 5) return;
     lastX = x; lastZ = z; lastR = r;
-    const n = { decid: 0, conif: 0 };
+    const n = { decid: 0, birch: 0, conif: 0 };
     for (let cx = Math.floor((x - r) / CS); cx <= Math.floor((x + r) / CS); cx++) {
       for (let cz = Math.floor((z - r) / CS); cz <= Math.floor((z + r) / CS); cz++) {
         for (const t of cells.get(cx + ',' + cz) || []) {
           if (Math.abs(t.x - x) > r || Math.abs(t.z - z) > r || n[t.kind] >= 1500) continue;
-          dummy.position.set(t.x, t.y - 0.15, t.z); dummy.rotation.set(0, t.r * 6.28, 0); dummy.scale.setScalar(t.s); dummy.updateMatrix();
+          dummy.position.set(t.x, t.y - 0.15, t.z); dummy.rotation.set(0, t.r * 6.28, 0); dummy.scale.set(t.s, t.sy, t.s); dummy.updateMatrix();
           casters[t.kind].setMatrixAt(n[t.kind]++, dummy.matrix);
         }
       }

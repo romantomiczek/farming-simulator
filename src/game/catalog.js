@@ -176,7 +176,7 @@ export const MODELS = [
   { id: 'annaburger-40', kind: 'trailer', brand: 'Annaburger', name: 'HTS 34', price: 600000, cap: 40000, hp: 260, look: { body: '#3b7f3a', rib: '#306a30', trim: '#5a9a52', len: 8.6, height: 1.9, axles: 3, brand: 'ANNABURGER' }, desc: 'Největší návěs: 40 000 l.' },
 
   { id: 'cisterna-5', kind: 'watertank', brand: '', name: 'Cisterna 5 000 l', price: 50000, cap: 5000, hp: 60, look: { len: 2.8, r: 0.85 }, desc: 'Malá cisterna na vodu nebo mléko.' },
-  { id: 'cisterna-8', kind: 'watertank', brand: '', name: 'Cisterna', price: 70000, cap: 8000, hp: 90, start: true, look: {}, desc: 'Voda z rybníka pro skleníky, nebo mléko z kravína do mlékárny. V kůlně klávesa 7.' },
+  { id: 'cisterna-8', kind: 'watertank', brand: '', name: 'Cisterna', price: 70000, cap: 8000, hp: 90, start: true, look: {}, desc: 'Voda z rybníka pro skleníky, nebo mléko z kravína do mlékárny.' },
   { id: 'joskin-modulo-11', kind: 'watertank', brand: 'Joskin', name: 'Modulo2 11000', price: 160000, cap: 11000, hp: 130, look: { body: '#3b8f3a', dark: '#2f7230', len: 4.4, r: 1.0, brand: 'JOSKIN' }, desc: 'Cisterna na 11 000 l.' },
   { id: 'zunhammer-18', kind: 'watertank', brand: 'Zunhammer', name: 'SKE 18.5', price: 300000, cap: 18500, hp: 190, look: { body: '#d9dcd8', dark: '#1f4f9c', len: 5.6, r: 1.1, axles: 2, brand: 'ZUNHAMMER', text: '#1f4f9c', stroke: null }, desc: 'Tandemová cisterna na 18 500 l.' },
 ];

@@ -6,7 +6,7 @@ import {
   CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, hayPrice, S_NONE,
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
-import { BALE_CELLS, HARVESTERS, toolLine, tools, towed, trailerCenter } from '../vehicles/vehicles.js';
+import { BALE_CELLS, HARVESTERS, toolLine, tools, towed, trailerCenter, eyeOf } from '../vehicles/vehicles.js';
 import { baleZone } from '../world/layout.js';
 import { marketAt, accepts, marketPrice } from './markets.js';
 import { BUILDINGS, space, addFeed, partOf } from './farm.js';
@@ -124,8 +124,10 @@ export function work(v, dt) {
   if (v.harvestT > 0) v.harvestT -= dt;
   if (!v.lowered || v.speed < 0.3) { v.prevTool = null; return; }
   const { W, Z } = toolLine(v);
-  const sh = Math.sin(v.h), ch = Math.cos(v.h), rx = ch, rz = -sh;
-  const cx = v.x + sh * Z, cz = v.z + ch * Z;
+  // a trailed implement (baler) works where it really is, behind its own drawbar
+  const e = v.tool?.trailed ? eyeOf(v.tool) : null, h = e ? e.h : v.h;
+  const sh = Math.sin(h), ch = Math.cos(h), rx = ch, rz = -sh;
+  const cx = e ? e.x + sh * v.tool.workZ : v.x + sh * Z, cz = e ? e.z + ch * v.tool.workZ : v.z + ch * Z;
   let p = v.prevTool;
   if (!p || Math.hypot(cx - p.x, cz - p.z) > 4) p = { x: cx, z: cz };
   const steps = Math.max(1, Math.ceil(Math.hypot(cx - p.x, cz - p.z) / 0.45));
@@ -159,14 +161,14 @@ export function work(v, dt) {
   if (v.type === 'tractor' && v.impl === 'baler') {
     while (v.baleAcc >= BALE_CELLS) {
       v.baleAcc -= BALE_CELLS;
-      const bz = v.hitchZ - 4.2;
+      const bz = -4.2, bx = (e ? e.x : v.x + sh * v.hitchZ) + sh * bz, bzz = (e ? e.z : v.z + ch * v.hitchZ) + ch * bz;
       // a bale is hay when most of what went in came from a meadow
       const hay = (v.hayAcc || 0) >= BALE_CELLS / 2;
       v.hayAcc = Math.max(0, (v.hayAcc || 0) - BALE_CELLS);
-      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h, hay)) {
+      if (addBale(bx, bzz, h, hay)) {
         stat(hay ? 'hay' : 'bales'); warn('bale', hay ? 'Lis vyhodil balík sena.' : 'Lis vyhodil balík slámy.', '');
         // a puff of loose straw as the bale drops out
-        for (let i = 0; i < 14; i++) emit(v.x + sh * bz + (Math.random() - 0.5) * 1.4, 0.9 + (v.y || 0), v.z + ch * bz + (Math.random() - 0.5) * 1.4, hay ? HAY_C : STRAW_C, 0.3 + Math.random() * 0.25,
+        for (let i = 0; i < 14; i++) emit(bx + (Math.random() - 0.5) * 1.4, 0.9 + (v.y || 0), bzz + (Math.random() - 0.5) * 1.4, hay ? HAY_C : STRAW_C, 0.3 + Math.random() * 0.25,
           (Math.random() - 0.5) * 2, 0.8 + Math.random(), (Math.random() - 0.5) * 2, 1.1, 4);
       }
     }

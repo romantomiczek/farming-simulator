@@ -92,7 +92,7 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   f.upT = 0;
 
-  if (!f.poly) flatPlane(f.w + 1.4, f.h + 1.4, '#86a654', f.x0 + f.w / 2, f.y + 0.012, f.z0 + f.h / 2, borders);
+  if (!f.poly) flatPlane(f.w + 1.4, f.h + 1.4, '#6c9440', f.x0 + f.w / 2, f.y + 0.012, f.z0 + f.h / 2, borders);
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), addSnow(new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 })));
   plane.rotation.x = -Math.PI / 2; plane.position.set(f.x0 + f.w / 2, f.y + 0.03, f.z0 + f.h / 2); plane.receiveShadow = true;
   scene.add(plane);

@@ -79,8 +79,8 @@ export function hayPrice(t) {
  */
 export const GRASS = {
   name: 'Tráva', hours: 10,
-  colors: ['#7fa653', '#86ad4f', '#7aa64a', '#6e9c44', '#5f8f3c'], h: [0.04, 0.1, 0.22, 0.36, 0.5], fw: [1, 1, 1, 1, 1],
-  ground: ['#7e9f4c', '#86a653', '#7a9b48', '#8aa957'], line: ['#6e8f40', '#76963f', '#6a8b3c', '#7a9a49'],
+  colors: ['#66903e', '#6c9637', '#629036', '#578534', '#4b7a2e'], h: [0.04, 0.1, 0.22, 0.36, 0.5], fw: [1, 1, 1, 1, 1],
+  ground: ['#638b38', '#6a923d', '#5f8734', '#6e963f'], line: ['#557a2f', '#5c8230', '#51772c', '#608636'],
 };
 GRASS.cols = GRASS.colors.map(col); GRASS.rgb = GRASS.colors.map(hexRgb);
 /** Hay swath left by the mower. */

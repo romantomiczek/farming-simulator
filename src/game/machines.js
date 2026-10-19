@@ -104,7 +104,7 @@ export function blockReasonOf(p) {
   if (G.active === p && !G.onFoot) return 'Právě v něm sedíš.';
   if (p.helper) return 'Pracuje na něm pomocník.';
   if (p.on?.helper) return 'Pracuje s ním pomocník.';
-  if (p.on) return 'Je připojené k traktoru. V kůlně připoj jiné nářadí.';
+  if (p.on) return 'Je připojené k traktoru. Nejdřív ho odpoj (Q).';
   if (p.harvester && (p.tank.amount > 0 || p.unloading)) return 'Nejdřív vyprázdni zásobník.';
   if (p.logs > 0) return 'Nejdřív prodej dřevo na pile.';
   if (p.key === 'trailer' && (p.tank.amount > 0 || p.bales > 0)) return 'Nejdřív vyprázdni přívěs.';

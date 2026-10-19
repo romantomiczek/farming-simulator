@@ -111,7 +111,12 @@ function pushOut() {
       if (k) { me.x -= k.nx * k.d; me.z -= k.nz * k.d; } // the contact pushes the machine: the farmer goes the other way
     }
   }
-  for (const t of tools) if (t.key === 'trailer') { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circle(c); }
+  for (const t of tools) if (t.trailed) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circle(c); }
+  for (const t of tools) {
+    if (t.on || !t.part || Math.abs(t.x - me.x) > 15 || Math.abs(t.z - me.z) > 15) continue;
+    const k = partCircle(worldPart(t, t.part, _wp), me, _ct);
+    if (k) { me.x -= k.nx * k.d; me.z -= k.nz * k.d; }
+  }
   for (const c of movers) circle(c);
   person.x = clamp(me.x, BOUNDS.x0, BOUNDS.x1); person.z = clamp(me.z, BOUNDS.z0, BOUNDS.z1);
 }
@@ -155,7 +160,8 @@ function sit(rig, v, eyes = false) {
   rig.hands.forEach((hd, i) => {
     hd.visible = eyes && !!w && !v.lodFar;
     if (!hd.visible) return;
-    const ang = (i ? 0.35 : Math.PI - 0.35) + (v.steer || 0) * 2.2, k = Math.PI / 2 - w.tilt;
+    // steer > 0 = left: seen from the seat the rim turns anticlockwise, the left hand (+x) goes down
+    const ang = (i ? 0.35 : Math.PI - 0.35) - (v.steer || 0) * 2.2, k = Math.PI / 2 - w.tilt;
     const lx = Math.cos(ang) * w.r, ly = Math.sin(ang) * w.r;
     hd.position.set(lx, 0.84 + w.dy + ly * Math.cos(k), w.dz - 0.02 + ly * Math.sin(k));
     hd.rotation.set(-k + Math.PI / 2 - 0.4, 0, ang - Math.PI / 2);

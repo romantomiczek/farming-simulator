@@ -19,19 +19,21 @@ import { footprint, partOf, worldPart, boxPart, partCircle, partPart, resolve } 
 /**
  * The fleet: every machine and every implement is its own piece (instance) with an id, owned or
  * leased, its own condition and load. vehicles = self-propelled machines, tools = implements and
- * trailers. Field tools ride rigidly on a tractor's hitch: width = working width, workZ = working
- * line behind the hitch, speed = max working speed (m/s). A trailer is articulated: it stays in the
- * scene and follows the hitch of the tractor it is attached to, see updateTrailers().
- * IMPL_ORDER is the order in the shed (keys 1–8).
+ * trailers. Mounted field tools ride rigidly on a tractor's hitch: width = working width, workZ = working
+ * line behind the hitch, speed = max working speed (m/s). Trailed ones (trailed: the trailer, the baler,
+ * the tank) are articulated: they stay in the scene and follow the hitch of the tractor they are
+ * attached to on their own wheels, see updateTrailers().
+ * A tractor hitches an implement by reversing up to it (Q) and leaves it where it stands (Q again).
+ * IMPL_ORDER is the order the implements are listed in.
  */
 const TOOL_SPEC = {
   cultivator: { build: buildCultivator, name: 'Kultivátor', width: 4.2, workZ: -1.7, speed: 4.2, park: [8.5, -38.5], dust: col('#b48d68') },
   plough: { build: buildPlough, name: 'Pluh', width: 3.2, workZ: -2.2, speed: 3.1, park: [-12, -47.5], dust: col('#9b7656') },
   seeder: { build: buildSeeder, name: 'Secí stroj', width: 4.0, workZ: -1.5, speed: 4.2, park: [15.5, -38.5], dust: col('#c7a984') },
   spreader: { build: buildSpreader, name: 'Rozmetadlo', width: 12, workZ: -1.8, speed: 5.0, park: [-6.5, -47.5], dust: col('#f1eee6') },
-  baler: { build: buildBaler, name: 'Lis na balíky', width: 2.0, workZ: -1.6, speed: 3.6, park: [-1, -47.5], dust: col('#eadba6') },
-  trailer: { build: buildTrailer, name: 'Přívěs', width: 0, workZ: 0, speed: 4.2, park: [23.5, -37] },
-  watertank: { build: buildWaterTank, name: 'Cisterna', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5] },
+  baler: { build: buildBaler, name: 'Lis na balíky', width: 2.0, workZ: -1.6, speed: 3.6, park: [-1, -47.5], dust: col('#eadba6'), trailed: true },
+  trailer: { build: buildTrailer, name: 'Přívěs', width: 0, workZ: 0, speed: 4.2, park: [23.5, -37], trailed: true },
+  watertank: { build: buildWaterTank, name: 'Cisterna', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5], trailed: true },
   mower: { build: buildMower, name: 'Žací lišta', width: 3.0, workZ: -1.25, speed: 4.6, park: [12, -49], dust: col('#9cbf6a') },
 };
 export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower'];
@@ -101,6 +103,19 @@ export function labelOf(p) {
 /** The model to build: the wanted one if it is of this kind, else the kind's start model. */
 const modelFor = (kind, id) => (MODEL[id]?.kind === kind ? MODEL[id] : MODEL[START_MODEL[kind]]);
 
+/**
+ * A trailed implement built with its origin at the drawbar eye (baler, tank): its own axle becomes
+ * the point it turns about (x, z), like a trailer's. drawbar = axle to eye, originZ = axle to the
+ * model's origin, shape = collision circles along the body behind the drawbar (local z from the axle, radius).
+ */
+function trailedShape(im) {
+  const fp = footprint(im.group), axle = im.wheels.reduce((a, w) => a + w.position.z, 0) / im.wheels.length;
+  const db = -axle, z0 = fp.z0, z1 = Math.min(fp.z1, -1.2), r = Math.max(0.6, Math.min(1.4, (fp.x1 - fp.x0) / 2 - 0.05));
+  const n = Math.max(1, Math.ceil((z1 - z0 - 2 * r) / (1.4 * r)) + 1), shape = [];
+  for (let k = 0; k < n; k++) shape.push([db + (n === 1 ? (z0 + z1) / 2 : z0 + r + (k * (z1 - z0 - 2 * r)) / (n - 1)), r]);
+  Object.assign(im, { drawbar: db, originZ: db, shape, centerZ: db + (z0 + z1) / 2, sitLen: z1 - z0, sitWid: fp.x1 - fp.x0, sitOff: db + (z0 + z1) / 2 });
+}
+
 function makeTool(key, mid) {
   const s = TOOL_SPEC[key], m = modelFor(key, mid);
   const im = Object.assign(s.build(m.look), {
@@ -110,10 +125,16 @@ function makeTool(key, mid) {
     // drawbar = axle to eye; two or three collision circles along the body
     const L = im.bodyLen, n = L > 7 ? 3 : 2, shape = [];
     for (let k = 0; k < n; k++) shape.push([-2 + 1.1 + (k * (L - 2.2)) / (n - 1), 1.45]);
-    Object.assign(im, { x: 0, z: 0, h: 0, tank: { crop: -1, amount: 0, cap: m.cap }, bales: 0, hay: 0, baleCap: im.baleMeshes.length, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0, shape, centerZ: -2 + L / 2 });
-  }
+    Object.assign(im, { tank: { crop: -1, amount: 0, cap: m.cap }, bales: 0, hay: 0, baleCap: im.baleMeshes.length, tipping: false, sold: 0, soldMoney: 0, soldCrop: 0, shape, centerZ: -2 + L / 2 });
+    Object.assign(im, { originZ: 0, sitLen: L * 0.57, sitWid: 2.3, sitOff: im.centerZ });
+  } else if (s.trailed) trailedShape(im);
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
-  if (key !== 'trailer') im.foot = footprint(im.group); // collision shape while hitched (trailers have their circles)
+  if (s.trailed) Object.assign(im, { trailed: true, x: 0, z: 0, h: 0 });
+  else {
+    im.foot = footprint(im.group); // collision shape while hitched (trailers have their circles)
+    im.part = partOf(im.foot); // and while it stands alone (x, z = hitch point, h = heading)
+    Object.assign(im, { x: 0, z: 0, h: 0 });
+  }
   im.dirtU = { value: 0 }; dirtMaterials(im.group, im.dirtU); // mud (game/dirt.js)
   return im;
 }
@@ -144,17 +165,73 @@ export function removeTool(im) {
 /** Puts an implement back on its parking spot (detached from any tractor). */
 export function parkTool(im) {
   if (im.on) { const v = im.on; v.tool = null; v.impl = null; v.lowered = false; im.on = null; refreshParts(v); }
-  if (im.key === 'trailer') {
+  if (im.trailed) {
     im.tipping = false;
     im.h = 0; im.x = im.park[0]; im.z = im.park[1] - im.drawbar;
-    im.group.position.set(im.x, 0, im.z); im.group.rotation.y = 0;
     scene.add(im.group);
+    placeTrailed(im);
     return;
   }
+  im.x = im.park[0]; im.z = im.park[1]; im.h = 0;
+  standFree(im);
+}
+
+/** Puts a free implement (not a trailer) on the ground at its x, z, h: the hitch point and heading. */
+export function standFree(im) {
   scene.add(im.group);
-  im.group.position.set(im.park[0], 0, im.park[1]);
-  im.group.rotation.set(0, 0, 0);
+  const f = im.foot;
+  sitOnGround(im.group, im.x, im.z, im.h, f.z1 - f.z0, f.x1 - f.x0, (f.z0 + f.z1) / 2);
   im.lift.position.y = im.up;
+}
+
+/** Puts trailed implement t on the ground: its axle at x, z, heading h. */
+function placeTrailed(t) {
+  const s = Math.sin(t.h), c = Math.cos(t.h);
+  sitOnGround(t.group, t.x + s * t.originZ, t.z + c * t.originZ, t.h, t.sitLen, t.sitWid, t.sitOff - t.originZ);
+}
+
+/** Hitch eye of free implement t (where a tractor's hitch has to be) and its heading. */
+export function eyeOf(t) {
+  if (!t.trailed) return { x: t.x, z: t.z, h: t.h };
+  return { x: t.x + Math.sin(t.h) * t.drawbar, z: t.z + Math.cos(t.h) * t.drawbar, h: t.h };
+}
+/** How near (m) the hitch has to be to the implement's eye, and how straight (rad) the tractor has to stand. */
+const HITCH_REACH = 1.6, HITCH_ANGLE = { tool: 0.6, trailer: 1.0 };
+/** The free implement tractor v can hitch where it stands (reversed up to it), or null. */
+export function toolInReach(v) {
+  if (v.type !== 'tractor' || v.tool) return null;
+  const [hx, hz] = hitchPos(v);
+  let best = null, bd = HITCH_REACH;
+  for (const t of tools) {
+    if (t.on) continue;
+    const e = eyeOf(t), d = Math.hypot(e.x - hx, e.z - hz);
+    if (d < bd && Math.abs(angDiff(v.h, e.h)) < HITCH_ANGLE[t.trailed ? 'trailer' : 'tool']) { best = t; bd = d; }
+  }
+  return best;
+}
+/** The nearest free implement behind tractor v that it is not yet close or straight enough to hitch (for a hint), or null. */
+export function toolNearby(v, r = 6) {
+  if (v.type !== 'tractor' || v.tool) return null;
+  const [hx, hz] = hitchPos(v);
+  let best = null, bd = r;
+  for (const t of tools) {
+    if (t.on) continue;
+    const e = eyeOf(t), d = Math.hypot(e.x - hx, e.z - hz);
+    if (d < bd) { best = t; bd = d; }
+  }
+  return best;
+}
+/** Unhitches v's implement and leaves it standing right where it is. Returns it. */
+export function dropTool(v) {
+  const im = v.tool;
+  if (!im) return null;
+  v.tool = null; v.impl = null; v.lowered = false; im.on = null;
+  refreshParts(v);
+  if (im.trailed) { im.tipping = false; return im; }
+  const [hx, hz] = hitchPos(v);
+  im.x = hx; im.z = hz; im.h = v.h;
+  standFree(im);
+  return im;
 }
 
 /** Words for messages: "jede s traktorem". */
@@ -308,12 +385,15 @@ export function attachTool(v, im) {
   im.on = v; v.tool = im; v.impl = im.key;
   v.lowered = false;
   v.vwork = im.speed * powerShare(v, im);
-  if (im.key === 'trailer') {
-    // put the trailer straight behind the tractor
-    im.h = v.h;
-    const [hx, hz] = hitchPos(v);
-    im.x = hx - Math.sin(im.h) * im.drawbar;
-    im.z = hz - Math.cos(im.h) * im.drawbar;
+  if (im.trailed) {
+    scene.add(im.group);
+    // a trailer the tractor reversed up to keeps its angle, any other one goes straight behind the tractor
+    const [hx, hz] = hitchPos(v), e = eyeOf(im);
+    if (Math.hypot(e.x - hx, e.z - hz) > HITCH_REACH + 0.5) {
+      im.h = v.h;
+      im.x = hx - Math.sin(im.h) * im.drawbar;
+      im.z = hz - Math.cos(im.h) * im.drawbar;
+    }
     refreshParts(v);
     return;
   }
@@ -354,7 +434,7 @@ export function toolLine(v) {
 }
 
 const hitchPos = v => [v.x + Math.sin(v.h) * v.hitchZ, v.z + Math.cos(v.h) * v.hitchZ];
-const MAX_ARTICULATION = 1.3; // rad, the drawbar stops a full jackknife
+const MAX_ARTICULATION = 1.1; // rad, the drawbar stops a full jackknife before the body hits the tractor
 
 /** A trailer's collision shape: circles along the body (t.shape: local z, radius). */
 export function trailerCircles(t, out = []) {
@@ -377,22 +457,23 @@ function penetration(x, z, r, skip) {
   for (const c of forestColliders(treeBuf, x, z, r + 2)) circ(c);
   probe.x = x; probe.z = z; probe.r = r;
   for (const o of vehicles) if (!skip.includes(o)) for (const q of o.parts) { const k = partCircle(worldPart(o, q, wpBuf), probe, ctBuf); if (k) p += k.d; }
-  for (const t of tools) if (t.key === 'trailer' && !skip.includes(t)) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circ(c); }
+  for (const t of tools) if (t.trailed && !skip.includes(t)) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circ(c); }
+  for (const t of tools) if (!t.on && t.part) { const k = partCircle(worldPart(t, t.part, wpBuf), probe, ctBuf); if (k) p += k.d; }
   for (const c of movers) circ(c);
   return p;
 }
 const circBuf = [], probe = { x: 0, z: 0, r: 0 }, wpBuf = {}, ctBuf = {};
 /** True if a circle would sit noticeably inside a fixed obstacle or another vehicle. */
-export const blockedAt = (x, z, r, self) => penetration(x, z, r, towed(self) ? [self, towed(self)] : [self]) > 0.3;
+export const blockedAt = (x, z, r, self) => penetration(x, z, r, self.tool?.trailed ? [self, self.tool] : [self]) > 0.3;
 const trailerBuf = [];
 const trailerPen = t => { trailerBuf.length = 0; return trailerCircles(t, trailerBuf).reduce((a, c) => a + penetration(c.x, c.z, c.r, [t.on, t]), 0); };
 
 /** Centre of trailer t's body in world space (for zone checks). */
 export const trailerCenter = t => ({ x: t.x + Math.sin(t.h) * t.centerZ, z: t.z + Math.cos(t.h) * t.centerZ });
 
-/** Every trailer: an attached one is dragged behind its tractor's hitch (also in reverse); all sit on the ground and show their load. */
+/** Every trailed implement: an attached one is dragged behind its tractor's hitch (also in reverse); all sit on the ground, trailers show their load. */
 export function updateTrailers(dt) {
-  for (const t of tools) if (t.key === 'trailer') updateTrailer(t, dt);
+  for (const t of tools) if (t.trailed) updateTrailer(t, dt);
 }
 function updateTrailer(t, dt) {
   const v = t.on;
@@ -418,7 +499,8 @@ function updateTrailer(t, dt) {
     trailerBuf.length = 0;
     for (const c of trailerCircles(t, trailerBuf)) pushBales(c.x, c.z, c.r);
   }
-  sitOnGround(t.group, t.x, t.z, t.h, t.bodyLen * 0.57, 2.3, t.centerZ);
+  placeTrailed(t);
+  if (t.key !== 'trailer') return;
   t.tip.rotation.x += ((t.tipping ? -0.6 : 0) - t.tip.rotation.x) * Math.min(1, dt * 1.5);
   const fill = t.tank.amount / t.tank.cap;
   t.grain.visible = fill > 0;
@@ -511,7 +593,7 @@ function setFar(p, far) {
   }
 }
 
-const posOf = p => (p.type || p.key === 'trailer' ? p : p.on || p.group.position);
+const posOf = p => (p.type || p.trailed ? p : p.on || p.group.position);
 const lodKind = p => p.model;
 /**
  * Every frame after the camera moved: picks the detailed or the far model for every piece and
@@ -557,7 +639,12 @@ function contactsOf(v, keep) {
     }
     for (const c of movers) circle(c);
     // parked trailers and the trailers of other machines (not the one v tows)
-    for (const t of tools) if (t.key === 'trailer' && t !== v.tool) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circle(c); }
+    for (const t of tools) if (t.trailed && t !== v.tool) { circBuf.length = 0; for (const c of trailerCircles(t, circBuf)) circle(c); }
+    // implements standing on their own
+    for (const t of tools) {
+      if (t.on || !t.part || Math.abs(t.x - wp.x) > 20 || Math.abs(t.z - wp.z) > 20) continue;
+      const k = partPart(wp, worldPart(t, t.part, _op), _ct); if (k) keep(k);
+    }
   });
 }
 /** Pushes v out of what it ran into (see body.js resolve) and keeps it on the map; remembers how hard it hit. */
@@ -589,11 +676,11 @@ const treeBuf = [];
  * how the body leans (rad per g).
  */
 const PHYS = {
-  tractor: { grip: 0.5, lock: 0.55, rate: 1.1, back: 1.6, tau: 0.15, roll: 0.03, pitch: 0.02 },
-  combine: { grip: 0.36, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
-  beet: { grip: 0.36, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
-  forest: { grip: 0.42, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
-  jeep: { grip: 1, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
+  tractor: { grip: 0.7, lock: 0.55, rate: 1.1, back: 1.6, tau: 0.15, roll: 0.03, pitch: 0.02 },
+  combine: { grip: 0.5, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  beet: { grip: 0.5, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  forest: { grip: 0.58, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
+  jeep: { grip: 1.4, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
 };
 const GRAV = 9.81;
 /** The ground under the wheels: wet after rain, snow in winter (set by the main loop). */
@@ -692,7 +779,7 @@ export function visual(v, dt, tankCropColor) {
     if (im?.lift) {
       im.lift.position.y += ((v.lowered ? im.down : im.up) - im.lift.position.y) * k;
       if (im.roller && v.lowered) im.roller.rotation.x += (v.speed * dt) / 0.3;
-      if (im.wheels && (v.lowered || im.key === 'baler' || im.key === 'watertank')) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
+      if (im.wheels && v.lowered && !im.trailed) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
       if (im.discs && v.lowered) im.discs.forEach((d, i) => (d.rotation.y += (i ? 1 : -1) * dt * 18));
     }
   } else if (v.type === 'jeep') {

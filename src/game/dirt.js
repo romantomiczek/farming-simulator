@@ -26,16 +26,16 @@ export function updDirt(v, dt, wet, rain) {
   let gain = 0;
   if (sp > 0.3) {
     const field = fieldAt(v.x, v.z), off = !field && !roadAt(v.x, v.z, 1) && !inRect(v.x, v.z, PAD);
-    // fully dirty after about 7 minutes of field work in dry weather, under 2 in the mud
-    if (field) gain = (v.lowered ? 0.0025 : 0.0012) * Math.min(1.5, sp / 3);
-    else if (off) gain = 0.0008 * Math.min(1.5, sp / 4);
-    gain *= 1 + 3 * wet; // mud
+    // fully dirty after about half an hour of field work in dry weather, about 10 minutes in the mud
+    if (field) gain = (v.lowered ? 0.0006 : 0.0003) * Math.min(1.5, sp / 3);
+    else if (off) gain = 0.0002 * Math.min(1.5, sp / 4);
+    gain *= 1 + 2 * wet; // mud
   }
   const rinse = rain * 0.0025;
   const d = dirtOf(v) + (gain - rinse) * dt;
   setDirt(v, d);
   const t = v.tool; // the implement or trailer behind
-  if (t) setDirt(t, dirtOf(t) + (gain * 1.2 - rinse) * dt);
+  if (t) setDirt(t, dirtOf(t) + (gain * 1.1 - rinse) * dt);
 }
 
 /** Inside the wash ring? */

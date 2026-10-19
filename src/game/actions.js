@@ -15,7 +15,7 @@ import { COWS } from './balance.js';
 import { earn } from './goals.js';
 import { inSawmill, treeInReach, fell, sellLogs } from './forestry.js';
 import { POND_FILL, GREENHOUSE_WATER, MILK_LOAD, DAIRY } from '../world/layout.js';
-import { trailerCenter, vehicles, tools, towed, firstOf, HARVESTERS, IMPL_ORDER, toolInfo, attachTool, setHeader, labelOf } from '../vehicles/vehicles.js';
+import { trailerCenter, vehicles, towed, firstOf, HARVESTERS, setHeader, labelOf, toolInReach, toolNearby, dropTool, attachTool } from '../vehicles/vehicles.js';
 import { keys } from '../core/input.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
@@ -27,14 +27,6 @@ import { festAction, startRace, claimContest } from './festival.js';
 
 export const inShed = v => v.x > shedZone.x0 && v.x < shedZone.x1 && v.z > shedZone.z0 && v.z < shedZone.z1;
 export const nearSign = v => signs.find(s => !s.f.owned && Math.hypot(v.x - s.x, v.z - s.z) < 10);
-/** A piece of implement key that tractor v can hitch: its own, else one standing free. */
-export const freeTool = (v, key) => tools.find(t => t.key === key && t.on === v) || tools.find(t => t.key === key && !t.on) || null;
-/** Next implement in the shed's swap order that tractor v can hitch. */
-export function otherImpl(v) {
-  const i = IMPL_ORDER.indexOf(v.impl);
-  for (let k = 1; k < IMPL_ORDER.length; k++) { const key = IMPL_ORDER[(i + k) % IMPL_ORDER.length]; if (freeTool(v, key)) return key; }
-  return null;
-}
 export const otherHeader = v => (v.header === 'grain' ? (has('cornHeader') ? 'corn' : null) : 'grain');
 
 /** What F would do right now for the active vehicle (on foot: buying the field at a sign), or null. Shared by doF() and the HUD prompts. */
@@ -74,7 +66,6 @@ export function fAction() {
     if (t && t.bales > 0 && inBaleZone(tc)) return { kind: 'sellBales', t };
     if (t) for (const h of HARVESTERS) if (h.unloading && trailerInReach(h, t)) return { kind: 'stopUnload', h };
     if (t) for (const h of HARVESTERS) if (h.tank.amount > 0 && trailerInReach(h, t)) return { kind: 'overload', h };
-    if (v.type === 'tractor' && inShed(v) && otherImpl(v)) return { kind: 'swap', impl: otherImpl(v) };
   }
   const s = nearSign(v);
   if (s) return { kind: 'buy', sign: s };
@@ -122,7 +113,7 @@ export function toggleTool() {
   if (needSeat()) return;
   const v = G.active;
   if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
-  if (v.type === 'tractor' && !v.tool) { toast('Traktor nemá nářadí. Připojíš ho v kůlně klávesami 1–8.'); return; }
+  if (v.type === 'tractor' && !v.tool) { toast('Traktor nemá nářadí. Zacouvej k nějakému a připoj ho klávesou Q.'); return; }
   if (v.type === 'tractor' && v.impl === 'trailer') {
     toast('Přívěs nemá co spouštět. Úrodu vysypeš klávesou F ve výkupu, balíky prodáš F u stodoly.');
     return;
@@ -164,14 +155,26 @@ export function cycleSeed() {
 
 export function cycleTime() { G.tsIdx = (G.tsIdx + 1) % TIME_SCALES.length; }
 
-function swapImpl(v, key) {
-  if (v.impl === key) return;
-  const name = toolInfo(key).name;
-  if (!has(key)) { toast(name + ' nevlastníš. Koupíš nebo pronajmeš ho v Kanceláři (K).', 'bad'); return; }
-  const t = freeTool(v, key);
-  if (!t) { toast(name + ' je připojený k jinému traktoru.', 'bad'); return; }
+/** Q: unhitch the tractor's implement where it stands, or hitch the one the tractor has reversed up to. */
+export function toggleHitch() {
+  if (needSeat()) return;
+  const v = G.active;
+  if (v.type !== 'tractor') { toast('Nářadí se připojuje jen k traktoru.'); return; }
+  if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
+  if (Math.abs(v.speed) > 0.5) { toast('Nejdřív zastav.'); return; }
+  if (v.tool) {
+    if (v.tool.tipping) { toast('Přívěs právě vysypává.', 'bad'); return; }
+    const im = dropTool(v);
+    toast('Odpojeno: ' + labelOf(im) + '. Zůstalo stát tady.', 'good');
+    return;
+  }
+  const t = toolInReach(v);
+  if (!t) {
+    toast(toolNearby(v) ? 'Zacouvej blíž a rovněji, závěs traktoru musí být přímo u oje nářadí.' : 'Za traktorem žádné nářadí nestojí. Zacouvej k němu zádí.');
+    return;
+  }
   attachTool(v, t);
-  toast('Připojeno: ' + name, 'good');
+  toast('Připojeno: ' + labelOf(t), 'good');
 }
 function swapHeader(v, key) {
   if (v.header === key) return;
@@ -180,12 +183,12 @@ function swapHeader(v, key) {
   toast('Na kombajnu je ' + HEADERS[key].name.toLowerCase(), 'good');
 }
 
-/** Number key n (1-based) in the shed: pick that implement or header directly. */
+/** Number key n (1-based) in the shed: pick the combine's header directly. */
 export function pickInShed(n) {
   if (G.onFoot) return;
   const v = G.active;
+  if (v.type === 'tractor') { toast('Nářadí vyměníš ručně: odpoj ho klávesou Q, zacouvej k jinému a připoj ho zase Q.'); return; }
   if (!inShed(v)) return;
-  if (v.type === 'tractor' && IMPL_ORDER[n - 1]) swapImpl(v, IMPL_ORDER[n - 1]);
   if (v.type === 'combine' && n <= 2) swapHeader(v, n === 1 ? 'grain' : 'corn');
 }
 
@@ -198,7 +201,7 @@ export function repairHere() {
   saveLocal();
 }
 
-/** The context action on F: refuel, sell, overload, swap implement or header, or buy a field. */
+/** The context action on F: refuel, sell, overload, swap the combine's header, or buy a field. */
 export function doF() {
   const a = fAction();
   if (!a) return;
@@ -237,7 +240,6 @@ export function doF() {
     case 'stopTip': stopTipping(a.t, saveLocal); return;
     case 'sellBales': sellBales(a.t, saveLocal); return;
     case 'wrongMarket': toast(a.m.name + ' nebere ' + CROPS[a.crop].gen + '. Vezme ji: ' + buyersOf(a.crop).join(', ') + '.', 'bad'); return;
-    case 'swap': swapImpl(G.active, a.impl); return;
     case 'header': swapHeader(G.active, a.header); return;
   }
   buyField(a.sign.f);
