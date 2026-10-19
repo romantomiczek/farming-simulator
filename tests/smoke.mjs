@@ -354,6 +354,39 @@ try {
   check('atmosféra', atmo.night.windows > 0.5 && atmo.night.pools && atmo.mist < 0.8 && atmo.colourOk && atmo.rainbow,
     'okna v noci ' + atmo.night.windows.toFixed(2) + (atmo.night.pools ? ', lampy svítí' : ', lampy nesvítí') + ' · ranní mlha dohled ' + Math.round(atmo.mist * 100) + ' %' + (atmo.colourOk ? '' : ' (barva NaN!)') + ' · duha po dešti ' + (atmo.rainbow ? 'ano' : 'ne'));
 
+  // visible work: fresh soil behind the cultivator, straw from the combine, a grain stream while
+  // unloading, puddles and darker fields after rain
+  const vis = await page.evaluate(async () => {
+    const z = window.__zl, Fu = await import('/src/fx/furrows.js'), St = await import('/src/fx/streams.js'), Wt = await import('/src/fx/wet.js');
+    const W = await import('/src/game/weather.js'), w = await import('/src/game/work.js'), MK = await import('/src/game/markets.js'), P = await import('/src/fx/particles.js');
+    const t = z.vehicles.find(v => v.type === 'tractor'), c = z.vehicles.find(v => v.type === 'combine'), f2 = z.fields.find(x => x.id === 2), was = z.G.active;
+    const home = [t, c].map(v => ({ v, x: v.x, z: v.z, h: v.h, tool: v.tool }));
+    W.WX.force = 'clear'; W.WX.kind = 'clear'; W.WX.rain = 0; W.WX.wetUntil = 0;
+    const before = Fu.furrowCount();
+    z.seat(t); z.attach('cultivator', t); Object.assign(t, { x: f2.x0 + 8, z: f2.z0 + 4, h: 0, speed: 0, lowered: true, helper: null });
+    z.hold('KeyW', 120);
+    const furrows = Fu.furrowCount() - before;
+    t.lowered = false;
+    // unloading at a buyer that takes wheat
+    const m = MK.MARKETS.find(x => MK.accepts(x, 0));
+    z.seat(c); Object.assign(c, { x: m.x, z: m.z, h: 0, speed: 0, lowered: false, helper: null }); c.tank.crop = 0; c.tank.amount = 4000;
+    w.startUnload(c); z.step(40);
+    const stream = St.streamShown(c);
+    w.stopUnload(c); c.tank.amount = 0; c.tank.crop = -1;
+    // rain, then the ground dries
+    const fieldCol = () => z.fields[0].plane.material.color.r;
+    const dry = fieldCol();
+    W.WX.force = 'rain'; W.WX.kind = 'rain'; W.WX.rain = 1; z.step(200);
+    const wet = { puddles: Wt.puddlesShown(), darker: fieldCol() < dry - 0.05 };
+    W.WX.force = null; W.WX.rain = 0; W.WX.wetUntil = 0;
+    z.step(400); // dry again: the next checks measure a dry scene
+    for (const o of home) { Object.assign(o.v, { x: o.x, z: o.z, h: o.h, speed: 0, lowered: false }); if (o.tool && o.tool !== o.v.tool) z.attach(o.tool.key, o.v); }
+    z.seat(was);
+    return { furrows, stream, wet };
+  });
+  check('viditelná práce', vis.furrows > 5 && vis.stream && vis.wet.puddles && vis.wet.darker,
+    'čerstvá hlína ' + vis.furrows + ' pruhů · proud zrna ' + (vis.stream ? 'ano' : 'ne') + ' · po dešti kaluže ' + (vis.wet.puddles ? 'ano' : 'ne') + ', tmavší pole ' + (vis.wet.darker ? 'ano' : 'ne'));
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

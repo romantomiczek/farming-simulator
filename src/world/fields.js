@@ -96,6 +96,7 @@ export const FIELDS = FIELD_DEFS.map(def => {
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), addSnow(new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 })));
   plane.rotation.x = -Math.PI / 2; plane.position.set(f.x0 + f.w / 2, f.y + 0.03, f.z0 + f.h / 2); plane.receiveShadow = true;
   scene.add(plane);
+  f.plane = plane;
 
   f.mini = document.createElement('canvas'); f.mini.width = f.w; f.mini.height = f.h;
   f.miniCtx = f.mini.getContext('2d'); f.miniImg = f.miniCtx.createImageData(f.w, f.h);
@@ -424,3 +425,9 @@ export function drawSign(s) {
   s.tex.needsUpdate = true;
 }
 export const drawSigns = () => signs.forEach(drawSign);
+
+/** Wet soil is darker: k = how wet the ground is, 0..1 (fx/wet.js). */
+export function setFieldWet(k) {
+  const c = 1 - 0.28 * k;
+  for (const f of FIELDS) f.plane?.material.color.setScalar(c);
+}

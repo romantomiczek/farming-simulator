@@ -1,6 +1,6 @@
 import { stat, earn } from './goals.js';
 import * as THREE from 'three';
-import { lerp, fmt, plural } from '../core/util.js';
+import { lerp, fmt, plural, col } from '../core/util.js';
 import { G } from './state.js';
 import {
   CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, hayPrice, S_NONE,
@@ -12,6 +12,11 @@ import { marketAt, accepts, marketPrice } from './markets.js';
 import { BUILDINGS, space, addFeed, partOf } from './farm.js';
 import { bales, addBale, removeBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
+import { pourStream } from '../fx/streams.js';
+import { freshSoil } from '../fx/furrows.js';
+import { groundH } from '../world/terrain.js';
+
+const CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
 import { toast, warn } from '../ui/toast.js';
 import { contractAllows, contractCell } from './contracts.js';
 import { season, isWet } from './weather.js';
@@ -158,7 +163,12 @@ export function work(v, dt) {
       // a bale is hay when most of what went in came from a meadow
       const hay = (v.hayAcc || 0) >= BALE_CELLS / 2;
       v.hayAcc = Math.max(0, (v.hayAcc || 0) - BALE_CELLS);
-      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h, hay)) { stat(hay ? 'hay' : 'bales'); warn('bale', hay ? 'Lis vyhodil balík sena.' : 'Lis vyhodil balík slámy.', ''); }
+      if (addBale(v.x + sh * bz, v.z + ch * bz, v.h, hay)) {
+        stat(hay ? 'hay' : 'bales'); warn('bale', hay ? 'Lis vyhodil balík sena.' : 'Lis vyhodil balík slámy.', '');
+        // a puff of loose straw as the bale drops out
+        for (let i = 0; i < 14; i++) emit(v.x + sh * bz + (Math.random() - 0.5) * 1.4, 0.9 + (v.y || 0), v.z + ch * bz + (Math.random() - 0.5) * 1.4, hay ? HAY_C : STRAW_C, 0.3 + Math.random() * 0.25,
+          (Math.random() - 0.5) * 2, 0.8 + Math.random(), (Math.random() - 0.5) * 2, 1.1, 4);
+      }
     }
   }
 
@@ -168,10 +178,40 @@ export function work(v, dt) {
     emit(cx + rx * k, (v.impl === 'spreader' ? 0.6 : 0.3) + (v.y || 0), cz + rz * k, im.dust, v.impl === 'spreader' ? 0.25 : 0.9 + Math.random() * 0.6,
       (Math.random() - 0.5) * 0.6 - sh * 0.6, up, (Math.random() - 0.5) * 0.6 - ch * 0.6, v.impl === 'spreader' ? 0.7 : 1.4 + Math.random() * 0.6, v.impl === 'spreader' ? 2 : 0);
   }
-  if (v.harvester && v.harvestT > 0 && Math.random() < dt * 30) {
-    const bx = v.x - sh * 3.6, bz = v.z - ch * 3.6;
-    emit(bx + (Math.random() - 0.5) * 1.5, 1.4 + (v.y || 0), bz + (Math.random() - 0.5) * 1.5, v.chaff, 0.7,
-      -sh * 1.2 + (Math.random() - 0.5), 0.3 + Math.random() * 0.5, -ch * 1.2 + (Math.random() - 0.5), 1.8, 0.2);
+  if (v.harvester && v.harvestT > 0) {
+    const p = v.bodyPart, back = p.cz - p.hz, bx = v.x + sh * back, bz = v.z + ch * back, y = v.y || 0;
+    if (v.type === 'combine' && Math.random() < dt * 75) {
+      // the chopper spreads straw and chaff in a fan behind the combine
+      const fan = (Math.random() - 0.5) * 2, out = 3 + Math.random() * 2.2;
+      emit(bx + rx * fan * 0.6, 1.5 + y, bz + rz * fan * 0.6, Math.random() < 0.65 ? STRAW_C : v.chaff, 0.32 + Math.random() * 0.3,
+        -sh * out + rx * fan * 2.4, 0.5 + Math.random() * 0.9, -ch * out + rz * fan * 2.4, 1.3, 3);
+    }
+    if (v.type === 'beet' && Math.random() < dt * 40) {
+      // the beet harvester drops soil behind it and throws beet leaves off at the front
+      const fan = (Math.random() - 0.5) * W;
+      emit(bx + rx * fan * 0.5, 1.0 + y, bz + rz * fan * 0.5, Math.random() < 0.5 ? CLOD : CLOD_LIGHT, 0.35 + Math.random() * 0.2, -sh * 1.5, 0.5, -ch * 1.5, 0.8, 9);
+      emit(cx + rx * fan, 0.6 + y, cz + rz * fan, LEAF_C, 0.28, rx * (Math.random() - 0.5) * 3, 1.2 + Math.random(), rz * (Math.random() - 0.5) * 3, 1, 6);
+    }
+  }
+  if (res.onField && (v.impl === 'plough' || v.impl === 'cultivator') && Math.random() < dt * (v.impl === 'plough' ? 45 : 28)) {
+    // clods: the mouldboards turn the soil over to the right, the cultivator tines toss it up
+    const k = (Math.random() - 0.5) * W, plough = v.impl === 'plough', side = plough ? -(1.1 + Math.random()) : (Math.random() - 0.5) * 0.8;
+    emit(cx + rx * k, 0.3 + (v.y || 0), cz + rz * k, Math.random() < 0.6 ? CLOD : CLOD_LIGHT, 0.3 + Math.random() * 0.2,
+      rx * side - sh * 0.5, 1.4 + Math.random() * 1.2, rz * side - ch * 0.5, 0.8, 9);
+  }
+  if (res.onField && v.impl === 'baler' && Math.random() < dt * 25) {
+    // the pick-up lifts the windrow: loose straw and hay flicks up
+    const k = (Math.random() - 0.5) * W;
+    emit(cx + rx * k, 0.4 + (v.y || 0), cz + rz * k, v.hayAcc > 0 ? HAY_C : STRAW_C, 0.28, (Math.random() - 0.5), 1.2 + Math.random(), (Math.random() - 0.5), 0.9, 5);
+  }
+  // freshly worked soil stays darker behind the tool for a couple of minutes
+  if (res.onField && (v.impl === 'cultivator' || v.impl === 'plough' || v.impl === 'seeder')) {
+    v.freshAcc = (v.freshAcc || 0) + Math.abs(v.speed) * dt;
+    if (v.freshAcc >= 1.2) {
+      v.freshAcc = 0;
+      const f = fieldAt(cx, cz);
+      if (f) freshSoil(cx - sh * 0.6, f.y + 0.045, cz - ch * 0.6, v.h, W, 1.45, v.impl === 'plough' ? 1 : v.impl === 'seeder' ? 0.45 : 0.8);
+    }
   }
 }
 
@@ -240,8 +280,10 @@ export function startUnload(h) {
   h.unloading = true; h.fed = 0; h.sold = 0; h.soldMoney = 0; h.soldCrop = h.tank.crop; h.moved = 0; h.movedCrop = h.tank.crop; h.waiting = null;
 }
 
-function pour(x, y, z, crop, dt, spread = 0.4) {
-  if (Math.random() < dt * 40) emit(x, y, z, CROPS[crop].heapCol, 0.4, (Math.random() - 0.5) * spread, -1, (Math.random() - 0.5) * spread, 0.9, 6);
+/** Grain falling from (x, y, z) down to y1: a solid stream (owner = the pouring machine) and a spray of kernels. */
+function pour(owner, x, y, z, y1, crop, dt, spread = 0.4, width = 0.18) {
+  pourStream(owner, x, y, z, y1, CROPS[crop].heapCol, width);
+  if (Math.random() < dt * 30) emit(x, y1 + 0.2, z, CROPS[crop].heapCol, 0.35, (Math.random() - 0.5) * spread * 3, 1.2, (Math.random() - 0.5) * spread * 3, 0.5, 9);
 }
 
 /** One harvester's unloading: sells at the intake or fills the trailer under its pipe, else waits. */
@@ -268,7 +310,7 @@ function unloadHarvester(h, dt, onDone) {
     }
     h.tank.amount -= amt;
     _v.copy(h.pipeTip); h.pipe.localToWorld(_v);
-    pour(_v.x, _v.y, _v.z, crop, dt);
+    pour(h, _v.x, _v.y, _v.z, groundH(_v.x, _v.z) + (t ? 1.4 : 0.3), crop, dt);
   }
 }
 
@@ -290,8 +332,8 @@ function trailerLogistics(t, dt, onDone) {
       const crop = t.tank.crop, amt = deliver(m, crop, Math.min(t.tank.amount, TIP_RATE * dt), t);
       if (amt <= 0) { stopTipping(t, onDone); return; }
       t.tank.amount -= amt;
-      _v.set((Math.random() - 0.5) * 1.8, 0.2, 0); t.tip.localToWorld(_v);
-      pour(_v.x, _v.y, _v.z, crop, dt, 0.8);
+      _v.set(0, 0.2, 0); t.tip.localToWorld(_v);
+      pour(t, _v.x, _v.y, _v.z, groundH(_v.x, _v.z) + 0.1, crop, dt, 0.8, 0.7);
     }
   }
 

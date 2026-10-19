@@ -74,10 +74,10 @@ export function updEnv(target, gameMin, vehicles, active, wx) {
 }
 
 const tintT = new THREE.Color(), tintL = new THREE.Color();
-/** Eases the terrain and leaf colour multipliers toward the current season's. */
-export function updSeasonTint(dt, terrainMat, leafMat, season) {
+/** Eases the terrain and leaf colour multipliers toward the current season's; wet ground (0..1) is darker. */
+export function updSeasonTint(dt, terrainMat, leafMat, season, wet = 0) {
   const k = Math.min(1, dt * 0.25);
-  tintT.setRGB(...season.terrain); tintL.setRGB(...season.leaves);
+  tintT.setRGB(...season.terrain).multiplyScalar(1 - 0.2 * wet); tintL.setRGB(...season.leaves);
   terrainMat.color.lerp(tintT, k);
   leafMat.color.lerp(tintL, k);
 }

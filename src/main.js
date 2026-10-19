@@ -4,7 +4,7 @@ import { quality, settings, saveSettings } from './core/settings.js';
 import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
-import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD, fieldAt } from './world/fields.js';
+import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD, fieldAt, setFieldWet } from './world/fields.js';
 import { roadAt } from './world/layout.js';
 import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD, surface } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
@@ -35,6 +35,9 @@ import { updRain } from './fx/rain.js';
 import { updTracks } from './fx/tracks.js';
 import { updWind, wind } from './render/wind.js';
 import { buildAtmosphere, updAtmosphere } from './world/atmosphere.js';
+import { updStreams } from './fx/streams.js';
+import { updFurrows } from './fx/furrows.js';
+import { updWet, wetness } from './fx/wet.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
@@ -168,6 +171,10 @@ function tick(dt) {
   if (G.playing) traffic.update(dt, { vehicles, listener: player() });
   if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: player(), hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);
+  updStreams(dt);
+  updFurrows(dt);
+  updWet(dt, WX.rain, G.gameMin, WX.wetUntil, isWinter());
+  setFieldWet(wetness());
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
   updateCamera(dt, player());
@@ -175,7 +182,7 @@ function tick(dt) {
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
   const day = updEnv(cam.t, G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
   updAtmosphere({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, day, wx: WX, season: season().name, wind: DEV.wind ? wind.strength.value : 0 });
-  updSeasonTint(dt, terrain.material, vegetation.leafMat, season());
+  updSeasonTint(dt, terrain.material, vegetation.leafMat, season(), wetness());
   updRain(dt, cam.t, WX.rain, isWinter());
   if (DEV.wind) updWind(dt, WX.rain, WX.cloud);
   if (G.flashT > 0) G.flashT -= dt;

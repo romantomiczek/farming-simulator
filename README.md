@@ -115,6 +115,8 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 **Atmosféra:** obloha se sluncem, které zapadá za obzor, s měsícem, hvězdami a mraky (při zatažení jich je víc a šednou). Ráno a večer je světlo zlaté. Obilí, stromy a živé ploty se vlní ve větru, při dešti víc. Kola nechávají v poli koleje, které zmizí, až pole obděláš, a za sucha se za stroji práší. Kameru sklopíš myší až k obzoru.
 
+**Viditelná práce:** kombajn rozhazuje za sebou z drtiče vějíř slámy a plev, sklízeč cukrovky sype hlínu a odhazuje chrást. Pluh převrací hroudy doprava, kultivátor je vyhazuje nahoru a za kultivátorem, pluhem i secím strojem zůstává pruh čerstvé tmavé hlíny, který za dvě minuty oschne (`src/fx/furrows.js`). Lis zvedá ze řádku seno a slámu a balík vypadne s obláčkem stébel. Z výsypné roury i ze sklopeného přívěsu teče souvislý proud zrna (`src/fx/streams.js`). Po dešti jsou pole a tráva tmavší a na cestách se lesknou kaluže, které s osycháním mizí (`src/fx/wet.js`).
+
 **Nálada krajiny** (`src/world/atmosphere.js`): ráno od svítání do devíti se zatahuje mlha, nejhustší dole u řeky. Když v podvečer přestane pršet a slunce je nízko, objeví se naproti slunci duha. Večer se rozsvítí asi dvě třetiny oken a pouliční lampy ve vesnici, v městečku a v rozích dvora, které kreslí na zem teplý kruh světla. Z komínů statku a vesnických domů se kouří, nejvíc v zimě a ráno a večer. Na podzim padá ze stromů kolem tebe listí, v letních nocích létají nad trávou světlušky.
 
 **Zvuk:** motory z nahrávek skutečných strojů, hudba, vítr, déšť, ptáci a zvířata, viz [Zvuk](#zvuk).
