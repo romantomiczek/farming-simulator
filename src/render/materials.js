@@ -63,6 +63,20 @@ const baseCompile = THREE.Material.prototype.onBeforeCompile;
 const plain = m => m.isMeshStandardMaterial && !m.map && !m.transparent && m.opacity === 1 && !m.vertexColors &&
   m.emissive.r + m.emissive.g + m.emissive.b === 0 && m.onBeforeCompile === baseCompile;
 const vcCache = new Map();
+/** Dirt of a machine: a uniform per machine (dirtMaterials()); the rest of the world stays clean. */
+const DIRT0 = { value: 0 };
+/** Mud on a machine's vertex-coloured surfaces: thicker low down, blotchy (blocky noise suits the low-poly look). */
+const DIRT_GLSL = `
+  float mudK = 0.0;
+  if (uDirt > 0.001) {
+    float hgt = clamp(vLocal.y / 2.6, 0.0, 1.0);
+    float n1 = fract(sin(dot(floor(vLocal * 2.1), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    float n2 = fract(sin(dot(floor(vLocal * 5.6), vec3(39.3, 11.1, 71.7))) * 24634.63);
+    float cover = uDirt * (1.25 - hgt) + (n1 * 0.6 + n2 * 0.4 - 0.5) * 0.55;
+    mudK = smoothstep(0.32, 0.55, cover);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.48, 0.38), uDirt * 0.22 * (1.0 - hgt)); // a film of dust
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.22, 0.15) * (0.75 + 0.5 * n2), mudK * 0.9);
+  }`;
 /**
  * Shared vertex-coloured material for merged plain meshes (with or without winter snow). Colour,
  * roughness and metalness come from the vertices (attribute surf = roughness, metalness), and
@@ -74,14 +88,17 @@ function vcMat(m, snowy, atlas) {
   if (!vcCache.has(k)) {
     const vm = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1, metalness: 1, side: m.side });
     if (atlas) { vm.map = atlas.mat.map; vm.alphaTest = 0.5; }
-    vm.onBeforeCompile = sh => {
+    // a function (not an arrow): a machine's own copy binds its own dirt uniform (this.userData.dirt)
+    vm.onBeforeCompile = function (sh) {
+      sh.uniforms.uDirt = this?.userData?.dirt || DIRT0;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec2 surf;\nvarying vec2 vSurf;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf = surf;');
+        .replace('#include <common>', '#include <common>\nattribute vec2 surf;\nvarying vec2 vSurf;\nvarying vec3 vLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf = surf;\nvLocal = position;');
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vSurf;')
-        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * vSurf.x;')
-        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = metalness * vSurf.y;');
+        .replace('#include <common>', '#include <common>\nvarying vec2 vSurf;\nvarying vec3 vLocal;\nuniform float uDirt;')
+        .replace('#include <color_fragment>', '#include <color_fragment>' + DIRT_GLSL)
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = mix(roughness * vSurf.x, 1.0, mudK);')
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = metalness * vSurf.y * (1.0 - mudK);');
     };
     vm.customProgramCacheKey = () => 'surf';
     vcCache.set(k, snowy ? addSnow(vm) : vm);
@@ -151,4 +168,24 @@ export function bake(root, opts = {}) {
   };
   visit(root);
   return root;
+}
+
+/**
+ * Gives the machine (or implement) under root its own copies of the shared vertex-coloured materials,
+ * bound to the uniform dirt = { value: 0..1 }. The copies use the same shader program: no compiling,
+ * no extra draw calls.
+ */
+export function dirtMaterials(root, dirt) {
+  const copies = new Map();
+  root.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.customProgramCacheKey?.() !== 'surf') return;
+    let c = copies.get(o.material);
+    if (!c) {
+      c = o.material.clone();
+      c.onBeforeCompile = o.material.onBeforeCompile; c.customProgramCacheKey = o.material.customProgramCacheKey;
+      c.userData = { dirt };
+      copies.set(o.material, c);
+    }
+    o.material = c;
+  });
 }

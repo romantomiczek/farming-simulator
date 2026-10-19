@@ -22,6 +22,7 @@ const ANIMALS = { cows: 'Krávám', hens: 'Slepicím', sheep: 'Ovcím', pigs: 'P
 import { logPrice, bestWood, woodBuyerAt } from '../game/forestry.js';
 import { trees, volume, matureCount, nearestTree, MATURE } from '../world/forest.js';
 import { person, machineInReach } from '../world/person.js';
+import { WASH_PRICE, dirtOf } from '../game/dirt.js';
 
 const $ = id => document.getElementById(id);
 const ui = {
@@ -112,6 +113,7 @@ function taskText() {
 function fPrompt(a) {
   if (!a) return null;
   switch (a.kind) {
+    case 'wash': return 'Umýt stroj' + (a.v.tool ? ' s nářadím' : '') + ' za ' + fmt(WASH_PRICE) + ' Kč';
     case 'refuel': { const l = refuelLiters(a.v); return l >= 1 ? 'Natankovat ' + fmt(l) + ' l nafty za ' + fmt(l * DIESEL) + ' Kč' : 'Na naftu nemáš peníze'; }
     case 'stopUnload': return 'Zastavit vykládku ' + a.h.gen;
     case 'fell': return 'Pokácet strom · ' + m3(volume(trees[a.i]));
@@ -139,6 +141,8 @@ function fPrompt(a) {
 const condTxt = v => {
   let t = 'stroj ' + pct(v.cond);
   if (v.tool) t += ' · nářadí ' + pct(v.tool.cond);
+  const d = Math.max(dirtOf(v), dirtOf(v.tool));
+  if (d > 0.25) t += d > 0.65 ? ' · zablácený' : ' · špinavý';
   return '<dt>Stav</dt><dd' + (Math.min(v.cond, v.tool ? v.tool.cond : 1) < 0.3 ? ' class="down"' : '') + '>' + t + '</dd>';
 };
 

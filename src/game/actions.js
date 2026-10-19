@@ -22,6 +22,7 @@ import { shedZone } from '../world/layout.js';
 import { cam, LOOK_UP } from '../render/camera.js';
 import { toast } from '../ui/toast.js';
 import { person, machineInReach, seat, leave } from '../world/person.js';
+import { inWash, needsWash, startWash } from './dirt.js';
 
 export const inShed = v => v.x > shedZone.x0 && v.x < shedZone.x1 && v.z > shedZone.z0 && v.z < shedZone.z1;
 export const nearSign = v => signs.find(s => !s.f.owned && Math.hypot(v.x - s.x, v.z - s.z) < 10);
@@ -39,6 +40,7 @@ export const otherHeader = v => (v.header === 'grain' ? (has('cornHeader') ? 'co
 export function fAction() {
   if (G.onFoot) { const s = nearSign(person); return s ? { kind: 'buy', sign: s } : null; }
   const v = G.active;
+  if (inWash(v) && needsWash(v)) return { kind: 'wash', v };
   if (inFuel(v) && v.fuel < v.fuelCap - 1) return { kind: 'refuel', v };
   if (v.type === 'forest') {
     if (v.cutting) return null;
@@ -199,6 +201,7 @@ export function doF() {
   if (!a) return;
   switch (a.kind) {
     case 'refuel': refuel(a.v); return;
+    case 'wash': startWash(a.v); return;
     case 'fell': fell(G.active, a.i); return;
     case 'sellLogs': sellLogs(G.active, saveLocal); return;
     case 'fillWater': { const w = a.w, l = w.waterCap - w.water; w.water = w.waterCap; toast('Nabráno ' + fmt(l) + ' l vody z rybníka.', 'good'); return; }

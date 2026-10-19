@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { M, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y } from './terrain.js';
-import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, circles, addBox, onBridge } from './layout.js';
+import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, circles, addBox, onBridge } from './layout.js';
 import { MARKETS } from '../game/markets.js';
 import { buildLandmarks } from './landmarks.js';
 import { WOOD_BUYERS } from './layout.js';
@@ -192,6 +192,14 @@ export function buildFarm(scene) {
     B(0.62, 0.4, 0.47, '#c8553f', fx, 1.35, fz, st);
     circles.push({ x: fx + 0.8, z: fz, r: 1.6 }); }
 
+  // the wash: a blue gantry with a row of nozzles over a concrete pad
+  { const { x, z, r } = WASH, blue = '#3f7fa6';
+    flatPlane(2 * r + 1, 2 * r + 1, '#b9bdbb', x, 0.04, z, st);
+    for (const sx of [-1, 1]) { B(0.3, 4.6, 0.3, blue, x + sx * (r + 0.3), 2.3, z, st); circles.push({ x: x + sx * (r + 0.3), z, r: 0.3 }); }
+    B(2 * r + 0.9, 0.35, 0.4, blue, x, 4.6, z, st);
+    for (let k = -3; k <= 3; k++) CY(0.06, 0.09, 0.25, 6, '#d6dde0', x + k * (r / 3.5), 4.3, z, st);
+    label(st, 'Myčka', x, 5.4, z, 0); }
+
   // wind turbine towers
   const rotors = [];
   for (const [x, z] of TURBINES) {
@@ -304,6 +312,9 @@ function addZoneMarkers(scene) {
   const fuelRing = new THREE.Mesh(new THREE.RingGeometry(fuelZone.r - 0.5, fuelZone.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#c8553f'), transparent: true, opacity: 0.75 }));
   fuelRing.rotation.x = -Math.PI / 2; fuelRing.position.set(fuelZone.x, 0.06, fuelZone.z); scene.add(fuelRing);
+  const washRing = new THREE.Mesh(new THREE.RingGeometry(WASH.r - 0.5, WASH.r, 40),
+    new THREE.MeshBasicMaterial({ color: col('#3f7fa6'), transparent: true, opacity: 0.75 }));
+  washRing.rotation.x = -Math.PI / 2; washRing.position.set(WASH.x, 0.07, WASH.z); scene.add(washRing);
   const sq = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.0, 4, 1),
     new THREE.MeshBasicMaterial({ color: col('#7fb2a4'), transparent: true, opacity: 0.7 }));
   sq.rotation.x = -Math.PI / 2; sq.rotation.z = Math.PI / 4; sq.position.set(12, 0.06, -34.5); sq.scale.set(1.35, 0.55, 1); scene.add(sq);

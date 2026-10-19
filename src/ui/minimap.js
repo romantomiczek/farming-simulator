@@ -3,7 +3,7 @@ import { person } from '../world/person.js';
 import { vehicles, tools, parkExtent, parkHooks, labelOf } from '../vehicles/vehicles.js';
 import { G } from '../game/state.js';
 import {
-  BOUNDS, ROADS, PAD, PARK, POND, HOUSES, CHURCH, baleZone, fuelZone, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
+  BOUNDS, ROADS, PAD, PARK, POND, HOUSES, CHURCH, baleZone, fuelZone, WASH, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
   RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS, SHEEP_PEN, PIG_PEN, DAIRY, BUYER_AT,
 } from '../world/layout.js';
 import { treeDots } from '../world/vegetation.js';
@@ -61,7 +61,7 @@ function drawStatic(c, sc) {
   c.fillStyle = '#dfe1dc';
   for (const x of [15, 21.5]) { c.beginPath(); c.arc(bx(x), by(-19), 3 * sc, 0, 7); c.fill(); }
   MARKETS.forEach(m => ring(m, m.color));
-  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); WOOD_BUYERS.forEach(w => ring(w, '#8a6a4a')); ring(DAIRY, '#f2efe6');
+  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); ring(WASH, '#3f7fa6'); WOOD_BUYERS.forEach(w => ring(w, '#8a6a4a')); ring(DAIRY, '#f2efe6');
 }
 /** Town buildings for the maps (filled in by the town builder). */
 export const townBlocks = [];

@@ -38,6 +38,7 @@ import { buildAtmosphere, updAtmosphere } from './world/atmosphere.js';
 import { updStreams } from './fx/streams.js';
 import { updFurrows } from './fx/furrows.js';
 import { updWet, wetness } from './fx/wet.js';
+import { updDirt } from './game/dirt.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
@@ -152,6 +153,7 @@ function tick(dt) {
     visual(v, dt, v.tank.crop >= 0 ? CROPS[v.tank.crop].heapCol : null);
   }
   updateTrailers(dt);
+  for (const v of vehicles) updDirt(v, dt, wetness(), WX.rain);
   if (G.onFoot && G.playing) walk(dt, input, keys.ShiftLeft || keys.ShiftRight);
   showPerson(dt);
   if (person.step) { // footsteps: crunching on the roads, soft on the fields and the grass

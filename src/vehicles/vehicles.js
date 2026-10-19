@@ -3,7 +3,7 @@ import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
 import { nearShapes, BOUNDS, movers, PARK, PAD, roadAt, inRect } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
-import { flatPlane, glassMat, lampMat, beaconMat } from '../render/materials.js';
+import { flatPlane, glassMat, lampMat, beaconMat, dirtMaterials } from '../render/materials.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
@@ -114,6 +114,7 @@ function makeTool(key, mid) {
   }
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
   if (key !== 'trailer') im.foot = footprint(im.group); // collision shape while hitched (trailers have their circles)
+  im.dirtU = { value: 0 }; dirtMaterials(im.group, im.dirtU); // mud (game/dirt.js)
   return im;
 }
 
@@ -209,6 +210,9 @@ function makeVehicle(type, mid) {
   v.inertia = ((2 * v.bodyPart.hx) ** 2 + (2 * v.bodyPart.hz) ** 2) / 12;
   v.pivotZ = pivotOf(v);
   v.seat = seatOf(v);
+  // mud (game/dirt.js): the machine and its headers get their own material copies
+  v.dirtU = { value: 0 };
+  for (const g of [v.group, v.grainHdr, v.cornHdr]) if (g) dirtMaterials(g, v.dirtU);
   v.yaw = 0; v.lat = 0; v.axS = 0; v.ayS = 0; v.hit = 0;
   refreshParts(v);
   return v;

@@ -117,6 +117,8 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 **Viditelná práce:** kombajn rozhazuje za sebou z drtiče vějíř slámy a plev, sklízeč cukrovky sype hlínu a odhazuje chrást. Pluh převrací hroudy doprava, kultivátor je vyhazuje nahoru a za kultivátorem, pluhem i secím strojem zůstává pruh čerstvé tmavé hlíny, který za dvě minuty oschne (`src/fx/furrows.js`). Lis zvedá ze řádku seno a slámu a balík vypadne s obláčkem stébel. Z výsypné roury i ze sklopeného přívěsu teče souvislý proud zrna (`src/fx/streams.js`). Po dešti jsou pole a tráva tmavší a na cestách se lesknou kaluže, které s osycháním mizí (`src/fx/wet.js`).
 
+**Špína a myčka** (`src/game/dirt.js`): stroje se při práci na poli a jízdě mimo cesty postupně špiní, v blátě po dešti mnohem rychleji (za sucha je traktor celý zablácený asi po sedmi minutách práce, v blátě za necelé dvě). Bláto je na stroji vidět: tmavší spodek, kola a fleky, nářadí a přívěs se špiní s ním. Déšť trochu opláchne. V myčce jižně od kravína (modrý rám a kroužek) F stroj i s nářadím umyje za 250 Kč. HUD ukazuje „špinavý“ nebo „zablácený“, hra si špínu pamatuje.
+
 **Nálada krajiny** (`src/world/atmosphere.js`): ráno od svítání do devíti se zatahuje mlha, nejhustší dole u řeky. Když v podvečer přestane pršet a slunce je nízko, objeví se naproti slunci duha. Večer se rozsvítí asi dvě třetiny oken a pouliční lampy ve vesnici, v městečku a v rozích dvora, které kreslí na zem teplý kruh světla. Z komínů statku a vesnických domů se kouří, nejvíc v zimě a ráno a večer. Na podzim padá ze stromů kolem tebe listí, v letních nocích létají nad trávou světlušky.
 
 **Zvuk:** motory z nahrávek skutečných strojů, hudba, vítr, déšť, ptáci a zvířata, viz [Zvuk](#zvuk).

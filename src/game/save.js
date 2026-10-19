@@ -69,10 +69,10 @@ export function serialize() {
     })),
     fleet: vehicles.map(v => ({
       id: v.id, type: v.type, model: v.model, own: v.own, cond: v.cond, slot: v.slot, x: r2(v.x), z: r2(v.z), h: v.h, fuel: v.fuel, tool: v.tool?.id ?? null,
-      tank: v.harvester ? v.tank : undefined, seedCrop: v.seedCrop, baleAcc: v.baleAcc, hayAcc: v.hayAcc || 0, header: v.header, logs: v.logs, helper: serializeHelper(v),
+      tank: v.harvester ? v.tank : undefined, seedCrop: v.seedCrop, baleAcc: v.baleAcc, hayAcc: v.hayAcc || 0, header: v.header, logs: v.logs, helper: serializeHelper(v), dirt: r2(v.dirtU?.value || 0),
     })),
     tools: tools.map(t => ({
-      id: t.id, key: t.key, model: t.model, own: t.own, cond: t.cond, slot: t.slot,
+      id: t.id, key: t.key, model: t.model, own: t.own, cond: t.cond, slot: t.slot, dirt: r2(t.dirtU?.value || 0),
       ...(t.key === 'trailer' ? { x: r2(t.x), z: r2(t.z), h: t.h, tank: t.tank, bales: t.bales, hay: t.hay || 0 } : {}),
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
@@ -205,6 +205,7 @@ function loadFleet(plan) {
   clearFleet();
   for (const e of plan.tools) {
     const t = addTool(e.key, { id: e.id, model: e.model, own: e.own, cond: clamp01(e.cond), slot: Number.isInteger(e.slot) ? e.slot : undefined });
+    t.dirtU.value = Number.isFinite(e.dirt) ? clamp01(e.dirt) : 0;
     if (t.key === 'trailer') {
       const k = e.tank;
       t.tank = { crop: k ? k.crop | 0 : -1, amount: k ? Math.max(0, +k.amount || 0) : 0, cap: t.tank.cap };
@@ -217,6 +218,7 @@ function loadFleet(plan) {
   }
   for (const e of plan.fleet) {
     const v = addVehicle(e.type, { id: e.id, model: e.model, own: e.own, cond: clamp01(e.cond), slot: Number.isInteger(e.slot) ? e.slot : undefined });
+    v.dirtU.value = Number.isFinite(e.dirt) ? clamp01(e.dirt) : 0;
     if (e.fresh) continue; // missing in an old save: starts at home
     Object.assign(v, { x: num(+e.x, v.x), z: num(+e.z, v.z), h: num(+e.h, 0), seedCrop: (e.seedCrop | 0) % CROPS.length, baleAcc: e.baleAcc | 0, hayAcc: e.hayAcc | 0 });
     v.fuel = Number.isFinite(e.fuel) ? Math.max(0, Math.min(v.fuelCap, e.fuel)) : v.fuelCap;

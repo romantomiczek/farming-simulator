@@ -387,6 +387,29 @@ try {
   check('viditelná práce', vis.furrows > 5 && vis.stream && vis.wet.puddles && vis.wet.darker,
     'čerstvá hlína ' + vis.furrows + ' pruhů · proud zrna ' + (vis.stream ? 'ano' : 'ne') + ' · po dešti kaluže ' + (vis.wet.puddles ? 'ano' : 'ne') + ', tmavší pole ' + (vis.wet.darker ? 'ano' : 'ne'));
 
+  // dirt: field work in the mud dirties the tractor and its implement, the wash cleans both for
+  // its price, a saved game keeps the dirt
+  const dirt = await page.evaluate(async () => {
+    const z = window.__zl, D = await import('/src/game/dirt.js'), L = await import('/src/world/layout.js'), W = await import('/src/game/weather.js'), S = await import('/src/game/save.js');
+    const t = z.vehicles.find(v => v.type === 'tractor'), f2 = z.fields.find(x => x.id === 2), was = z.G.active, home = { x: t.x, z: t.z, h: t.h };
+    z.seat(t); z.attach('cultivator', t); t.dirtU.value = 0; t.tool.dirtU.value = 0;
+    W.WX.force = 'clear'; W.WX.rain = 0; W.WX.wetUntil = z.G.gameMin + 300; // a muddy field
+    Object.assign(t, { x: f2.x0 + 8, z: f2.z0 + 4, h: 0, speed: 0, lowered: true, helper: null });
+    z.hold('KeyW', 150);
+    const dirty = [t.dirtU.value, t.tool.dirtU.value];
+    t.lowered = false;
+    const saved = S.serialize().fleet.find(e => e.id === t.id).dirt;
+    Object.assign(t, { x: L.WASH.x, z: L.WASH.z, speed: 0 });
+    const m0 = z.G.money; z.act('KeyF'); const paid = m0 - z.G.money;
+    z.step(200);
+    const clean = [t.dirtU.value, t.tool.dirtU.value];
+    W.WX.force = null; W.WX.wetUntil = 0;
+    Object.assign(t, home, { speed: 0 }); z.seat(was);
+    return { dirty, saved, paid, clean };
+  });
+  check('špína a myčka', dirt.dirty[0] > 0.03 && dirt.dirty[1] > 0.03 && dirt.saved > 0.03 && dirt.paid === 250 && dirt.clean[0] === 0 && dirt.clean[1] === 0,
+    'po práci v blátě traktor ' + Math.round(dirt.dirty[0] * 100) + ' %, nářadí ' + Math.round(dirt.dirty[1] * 100) + ' % · uloženo ' + Math.round(dirt.saved * 100) + ' % · myčka za ' + dirt.paid + ' Kč → ' + Math.round(dirt.clean[0] * 100) + ' %');
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;
