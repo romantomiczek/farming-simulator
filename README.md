@@ -119,6 +119,8 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 **Špína a myčka** (`src/game/dirt.js`): stroje se při práci na poli a jízdě mimo cesty postupně špiní, v blátě po dešti mnohem rychleji (za sucha je traktor celý zablácený asi po sedmi minutách práce, v blátě za necelé dvě). Bláto je na stroji vidět: tmavší spodek, kola a fleky, nářadí a přívěs se špiní s ním. Déšť trochu opláchne. V myčce jižně od kravína (modrý rám a kroužek) F stroj i s nářadím umyje za 250 Kč. HUD ukazuje „špinavý“ nebo „zablácený“, hra si špínu pamatuje.
 
+**Lidé** (`src/world/villagers.js`): ve vesnici a v městečku chodí lidé po chodnících (když jim před cestou projíždí stroj, počkají), u kostela, na náměstí a u obchodu stojí hloučky a povídají si. Na noc odejdou domů. U každého výkupu stojí výkupčí a mává, když tam prodáváš. Lidé jsou ze stejných dílů jako farmář, různě oblečení (kšiltovky, klobouky, vlasy), a kreslí se všichni dohromady jako instance. Stroj do nich nenajede.
+
 **Nálada krajiny** (`src/world/atmosphere.js`): ráno od svítání do devíti se zatahuje mlha, nejhustší dole u řeky. Když v podvečer přestane pršet a slunce je nízko, objeví se naproti slunci duha. Večer se rozsvítí asi dvě třetiny oken a pouliční lampy ve vesnici, v městečku a v rozích dvora, které kreslí na zem teplý kruh světla. Z komínů statku a vesnických domů se kouří, nejvíc v zimě a ráno a večer. Na podzim padá ze stromů kolem tebe listí, v letních nocích létají nad trávou světlušky.
 
 **Zvuk:** motory z nahrávek skutečných strojů, hudba, vítr, déšť, ptáci a zvířata, viz [Zvuk](#zvuk).

@@ -6,9 +6,9 @@ import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
 import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD, fieldAt, setFieldWet } from './world/fields.js';
 import { roadAt } from './world/layout.js';
-import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD, surface } from './vehicles/vehicles.js';
+import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD, surface, trailerCenter } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
-import { work, updateLogistics } from './game/work.js';
+import { work, updateLogistics, sellPoint } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
 import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper, toggleSeat, toggleCabView } from './game/actions.js';
@@ -39,6 +39,7 @@ import { updStreams } from './fx/streams.js';
 import { updFurrows } from './fx/furrows.js';
 import { updWet, wetness } from './fx/wet.js';
 import { updDirt } from './game/dirt.js';
+import { buildVillagers, updVillagers } from './world/villagers.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
@@ -58,6 +59,7 @@ const farmstead = buildFarmstead();
 const wildlife = buildWildlife();
 const traffic = buildTraffic();
 buildAtmosphere();
+buildVillagers();
 ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'sheep', 'pigs', 'mixer', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
@@ -130,7 +132,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveL
 
 /* ---------- main loop ---------- */
 let slowT = 0, mapT = 0, forestHours = 0, growHours = 0;
-const ear = { x: 0, z: 0, rx: 1, rz: 0 };
+const ear = { x: 0, z: 0, rx: 1, rz: 0 }, selling = new Set();
 function tick(dt) {
   if (G.playing) {
     const gm = DEV.freezeTime ? 0 : dt * TIME_SCALES[G.tsIdx] * DEV.timeMult;
@@ -171,6 +173,12 @@ function tick(dt) {
   forestryTick(dt);
   farmstead.update(dt);
   if (G.playing) traffic.update(dt, { vehicles, listener: player() });
+  { // people in the village and the town; the buyer waves where you are selling now
+    selling.clear();
+    for (const v of vehicles) if (v.harvester && v.unloading && v.tank.amount > 0) { const m = sellPoint(v, v.tank.crop); if (m) selling.add(m); }
+    for (const t of tools) if (t.tipping && t.on) { const m = sellPoint(trailerCenter(t), t.tank.crop); if (m) selling.add(m); }
+    updVillagers({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, vehicles, selling });
+  }
   if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: player(), hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);
   updStreams(dt);

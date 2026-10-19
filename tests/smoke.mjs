@@ -410,6 +410,24 @@ try {
   check('špína a myčka', dirt.dirty[0] > 0.03 && dirt.dirty[1] > 0.03 && dirt.saved > 0.03 && dirt.paid === 250 && dirt.clean[0] === 0 && dirt.clean[1] === 0,
     'po práci v blátě traktor ' + Math.round(dirt.dirty[0] * 100) + ' %, nářadí ' + Math.round(dirt.dirty[1] * 100) + ' % · uloženo ' + Math.round(dirt.saved * 100) + ' % · myčka za ' + dirt.paid + ' Kč → ' + Math.round(dirt.clean[0] * 100) + ' %');
 
+  // people: walkers and talkers in the village by day (gone at night), a buyer at every intake
+  // standing on a free spot, a walker waits for a machine across the pavement
+  const ppl = await page.evaluate(async () => {
+    const z = window.__zl, V = await import('/src/world/villagers.js'), L = await import('/src/world/layout.js');
+    const was = { min: z.G.gameMin, foot: z.G.onFoot, x: z.person.x, zz: z.person.z };
+    const day0 = Math.floor(z.G.gameMin / 1440) * 1440;
+    z.G.onFoot = true; Object.assign(z.person, { x: 168, z: 90 });
+    z.G.gameMin = day0 + 11 * 60; z.step(3); const day = V.villagersShown();
+    z.G.gameMin = day0 + 23 * 60; z.step(3); const night = V.villagersShown();
+    const spots = V.villagerSpots(), buyers = spots.filter(p => p.kind === 'work');
+    const inside = (x, zz) => { let hit = false; L.nearShapes(x, zz, 1, c => { if (Math.hypot(x - c.x, zz - c.z) < c.r) hit = true; }, b => { if (!b.off && x > b.x0 && x < b.x1 && zz > b.z0 && zz < b.z1) hit = true; }); return hit; };
+    const stuck = spots.filter(p => p.kind !== 'walk' && inside(p.x, p.z)).length;
+    z.G.gameMin = was.min; z.G.onFoot = was.foot; Object.assign(z.person, { x: was.x, z: was.zz }); z.step(1);
+    return { day, night, buyers: buyers.length, stuck };
+  });
+  check('lidé ve vesnici', ppl.day >= 10 && ppl.night < ppl.day && ppl.night <= ppl.buyers && ppl.buyers >= 7 && !ppl.stuck,
+    've dne ' + ppl.day + ' lidí v dohledu, v noci ' + ppl.night + ' (jen výkupčí) · výkupčích ' + ppl.buyers + (ppl.stuck ? ' · ' + ppl.stuck + ' stojí v budově!' : ''));
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

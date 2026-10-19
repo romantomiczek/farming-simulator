@@ -42,6 +42,8 @@ function mergeAll(list) {
   return out;
 }
 const JEANS = '#3c5576', SHIRT = '#b5463a', CHECK = '#7d2c25', SKIN = '#e0b08f', BOOT = '#4a3a2c', CAP = '#3f6b45';
+/** Geometry helpers and colours for other people (world/villagers.js). */
+export { box, cyl, merge, JEANS, SKIN, BOOT };
 
 /** A farmer: shirt and check colours; legs bend at the knee, arms at the elbow. */
 function buildFarmer(shirt, check) {
