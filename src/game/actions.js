@@ -19,7 +19,7 @@ import { trailerCenter, vehicles, tools, towed, firstOf, HARVESTERS, IMPL_ORDER,
 import { keys } from '../core/input.js';
 import { signs, drawSign } from '../world/fields.js';
 import { shedZone } from '../world/layout.js';
-import { cam } from '../render/camera.js';
+import { cam, LOOK_UP } from '../render/camera.js';
 import { toast } from '../ui/toast.js';
 import { person, machineInReach, seat, leave } from '../world/person.js';
 
@@ -78,6 +78,14 @@ export function fAction() {
 
 /** On foot, the keys that work a machine only say how to get into one. */
 const needSeat = () => { if (G.onFoot) toast('Jsi pěšky. Dojdi ke stroji a nastup klávesou E.'); return G.onFoot; };
+
+/** V: the view from the driver's seat, or back to the camera behind the machine. */
+export function toggleCabView() {
+  if (G.onFoot) { toast('Pohled z kabiny je jen ve stroji. Nastup klávesou E.'); return; }
+  cam.cab = !cam.cab;
+  cam.look = 0; cam.lookUp = LOOK_UP;
+  if (!cam.cab) cam.manual = -99;
+}
 
 /** E: get into the machine within reach, or out of the one you drive. */
 export function toggleSeat() {

@@ -221,7 +221,7 @@ function seatOf(v) {
   if (!mark) return null;
   v.group.updateMatrixWorld(true);
   const p = new THREE.Vector3().setFromMatrixPosition(mark.matrixWorld).applyMatrix4(new THREE.Matrix4().copy(v.group.matrixWorld).invert());
-  return { x: p.x, y: p.y, z: p.z };
+  return { x: p.x, y: p.y, z: p.z, wheel: mark.userData.seat };
 }
 /** Local z of the axle that does not steer: the machine turns about it (rear axle of a car, front axle of a combine). */
 function pivotOf(v) {

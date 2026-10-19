@@ -11,7 +11,7 @@ import { CROPS } from './game/crops.js';
 import { work, updateLogistics } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper, toggleSeat } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHelper, toggleSeat, toggleCabView } from './game/actions.js';
 import { person, walk, showPerson, seat } from './world/person.js';
 import { helperTick } from './game/helpers.js';
 import { buildFarmstead } from './world/farmstead.js';
@@ -77,7 +77,7 @@ cam.t.set(player().x, 1, player().z);
 /* ---------- input & menu ---------- */
 /** Big map: clicking one of your machines puts you in it. */
 const openMap = () => toggleBigMap(undefined, v => { seat(v); cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
-const ACTIONS = { KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
+const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyK: () => openOffice(), KeyH: toggleHelper };
 bindInput(code => {
   if (mapEditorOpen()) return; // the map editor handles its own keys
   if (code === 'F9' && devEnabled) { toggleDev(); return; }

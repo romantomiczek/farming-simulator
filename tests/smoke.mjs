@@ -302,6 +302,13 @@ try {
     z.act('KeyE'); z.step(1);
     out.in = !z.G.onFoot && z.G.active === t;
     out.sits = z.person.group.parent === t.group && z.person.group.visible; // seen sitting in the cab
+    // V: the camera at his eyes in the cab, his hands on the wheel; V again: back behind the tractor
+    const C = (await import('/src/render/camera.js')), camera = (await import('/src/render/core.js')).camera;
+    z.act('KeyV'); z.step(2);
+    const eye = t.group.localToWorld(new (camera.position.constructor)(t.seat.x, t.seat.y + 0.62, t.seat.z + 0.05));
+    out.cab = camera.position.distanceTo(eye) < 0.05 && camera.near < 0.1;
+    z.act('KeyV'); z.step(2);
+    out.cab = out.cab && camera.near === 0.5 && !C.cam.cab;
     z.act('KeyE');
     out.out = z.G.onFoot && Math.hypot(z.person.x - t.x, z.person.z - t.z) < t.bodyPart.hz + 3;
     // walk 2 s straight ahead
@@ -322,8 +329,8 @@ try {
     P.seat(was);
     return out;
   });
-  check('chůze a nastupování', foot.start && foot.in && foot.sits && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.wall < -14.5 && foot.turn > 1 && foot.still && foot.tab,
-    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + (foot.sits ? ', sedí v kabině' : ', v kabině není vidět') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · A otočí o ' + foot.turn.toFixed(2) + ' rad · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
+  check('chůze a nastupování', foot.start && foot.in && foot.sits && foot.cab && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.wall < -14.5 && foot.turn > 1 && foot.still && foot.tab,
+    'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + (foot.sits ? ', sedí v kabině' : ', v kabině není vidět') + (foot.cab ? ' · pohled z kabiny ano' : ' · pohled z kabiny ne') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · A otočí o ' + foot.turn.toFixed(2) + ' rad · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
 
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {

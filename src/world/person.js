@@ -7,6 +7,7 @@ import { groundH } from './terrain.js';
 import { forestColliders } from './forest.js';
 import { vehicles, tools, trailerCircles } from '../vehicles/vehicles.js';
 import { worldPart, partCircle } from '../vehicles/body.js';
+import { inCab } from '../render/camera.js';
 
 /**
  * The farmer on foot. Walks and runs (Shift) where the camera looks (W/S/A/D), turns toward where he
@@ -72,7 +73,9 @@ function buildFarmer(shirt, check) {
   });
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   scene.add(g);
-  return { group: g, legs, arms };
+  // hands alone, for the driver's own view: they hold the steering wheel's rim
+  const hands = [-1, 1].map(() => { const m = new THREE.Mesh(merge([box(0.085, 0.085, 0.1, SKIN, 0, 0, 0), box(0.075, 0.07, 0.05, shirt, 0, -0.01, -0.075)]), mat); m.visible = false; g.add(m); return m; });
+  return { group: g, body, legs, arms, hands };
 }
 
 /** The player's farmer and the helper (blue shirt), who sits in the machine he drives. */
@@ -130,15 +133,31 @@ function moveTo(rig, parent, far = false) {
   if (rig.group.parent !== parent) parent.add(rig.group);
   rig.group.traverse(o => { if (o.isMesh) o.visible = !far; });
 }
-/** Sitting at the wheel: thighs forward, shins down, hands on the wheel. */
-function sit(rig, v) {
+/**
+ * Sitting at the wheel: thighs forward, shins down, hands on the wheel, one hand up and the other
+ * down as the wheel turns. eyes = the camera is in his head (cab view): only his arms show.
+ */
+function sit(rig, v, eyes = false) {
   if (!v?.seat) { rig.group.visible = false; return; }
   if (rig.group.parent !== v.group) moveTo(rig, v.group, v.lodFar);
   rig.group.visible = true;
   rig.group.position.set(v.seat.x, v.seat.y - 0.84, v.seat.z + 0.02);
   rig.group.rotation.set(0, 0, 0);
   for (const l of rig.legs) { l.hip.rotation.x = -1.45; l.knee.rotation.x = 1.4; }
-  for (const a of rig.arms) { a.sh.rotation.x = -0.65; a.el.rotation.x = -0.85; }
+  rig.arms.forEach((a, i) => { a.sh.rotation.x = -0.65 + (i ? 1 : -1) * (v.steer || 0) * 0.4; a.sh.rotation.z = 0; a.el.rotation.x = -0.85; });
+  // from his own eyes: no head, body or arms (they would fill the view), only the hands on the rim,
+  // a quarter to three, sliding round with the wheel
+  rig.body.visible = !eyes && !v.lodFar; // a machine drawn far has its simplified model: nobody sits in it
+  rig.arms.forEach(a => { a.sh.visible = !eyes; });
+  const w = v.seat.wheel;
+  rig.hands.forEach((hd, i) => {
+    hd.visible = eyes && !!w && !v.lodFar;
+    if (!hd.visible) return;
+    const ang = (i ? 0.35 : Math.PI - 0.35) + (v.steer || 0) * 2.2, k = Math.PI / 2 - w.tilt;
+    const lx = Math.cos(ang) * w.r, ly = Math.sin(ang) * w.r;
+    hd.position.set(lx, 0.84 + w.dy + ly * Math.cos(k), w.dz - 0.02 + ly * Math.sin(k));
+    hd.rotation.set(-k + Math.PI / 2 - 0.4, 0, ang - Math.PI / 2);
+  });
 }
 
 /**
@@ -152,10 +171,13 @@ export function showPerson(dt) {
   const g = model.group;
   if (!G.onFoot) {
     if (G.active.helper) g.visible = false; // the helper took the seat
-    else sit(model, G.active);
+    else sit(model, G.active, inCab(G.active));
     return;
   }
   if (g.parent !== scene) moveTo(model, scene);
+  model.body.visible = true;
+  model.arms.forEach(a => { a.sh.visible = true; });
+  model.hands.forEach(hd => { hd.visible = false; });
   g.visible = true;
   const before = Math.sin(person.phase), sp = Math.abs(person.speed);
   person.phase += dt * person.speed * 2.9; // backwards the stride runs backwards
@@ -168,6 +190,7 @@ export function showPerson(dt) {
   });
   model.arms.forEach((a, i) => {
     a.sh.rotation.x = (i ? s : -s) * swing * 0.9;
+    a.sh.rotation.z = 0;
     a.el.rotation.x = -(run ? 1.1 : 0.25) * Math.min(1, sp / WALK);
   });
   person.y = groundH(person.x, person.z);
