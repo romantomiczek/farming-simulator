@@ -35,6 +35,10 @@ export function flatPlane(w, d, hex, x, y, z, parent, opts) {
 }
 
 export const glassMat = new THREE.MeshStandardMaterial({ color: col('#b7dbe0'), roughness: 0.1, metalness: 0.15, transparent: true, opacity: 0.5 });
+/** Windows: about two in three light up in the evening (atmosphere.js sets the glow), the rest stay dark. */
+export const windowLit = new THREE.MeshStandardMaterial({ color: col('#5d7d8c'), roughness: 0.35, flatShading: true, emissive: col('#ffcc7a'), emissiveIntensity: 0 });
+let winSeq = 0;
+export const winMat = () => (winSeq++ % 3 === 2 ? M('#5d7d8c') : windowLit);
 export const lampMat = new THREE.MeshStandardMaterial({ color: col('#fff4d6'), emissive: col('#ffe2a0'), emissiveIntensity: 0 });
 export const beaconMat = new THREE.MeshStandardMaterial({ color: col('#f0a03a'), emissive: col('#ff9a2a'), emissiveIntensity: 0.4 });
 

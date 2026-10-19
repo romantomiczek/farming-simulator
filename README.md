@@ -115,6 +115,8 @@ Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodi
 
 **Atmosféra:** obloha se sluncem, které zapadá za obzor, s měsícem, hvězdami a mraky (při zatažení jich je víc a šednou). Ráno a večer je světlo zlaté. Obilí, stromy a živé ploty se vlní ve větru, při dešti víc. Kola nechávají v poli koleje, které zmizí, až pole obděláš, a za sucha se za stroji práší. Kameru sklopíš myší až k obzoru.
 
+**Nálada krajiny** (`src/world/atmosphere.js`): ráno od svítání do devíti se zatahuje mlha, nejhustší dole u řeky. Když v podvečer přestane pršet a slunce je nízko, objeví se naproti slunci duha. Večer se rozsvítí asi dvě třetiny oken a pouliční lampy ve vesnici, v městečku a v rozích dvora, které kreslí na zem teplý kruh světla. Z komínů statku a vesnických domů se kouří, nejvíc v zimě a ráno a večer. Na podzim padá ze stromů kolem tebe listí, v letních nocích létají nad trávou světlušky.
+
 **Zvuk:** motory z nahrávek skutečných strojů, hudba, vítr, déšť, ptáci a zvířata, viz [Zvuk](#zvuk).
 
 **Zvířata v krajině:** pes běhá po dvoře a vyběhne za projíždějícím strojem, u stodoly a domu posedávají dvě kočky. V údolí skáčou zajíci, na kraji lesa a kopců žijí lišky (víc za soumraku a v noci), na jižních svazích se pase stádo srnek, které za svítání a soumraku schází na louku. Hejno vran sedá na pole za strojem, který orá, kultivuje nebo sklízí. Zvířata utíkají před jedoucími stroji.

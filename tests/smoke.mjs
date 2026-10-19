@@ -332,6 +332,28 @@ try {
   check('chůze a nastupování', foot.start && foot.in && foot.sits && foot.cab && foot.out && foot.walked > 3 && foot.wall >= -15.4 + 0.3 && foot.wall < -14.5 && foot.turn > 1 && foot.still && foot.tab,
     'nová hra pěšky ' + (foot.start ? 'ano' : 'ne') + ' · nastoupil ' + (foot.in ? 'ano' : 'ne') + (foot.sits ? ', sedí v kabině' : ', v kabině není vidět') + (foot.cab ? ' · pohled z kabiny ano' : ' · pohled z kabiny ne') + ' · vystoupil vedle kabiny ' + (foot.out ? 'ano' : 'ne') + ' · ušel ' + foot.walked.toFixed(1) + ' m · u zdi domu z ' + foot.wall.toFixed(2) + ' · A otočí o ' + foot.turn.toFixed(2) + ' rad · Tab ' + (foot.tab ? 'do stroje' : 'nic'));
 
+  // atmosphere: lit windows and lamps at night, morning mist by the river (a real colour, not NaN),
+  // a rainbow when a shower ends in the evening sun
+  const atmo = await page.evaluate(async () => {
+    const z = window.__zl, W = await import('/src/game/weather.js'), M = await import('/src/render/materials.js'), core = await import('/src/render/core.js');
+    const was = { min: z.G.gameMin, foot: z.G.onFoot, x: z.person.x, zz: z.person.z };
+    const day0 = Math.floor(z.G.gameMin / 1440) * 1440;
+    z.G.onFoot = true; Object.assign(z.person, { x: -10, z: 30 });
+    const at = (h, rain) => { z.G.gameMin = day0 + h * 60; W.WX.force = rain ? 'rain' : 'clear'; W.WX.kind = W.WX.force; W.WX.rain = rain; W.WX.cloud = 0; z.step(3); };
+    at(21, 0);
+    const lamps = core.scene.children.find(o => o.isInstancedMesh && o.material.blending === 2);
+    const night = { windows: M.windowLit.emissiveIntensity, pools: !!lamps?.visible };
+    at(12, 0); const noonFar = core.scene.fog.far;
+    at(6.3, 0); const mistFar = core.scene.fog.far, c = core.scene.fog.color, colourOk = [c.r, c.g, c.b].every(Number.isFinite);
+    at(19.1, 1); at(19.1, 0); z.step(60);
+    const bow = core.scene.children.find(o => o.isMesh && o.material.isShaderMaterial && o.geometry.type === 'RingGeometry');
+    const rainbow = !!bow?.visible;
+    z.G.gameMin = was.min; z.G.onFoot = was.foot; Object.assign(z.person, { x: was.x, z: was.zz }); W.WX.force = null;
+    return { night, mist: mistFar / noonFar, colourOk, rainbow };
+  });
+  check('atmosféra', atmo.night.windows > 0.5 && atmo.night.pools && atmo.mist < 0.8 && atmo.colourOk && atmo.rainbow,
+    'okna v noci ' + atmo.night.windows.toFixed(2) + (atmo.night.pools ? ', lampy svítí' : ', lampy nesvítí') + ' · ranní mlha dohled ' + Math.round(atmo.mist * 100) + ' %' + (atmo.colourOk ? '' : ' (barva NaN!)') + ' · duha po dešti ' + (atmo.rainbow ? 'ano' : 'ne'));
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

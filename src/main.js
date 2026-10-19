@@ -33,7 +33,8 @@ import { updSnow, snapSnow } from './render/snow.js';
 import { WX, updateWeather, season, isWinter } from './game/weather.js';
 import { updRain } from './fx/rain.js';
 import { updTracks } from './fx/tracks.js';
-import { updWind } from './render/wind.js';
+import { updWind, wind } from './render/wind.js';
+import { buildAtmosphere, updAtmosphere } from './world/atmosphere.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
@@ -52,6 +53,7 @@ const vegetation = buildVegetation(scene);
 const farmstead = buildFarmstead();
 const wildlife = buildWildlife();
 const traffic = buildTraffic();
+buildAtmosphere();
 ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'sheep', 'pigs', 'mixer', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
@@ -171,7 +173,8 @@ function tick(dt) {
   updateCamera(dt, player());
   updLOD(camera.position, quality().machineLod);
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
-  updEnv(cam.t, G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
+  const day = updEnv(cam.t, G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
+  updAtmosphere({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, day, wx: WX, season: season().name, wind: DEV.wind ? wind.strength.value : 0 });
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season());
   updRain(dt, cam.t, WX.rain, isWinter());
   if (DEV.wind) updWind(dt, WX.rain, WX.cloud);

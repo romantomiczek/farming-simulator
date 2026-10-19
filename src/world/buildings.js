@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { M, mk, B, CY, flatPlane, bake, flatten } from '../render/materials.js';
+import { M, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y } from './terrain.js';
 import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, circles, addBox, onBridge } from './layout.js';
@@ -146,7 +146,7 @@ export function buildFarm(scene) {
   // farmhouse with a flower bed
   { const g = new THREE.Group(); g.position.set(-34, 0, -19); st.add(g);
     gable(9, 7, 4.2, '#efe6d6', '#7b5a4e', g);
-    for (const x of [-2.8, 0.2, 2.8]) B(1.1, 1.1, 0.1, '#5d7d8c', x, 2.6, 3.52, g);
+    for (const x of [-2.8, 0.2, 2.8]) B(1.1, 1.1, 0.1, winMat(), x, 2.6, 3.52, g);
     B(1.1, 2.1, 0.1, '#8a6a52', -1.4, 1.05, 3.52, g);
     B(0.8, 2.2, 0.8, '#b9a89a', 2.6, 6.2, -1, g);
     for (let i = 0; i < 9; i++) { const b = mk(new THREE.IcosahedronGeometry(0.55, 0), i % 3 ? '#7fa653' : '#e48a7a', -4 + i * 1.05, 0.45, 4); b.scale.y = 0.8; g.add(b); }
@@ -220,7 +220,8 @@ function buildVillage(st) {
   for (const [x, z, w, d, wall, roof, ry] of HOUSES) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; st.add(g);
     gable(w, d, 4.2, wall, roof, g);
-    for (const sx of [-w / 4, w / 4]) B(1.0, 1.0, 0.1, '#5d7d8c', sx, 2.5, d / 2 + 0.03, g);
+    B(0.7, d * 0.36 + 0.7, 0.7, '#a89a8c', w * 0.28, 4.2 + (d * 0.36 + 0.7) / 2, 0, g); // chimney (smoke: atmosphere.js)
+    for (const sx of [-w / 4, w / 4]) B(1.0, 1.0, 0.1, winMat(), sx, 2.5, d / 2 + 0.03, g);
     B(1.0, 2.0, 0.1, '#8a6a52', 0, 1.0, d / 2 + 0.03, g);
     addBox(x - d / 2, x + d / 2, z - w / 2, z + w / 2);
   }
@@ -228,7 +229,7 @@ function buildVillage(st) {
   gable(10, 7, 6, '#f2ebdf', '#7b5a4e', g);
   B(3.2, 12, 3.2, '#f2ebdf', -6.6, 6, 0, g);
   const spire = mk(new THREE.ConeGeometry(2.6, 5, 4), '#5d6268', -6.6, 14.5, 0, g); spire.rotation.y = Math.PI / 4;
-  B(1.0, 1.4, 0.1, '#5d7d8c', -6.6, 9, 1.65, g);
+  B(1.0, 1.4, 0.1, winMat(), -6.6, 9, 1.65, g);
   addBox(CHURCH.x - 6.2, CHURCH.x + 7.4, CHURCH.z - 3.6, CHURCH.z + 3.6);
 }
 
@@ -257,7 +258,7 @@ function buildBuyers(st, scene) {
   { const [g, m] = place('mill'), y = g.position.y;
     const b = new THREE.Group(); b.position.z = 14; g.add(b);
     gable(12, 10, 9, '#efe6d6', '#8a5a44', b);
-    for (const x of [-3.5, 0, 3.5]) for (const yy of [3, 6.5]) B(1.1, 1.3, 0.1, '#5d7d8c', x, yy, -5.03, b);
+    for (const x of [-3.5, 0, 3.5]) for (const yy of [3, 6.5]) B(1.1, 1.3, 0.1, winMat(), x, yy, -5.03, b);
     for (const dz of [-2.5, 2.5]) { CY(1.8, 1.8, 11, 14, '#dfe1dc', 9, 5.5, dz, b); mk(new THREE.ConeGeometry(1.9, 1.6, 14), '#c9cdc7', 9, 11.8, dz, b); circles.push({ x: m.x + 9, z: m.z + 14 + dz, r: 2 }); }
     addBox(m.x - 6, m.x + 6, m.z + 9, m.z + 19);
     label(scene, 'Mlýn', m.x, y + 6, m.z + 8.9, Math.PI); }

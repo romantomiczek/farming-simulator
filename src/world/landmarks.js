@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mk, B, CY, bake, flatten } from '../render/materials.js';
+import { mk, B, CY, bake, flatten, winMat } from '../render/materials.js';
 import { rng } from '../core/util.js';
 import { groundH } from './terrain.js';
 import { gable, label, strip } from './buildings.js';
@@ -22,7 +22,7 @@ function house(st, x, z, ry, w, d, h = 4.2) {
   const g = new THREE.Group(); g.position.set(x, groundH(x, z), z); g.rotation.y = ry; st.add(g);
   const wall = WALLS[(R() * WALLS.length) | 0];
   gable(w, d, h, wall, ROOFS[(R() * ROOFS.length) | 0], g);
-  for (const sx of [-w / 4, w / 4]) B(1.0, 1.0, 0.1, '#5d7d8c', sx, h * 0.6, d / 2 + 0.03, g);
+  for (const sx of [-w / 4, w / 4]) B(1.0, 1.0, 0.1, winMat(), sx, h * 0.6, d / 2 + 0.03, g);
   B(1.0, 2.0, 0.1, '#8a6a52', 0, 1.0, d / 2 + 0.03, g);
   if (R() < 0.5) B(0.7, 1.6, 0.7, '#b9a89a', w / 3, h + d * 0.36, 0, g); // chimney
   const along = Math.abs(Math.sin(ry)) < 0.5; // ridge along x
@@ -61,7 +61,7 @@ function buildTown(st, scene) {
   gable(14, 9, 7, '#f2ebdf', '#7b5a4e', g);
   B(4, 15, 4, '#f2ebdf', -8.8, 7.5, 0, g);
   const spire = mk(new THREE.ConeGeometry(3.2, 7, 4), '#5d6268', -8.8, 18.5, 0, g); spire.rotation.y = Math.PI / 4;
-  B(1.2, 1.6, 0.1, '#5d7d8c', -8.8, 11, 2.05, g);
+  B(1.2, 1.6, 0.1, winMat(), -8.8, 11, 2.05, g);
   addBox(535.5, 544.5, 86, 113);
   townBlocks.push({ x0: 535.5, x1: 544.5, z0: 86, z1: 113, col: '#f2ebdf' });
   // square
@@ -80,9 +80,9 @@ function buildTown(st, scene) {
   { const d = DAIRY, hx = d.x, hz = d.z - 18, y = groundH(d.x, d.z), g = new THREE.Group(); g.position.y = y; st.add(g);
     B(15, 5.5, 9, '#f3f1ea', hx, 2.75, hz, g); B(15.6, 0.3, 9.6, '#4f6f8f', hx, 5.65, hz, g);
     B(3.2, 3.2, 0.12, '#9aa3a8', hx - 3, 1.6, hz + 4.53, g);
-    for (const sz of [-1, 1]) for (const dx of [-6, -3.5, 1, 3.5, 6]) if (sz < 0 || dx > 0) B(1.4, 0.9, 0.1, '#5d7d8c', hx + dx, 3.8, hz + sz * 4.53, g);
+    for (const sz of [-1, 1]) for (const dx of [-6, -3.5, 1, 3.5, 6]) if (sz < 0 || dx > 0) B(1.4, 0.9, 0.1, winMat(), hx + dx, 3.8, hz + sz * 4.53, g);
     B(5, 3, 4, '#e6e8e4', hx - 9.5, 1.5, hz + 1, g); B(5.4, 0.25, 4.4, '#4f6f8f', hx - 9.5, 3.1, hz + 1, g); // office
-    B(1.2, 0.9, 0.1, '#5d7d8c', hx - 9.5, 1.9, hz + 3.03, g);
+    B(1.2, 0.9, 0.1, winMat(), hx - 9.5, 1.9, hz + 3.03, g);
     for (const dx of [5, 8.2]) { CY(1.4, 1.4, 9, 14, '#dde2e5', hx + dx + 4, 4.5, hz - 1, g); mk(new THREE.SphereGeometry(1.4, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#c9d0d4', hx + dx + 4, 9, hz - 1, g); circles.push({ x: hx + dx + 4, z: hz - 1, r: 1.5 }); }
     addBox(hx - 7.5, hx + 7.5, hz - 4.5, hz + 4.5); addBox(hx - 12, hx - 7, hz - 1, hz + 3);
     townBlocks.push({ x0: hx - 12, x1: hx + 7.5, z0: hz - 4.5, z1: hz + 4.5, col: '#f3f1ea' });
@@ -115,7 +115,7 @@ function buildRailway(st, scene) {
   // station: building, platform with a canopy, grain silos by the buyer's ring
   const g = new THREE.Group(); g.position.set(STATION.x + 4, 0, STATION.z); g.rotation.y = -Math.PI / 2; st.add(g);
   gable(18, 8, 5.5, '#f0dcc4', '#8a4c3c', g);
-  for (const sx of [-6, -2, 2, 6]) B(1.2, 1.6, 0.1, '#5d7d8c', sx, 3, 4.03, g);
+  for (const sx of [-6, -2, 2, 6]) B(1.2, 1.6, 0.1, winMat(), sx, 3, 4.03, g);
   addBox(STATION.x, STATION.x + 8, STATION.z - 9, STATION.z + 9);
   townBlocks.push({ x0: STATION.x, x1: STATION.x + 8, z0: STATION.z - 9, z1: STATION.z + 9, col: '#f0dcc4' });
   strip([[RAIL.x - 3.4, STATION.z - 30], [RAIL.x - 3.4, STATION.z + 30]], -1.5, 1.5, 0.55, '#cfc8bb', st);
