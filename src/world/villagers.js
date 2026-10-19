@@ -119,8 +119,15 @@ function joint(out, parent, x, y, z, rx, rz = 0) {
  * Every frame. ctx = { dt, target (camera target), hour, vehicles, selling (set of markets where
  * grain or wood is being sold right now) }.
  */
+/** Developer panel: people shown at all. */
+export const villagersOpt = { on: true };
 export function updVillagers(ctx) {
   if (!bodies.length) return;
+  if (!villagersOpt.on) {
+    for (const m of [...bodies, ...Object.values(limbs)]) { m.visible = false; m.count = 0; }
+    for (const p of people) p.mover.r = 0;
+    return;
+  }
   const { dt, target, hour, vehicles, selling } = ctx, day = hour > 6 && hour < 21.5, t = performance.now() / 1000;
   const bodyN = LOOKS.map(() => 0);
   let n = 0;

@@ -187,9 +187,19 @@ let pickT = 3;
  * ctx = { dt, playing, target (camera target), others: your machines and you on foot }. Returns the
  * neighbours' machines (for the engine sounds).
  */
+/** Developer panel: the neighbours' machines at all. */
+export const neighboursOpt = { on: true };
 export function updNeighbours(ctx) {
   const { dt, playing, others, target } = ctx;
   if (!road) buildRoadTractor();
+  if (!neighboursOpt.on) {
+    for (const j of jobs) remove(j.o);
+    jobs.length = 0;
+    road.o.group.visible = road.o.trailer.group.visible = false;
+    for (const c of [...road.o.circles, ...road.o.trailer.circles]) { c.x = c.z = -9999; }
+    sounds.length = 0;
+    return sounds;
+  }
   if (!playing) return sounds;
   // a neighbour takes over an offer you left lying (not where you are working right now)
   if ((pickT -= dt) <= 0) {

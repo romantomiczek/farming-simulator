@@ -66,6 +66,8 @@ const bow = new THREE.Mesh(
 bow.visible = false; bow.frustumCulled = false; bow.renderOrder = 2;
 scene.add(bow);
 const bowState = { t: 0, life: 0, wasRain: 0 };
+/** Developer panel: a rainbow now (it shows while the sun is up and not too high). */
+export const showRainbow = () => { bowState.life = 75; };
 
 /* ---------- fireflies ---------- */
 const NF = 60;

@@ -140,6 +140,16 @@ export function festAction(p, inTractor) {
   return null;
 }
 
+/** Developer panel: the next festival day at 11:00. */
+export function jumpToFestival() {
+  const day = dayOf(G.gameMin);
+  let next = DAYS_PER_SEASON - 1; // the last day of the first summer
+  while (next < day || (next === day && !festivalNow() && (G.gameMin / 60) % 24 >= 20)) next += DAYS_PER_SEASON * 4;
+  G.gameMin = next * 1440 + 11 * 60;
+}
+/** Developer panel: this year's contest and race can be won again. */
+export function resetFestival() { if (G.fest) { G.fest.contest = false; G.fest.race = false; } race.on = false; }
+
 /* ---------- every frame ---------- */
 let announced = -1;
 export function festivalTick(dt, active) {

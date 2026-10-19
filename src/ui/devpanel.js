@@ -18,7 +18,13 @@ import { SAWMILL, POND } from '../world/layout.js';
 import { saveLocal } from '../game/save.js';
 import { toast } from './toast.js';
 import { toggleMapEditor } from './mapeditor.js';
-import { person } from '../world/person.js';
+import { person, seat } from '../world/person.js';
+import { villagersOpt, villagersShown } from '../world/villagers.js';
+import { neighboursOpt, ageOffers, neighbourJobs } from '../world/neighbours.js';
+import { jumpToFestival, resetFestival, festivalNow, FEST } from '../game/festival.js';
+import { WASH } from '../world/layout.js';
+import { dirtOf } from '../game/dirt.js';
+import { wetness } from '../fx/wet.js';
 import { MODELS, modelName } from '../game/catalog.js';
 import { engineTest, engineInfo } from '../audio/engines.js';
 
@@ -83,6 +89,25 @@ function html() {
     ${check('devTracks', 'Stopy kol a prach')}
     ${check('devParticles', 'Částice (prach, kouř, plevy)')}
     ${check('devHud', 'Skrýt HUD (na snímky obrazovky)')}`, false)}
+  ${sec('Život v kraji', `
+    <p class="devread" id="devLife"></p>
+    ${range('devCars', 'Auta na silnicích', 0, 14, 1)}
+    ${range('devBikes', 'Cyklisté', 0, 10, 1)}
+    ${check('devPeople', 'Lidé ve vesnici a u výkupů')}
+    ${check('devNeighbours', 'Stroje sousedů (pole a silnice)')}
+    <div class="devbtns">${button('nbNow', 'Sousedé hned převezmou nabídky')}</div>`, false)}
+  ${sec('Atmosféra', `
+    <div class="devbtns">${button('atmoMist', 'Ranní mlha (6:15)')}${button('atmoNight', 'Večer s lampami (21:00)')}</div>
+    <div class="devbtns">${button('atmoRainbow', 'Duha teď')}${button('atmoAutumn', 'Podzim (listí)')}${button('atmoFlies', 'Letní noc (světlušky)')}</div>
+    <div class="devbtns">${button('atmoWet', 'Mokro po dešti')}${button('atmoDry', 'Sucho')}</div>`, false)}
+  ${sec('Stroj', `
+    <p class="devread" id="devMachine"></p>
+    <div class="devbtns">${button('cabView', 'Pohled z kabiny (V)')}${button('toWash', 'K myčce')}</div>
+    <div class="devbtns">${button('dirty', 'Zablátit')}${button('clean', 'Umýt hned')}</div>`, false)}
+  ${sec('Dožínky', `
+    <p class="devread" id="devFest"></p>
+    <div class="devbtns">${button('festJump', 'Přejít na dožínky')}${button('festGo', 'Přesunout k dožínkám')}</div>
+    <div class="devbtns">${button('festReset', 'Vynulovat letošní výhry')}</div>`, false)}
   ${sec('Mapa', `
     <p class="muted">Přesouvej a měň pole, louky, cesty, rybníky a lesy. Změny se uloží do src/world/map.json.</p>
     <div class="devbtns">${button('mapEdit', 'Editor mapy')}</div>`)}
@@ -124,6 +149,9 @@ function syncControls() {
   $('#devSky').checked = skyParts.dome.visible; $('#devClouds').checked = skyParts.clouds.visible;
   $('#devAnimals').checked = DEV.wildlife; $('#devWind').checked = DEV.wind; $('#devTracks').checked = DEV.tracks;
   $('#devParticles').checked = particleMesh.visible; $('#devHud').checked = document.body.classList.contains('dev-nohud');
+  const tc = hooks.traffic.count();
+  setVal('devCars', tc.cars, tc.cars); setVal('devBikes', tc.bikes, tc.bikes);
+  $('#devPeople').checked = villagersOpt.on; $('#devNeighbours').checked = neighboursOpt.on;
   $('#devSndTest').checked = engineTest.on; $('#devSndModel').value = engineTest.model;
   setVal('devSndRpm', engineTest.rpm, Math.round(engineTest.rpm * 100) + ' %');
   setVal('devSndLoad', engineTest.load, Math.round(engineTest.load * 100) + ' %');
@@ -147,6 +175,13 @@ function info() {
     q.cropDetail ? 'Plodiny: snopky' : 'Plodiny: kvádry',
   ].join('\n');
   $('#devSnd').textContent = engineInfo(v);
+  const nj = neighbourJobs();
+  $('#devLife').textContent = 'Lidí v dohledu: ' + villagersShown() + ' · sousedé na polích: ' + (nj.length ? nj.map(j => j.who + ' pole ' + j.field + ' ' + Math.round((j.seg / j.of) * 100) + ' %').join(', ') : 'nikdo') +
+    ' · nabídek: ' + G.contracts.offers.length;
+  $('#devMachine').textContent = (G.onFoot ? 'Pěšky (naposledy ' + v.name + ')' : v.name) + ' · špína ' + Math.round(dirtOf(v) * 100) + ' %' + (v.tool ? ', nářadí ' + Math.round(dirtOf(v.tool) * 100) + ' %' : '') +
+    ' · mokro ' + Math.round(wetness() * 100) + ' % · kabina ' + (cam.cab ? 'ano' : 'ne');
+  const f = G.fest;
+  $('#devFest').textContent = (festivalNow() ? 'Dožínky právě jsou. ' : 'Dožínky nejsou. ') + (f ? 'Rok ' + f.year + ' · soutěž ' + (f.contest ? 'vybrána' : 'čeká') + ' · traktoriáda ' + (f.race ? 'vyplacena' : 'čeká') + ' · rekord ' + (f.best != null ? f.best.toFixed(1) + ' s' : '—') : '');
 }
 
 /* ---------- actions ---------- */
@@ -164,6 +199,8 @@ function nextSeason() {
   G.gameMin = next * 1440 + (G.gameMin % 1440);
   toast('Období: ' + SEASONS[seasonIdx(next)].name);
 }
+/** Today if it is in season si (0 spring, 1 summer, 2 autumn, 3 winter), else the first day of its next turn. */
+function seasonDay(si) { let d = dayOf(G.gameMin); while (seasonIdx(d) !== si) d++; return d; }
 function forceWeather(k) {
   WX.force = k === 'auto' ? null : k;
   if (WX.force) { WX.kind = k; WX.rain = k === 'rain' ? 1 : 0; WX.cloud = k === 'clear' ? 0 : 1; }
@@ -215,9 +252,29 @@ const ACTS = {
   goalsReset: () => { G.goals = []; G.stats = emptyStats(); toast('Cíle a statistiky vynulovány.'); },
   teleport: () => teleport(+$('#devPlace').value),
   mapEdit: () => { toggleDev(false); toggleMapEditor(true); },
+  nbNow: () => { ageOffers(); toast('Sousedé převezmou nabídky, které jsou volné (nejvýš dva najednou).'); },
+  atmoMist: () => { setHour(6.25); forceWeather('clear'); },
+  atmoNight: () => { setHour(21); forceWeather('clear'); },
+  atmoRainbow: () => { if ((G.gameMin / 60) % 24 < 16 || (G.gameMin / 60) % 24 > 19.5) setHour(18); forceWeather('clear'); hooks.showRainbow(); },
+  atmoAutumn: () => { G.gameMin = seasonDay(2) * 1440 + 11 * 60; forceWeather('clear'); toast('Období: ' + season().name); },
+  atmoFlies: () => { G.gameMin = seasonDay(1) * 1440 + 23 * 60; forceWeather('clear'); toast('Období: ' + season().name); },
+  atmoWet: () => { WX.wetUntil = G.gameMin + 240; },
+  atmoDry: () => { WX.wetUntil = 0; forceWeather('clear'); },
+  cabView: () => { if (G.onFoot) { toast('Pohled z kabiny je jen ve stroji.'); return; } cam.cab = !cam.cab; },
+  toWash: () => { if (G.onFoot) seat(G.active); Object.assign(G.active, { x: WASH.x, z: WASH.z, speed: 0 }); cam.t.set(WASH.x, 1, WASH.z); },
+  dirty: () => { const v = G.active; if (v.dirtU) v.dirtU.value = 1; if (v.tool?.dirtU) v.tool.dirtU.value = 1; },
+  clean: () => { const v = G.active; if (v.dirtU) v.dirtU.value = 0; if (v.tool?.dirtU) v.tool.dirtU.value = 0; },
+  festJump: () => { jumpToFestival(); toast('Dožínky: ' + (festivalNow() ? 'právě jsou' : 'nejsou') + '.'); },
+  festGo: () => {
+    if (G.onFoot) { Object.assign(person, { x: FEST.x, z: FEST.z, speed: 0 }); cam.t.set(FEST.x, 1, FEST.z); return; }
+    Object.assign(G.active, { x: FEST.x, z: FEST.z, h: Math.PI / 2, speed: 0 });
+    if (G.active.tool) attachTool(G.active, G.active.tool);
+    cam.t.set(FEST.x, 1, FEST.z);
+  },
+  festReset: () => { resetFestival(); toast('Letošní soutěž i traktoriádu můžeš vyhrát znovu.'); },
 };
 // actions that change the saved game are saved right away
-const SAVES = new Set(['unlock', 'service', 'ripen', 'ripeAll', 'fields', 'feed', 'goal', 'goalsReset', 'money1', 'money2', 'dayBack', 'dayFwd', 'season']);
+const SAVES = new Set(['unlock', 'service', 'ripen', 'ripeAll', 'fields', 'feed', 'goal', 'goalsReset', 'money1', 'money2', 'dayBack', 'dayFwd', 'season', 'clean', 'dirty', 'festReset', 'festJump', 'atmoAutumn', 'atmoFlies']);
 
 function bind() {
   box.addEventListener('click', e => {
@@ -249,6 +306,10 @@ function bind() {
   on('devTracks', 'change', t => { DEV.tracks = t.checked; });
   on('devParticles', 'change', t => { particleMesh.visible = t.checked; });
   on('devHud', 'change', t => { document.body.classList.toggle('dev-nohud', t.checked); });
+  on('devCars', 'input', t => { const c = hooks.traffic.count(); hooks.traffic.setCount(+t.value, c.bikes); $('#devCarsOut').textContent = t.value; });
+  on('devBikes', 'input', t => { const c = hooks.traffic.count(); hooks.traffic.setCount(c.cars, +t.value); $('#devBikesOut').textContent = t.value; });
+  on('devPeople', 'change', t => { villagersOpt.on = t.checked; });
+  on('devNeighbours', 'change', t => { neighboursOpt.on = t.checked; });
   on('devSndTest', 'change', t => { engineTest.on = t.checked; });
   on('devSndModel', 'change', t => { engineTest.model = t.value; });
   on('devSndRpm', 'input', t => { engineTest.rpm = +t.value; $('#devSndRpmOut').textContent = Math.round(t.value * 100) + ' %'; });
@@ -259,7 +320,7 @@ function bind() {
   }
 }
 
-/** hooks = { applyQuality, wildlife } */
+/** hooks = { applyQuality, wildlife, traffic, showRainbow } */
 export function initDev(h) {
   if (!devEnabled) return;
   hooks = h;

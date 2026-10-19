@@ -251,6 +251,11 @@ Panel pro ladění a testování otevřeš klávesou **F9** nebo tlačítkem **D
 - **Počasí:** vynutí jasno, oblačno nebo déšť, nebo vrátí počasí podle předpovědi.
 - **Grafika:** předvolba a vlastní úpravy (rozlišení, stínová mapa, dohled, hustota stromů, expozice, stíny, stíny a tvar plodin). Úpravy se pamatují, dokud v panelu nedáš Zpět na předvolbu nebo nevybereš předvolbu v menu.
 - **Svět:** vypínače oblohy, mraků, zvířat, větru, stop kol, částic a skrytí HUD na snímky obrazovky.
+- **Život v kraji:** počet aut (0–14) a cyklistů (0–10), vypínač lidí a strojů sousedů, tlačítko, po kterém sousedé hned převezmou volné nabídky; přehled lidí v dohledu a toho, co sousedé dělají.
+- **Atmosféra:** ranní mlha, večer s lampami, duha hned, podzim s padajícím listím, letní noc se světluškami, mokro po dešti a sucho (období se přeskakuje jen dopředu).
+- **Stroj:** pohled z kabiny, přesun k myčce, zablácení a umytí stroje s nářadím; ukazuje špínu, mokro a kabinu.
+- **Dožínky:** skok na nejbližší dožínky, přesun ke kroužku, vynulování letošních výher; ukazuje stav soutěže, traktoriády a rekord.
+- **Zvuk motoru:** zkušebna motorů, viz Zvuk.
 - **Hra:** peníze, všechny stroje a budovy, natankování a opravy, zralá pole, nákup všech polí, plné krmivo a voda, cíle a přesun stroje na vybrané místo.
 - **Info:** grafická karta, rozlišení, vykreslovací volání a trojúhelníky, paměť, poloha a stav stroje.
 - **Mapa:** otevře editor mapy, viz níže.

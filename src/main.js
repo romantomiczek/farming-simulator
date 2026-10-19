@@ -41,6 +41,7 @@ import { updWet, wetness } from './fx/wet.js';
 import { updDirt } from './game/dirt.js';
 import { buildVillagers, updVillagers } from './world/villagers.js';
 import { updNeighbours } from './world/neighbours.js';
+import { showRainbow } from './world/atmosphere.js';
 import { buildFestival, festivalTick, festivalNow } from './game/festival.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
@@ -114,7 +115,7 @@ initOffice({
   onClose: () => { if (!menuOpen()) G.playing = true; releaseAll(); },
   onChange: saveLocal,
 });
-initDev({ applyQuality, wildlife });
+initDev({ applyQuality, wildlife, traffic, showRainbow });
 document.getElementById('officeBtn').onclick = () => openOffice();
 document.getElementById('speedBtn').onclick = cycleTime;
 document.getElementById('menuBtn').onclick = showMenu;
@@ -207,7 +208,7 @@ function tick(dt) {
     const e = camera.matrixWorld.elements, n = Math.hypot(e[0], e[2]) || 1;
     Object.assign(ear, { x: cam.t.x, z: cam.t.z, rx: e[0] / n, rz: e[2] / n });
   }
-  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.cars, ...nbMachines], ear });
+  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.activeCars(), ...nbMachines], ear });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) { pumpPreviews(dt); renderer.render(scene, camera); }

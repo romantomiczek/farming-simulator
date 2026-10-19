@@ -130,12 +130,26 @@ export function buildTraffic() {
     _p.set(x, y, z); _q.setFromEuler(_e.set(0, h, 0)); mesh.setMatrixAt(i, _m.compose(_p, _q, _s));
   };
 
+  // the developer panel sets how many cars and cyclists are out; the others are parked out of sight
+  let nCars = NC, nBikes = N_BIKES;
+  const park = c => { c.x = c.z = -9999; };
   return {
+    /** How many cars and cyclists are out (developer panel). */
+    setCount(cs, bs) {
+      nCars = Math.max(0, Math.min(NC, cs)); nBikes = Math.max(0, Math.min(N_BIKES, bs));
+      list.forEach((c, i) => { if (i >= nCars) park(c); });
+      riders.forEach((c, i) => { if (i >= nBikes) park(c); });
+      cars.count = nCars; bikes.count = nBikes; legs.count = nBikes * 2;
+    },
+    count: () => ({ cars: nCars, bikes: nBikes, maxCars: NC, maxBikes: N_BIKES }),
+    /** The cars on the road now (for the engine sounds). */
+    activeCars: () => list.slice(0, nCars),
     /** ctx = { vehicles, listener } */
     update(dt, ctx) {
-      list.forEach((c, i) => { travel(c, dt, ctx.vehicles); place(cars, i, c.x, c.z, c.h); });
+      list.forEach((c, i) => { if (i >= nCars) return; travel(c, dt, ctx.vehicles); place(cars, i, c.x, c.z, c.h); });
       cars.instanceMatrix.needsUpdate = true;
       riders.forEach((c, i) => {
+        if (i >= nBikes) return;
         travel(c, dt, ctx.vehicles);
         place(bikes, i, c.x, c.z, c.h);
         // legs: hips at saddle height, pedalling in opposite phase
