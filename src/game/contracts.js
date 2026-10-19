@@ -7,6 +7,11 @@ import { FIELDS, countFields, drawSigns } from '../world/fields.js';
 import { toast } from '../ui/toast.js';
 import { season } from './weather.js';
 
+/** Fields the neighbours are working themselves right now (world/neighbours.js tells). */
+let busyNow = () => [];
+export const setBusyFields = (fn, who) => { busyNow = fn; whoOf = who; };
+let whoOf = () => null;
+
 /**
  * Field work for the neighbour on fields the player does not own. One contract at a time.
  * The neighbour supplies seed and fertiliser and collects the harvest himself, the player
@@ -47,7 +52,7 @@ function offer(type, f, crop = -1) {
   const target = f.cnt[CTYPES[type].state];
   const day = dayOf(G.gameMin);
   return {
-    id: type + '-' + f.id + '-' + day, type, field: f.id, crop, target,
+    id: type + '-' + f.id + '-' + day, type, field: f.id, crop, target, at: G.gameMin, // at: when it was offered (the neighbour waits a while)
     reward: Math.round((target * CTYPES[type].rate) / 100) * 100,
     deadline: G.gameMin + DAYS_TO_FINISH * 1440,
   };
@@ -56,9 +61,10 @@ function offer(type, f, crop = -1) {
 /** New offers from the current state of the fields the player does not own. */
 export function generateOffers() {
   countFields();
+  const busy = busyNow();
   const day = dayOf(G.gameMin), offers = [];
   for (const f of FIELDS) {
-    if (f.owned || f.meadow || G.contracts.active?.field === f.id) continue; // no contracts on meadows
+    if (f.owned || f.meadow || G.contracts.active?.field === f.id || busy.includes(f.id)) continue; // no contracts on meadows or where the neighbour works
     const share = k => f.cnt[k] / f.area;
     if (share(S_RIPE) > 0.5) offers.push(offer('harvest', f, dominantCrop(f, S_RIPE)));
     else if (share(S_STUB) > 0.5) { offers.push(offer('cultivate', f)); offers.push(offer('plough', f)); }
@@ -75,7 +81,8 @@ export function accept(id) {
   G.contracts.active = { ...c, done: 0, deadline: G.gameMin + DAYS_TO_FINISH * 1440 };
   G.contracts.offers = G.contracts.offers.filter(o => o.field !== c.field);
   drawSigns();
-  toast('Zakázka přijata: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + '.', 'good');
+  const nb = whoOf(c.field);
+  toast((nb ? nb.name + ': „' + nb.thanks + '“ ' : '') + 'Zakázka přijata: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + '.', 'good');
   return true;
 }
 
@@ -110,7 +117,7 @@ export function checkContract(onDone) {
     G.contracts.active = null;
     drawSigns();
     generateOffers();
-    toast('Zakázka splněna: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + '. Odměna ' + fmt(c.reward) + ' Kč.', 'good');
+    toast('Zakázka splněna: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + (whoOf(c.field) ? ' pro ' + whoOf(c.field).full : '') + '. Odměna ' + fmt(c.reward) + ' Kč.', 'good');
     onDone?.();
   } else if (G.gameMin > c.deadline) {
     cancelActive('Zakázka na poli ' + c.field + ' propadla, nestihl jsi ji včas.');

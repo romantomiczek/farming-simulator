@@ -149,6 +149,10 @@ Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v
 
 Budovy se nedají pronajmout, jen koupit. Dřívější vylepšení nahradily modely: uložená hra s nimi dostane odpovídající stroj (silnější motor → Case IH Puma 185, větší zásobník → Case IH Axial-Flow 7250, široký kultivátor → Horsch Terrano 6 FX, nástavba → Fliegl TMK 22).
 
+## Sousedé
+
+Pole, která nevlastníš, patří třem sousedům: Josef Novák (Zetor a starý Sampo), Marie Dvořáková (New Holland a Deutz-Fahr) a Petr Svoboda (Case IH). Zakázky v Kanceláři jsou od nich: každá nese jméno a prosbu („Kombajn mám v servisu, zaplatím slušně.“), při přijetí poděkují. Když nabídku asi čtyři herní hodiny nepřijmeš, soused práci udělá sám: na pole přijede jeho traktor s nářadím nebo kombajn a projede ho pruh po pruhu (najednou pracují nejvýš dva), nabídka zmizí a na tom poli nové zakázky nejsou, dokud nedojede. Po hlavní silnici jezdí další soused se Zetorem Major a přívěsem, a když mu v cestě něco stojí, otočí se. Stroje sousedů jsou slyšet a nenajedeš do nich. Kód je v `src/world/neighbours.js`.
+
 ## Pomocníci
 
 Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kancelář a klávesa H řeknou, kdo zrovna pracuje). Pomocníka najmeš dvěma způsoby:

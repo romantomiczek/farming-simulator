@@ -428,6 +428,23 @@ try {
   check('lidé ve vesnici', ppl.day >= 10 && ppl.night < ppl.day && ppl.night <= ppl.buyers && ppl.buyers >= 7 && !ppl.stuck,
     've dne ' + ppl.day + ' lidí v dohledu, v noci ' + ppl.night + ' (jen výkupčí) · výkupčích ' + ppl.buyers + (ppl.stuck ? ' · ' + ppl.stuck + ' stojí v budově!' : ''));
 
+  // neighbours: an offer left lying is done by the neighbour himself (his machine works the field
+  // and the offer goes away), contracts carry his name, his tractor drives the main road
+  const nbs = await page.evaluate(async () => {
+    const z = window.__zl, N = await import('/src/world/neighbours.js'), C = await import('/src/game/contracts.js');
+    C.generateOffers();
+    const named = z.G.contracts.offers.every(o => !!N.neighbourOf(o.field).full);
+    N.ageOffers(); z.step(240);
+    const jobs = N.neighbourJobs(), field = jobs[0]?.field;
+    const gone = field != null && !z.G.contracts.offers.some(o => o.field === field);
+    C.generateOffers();
+    const notOffered = field != null && !z.G.contracts.offers.some(o => o.field === field);
+    const road = N.neighbourMachines()[0];
+    return { named, jobs: jobs.length, done: jobs[0]?.done || 0, who: jobs[0]?.who, gone, notOffered, road: road && road.speed > 1 };
+  });
+  check('sousedé', nbs.named && nbs.jobs > 0 && nbs.done > 50 && nbs.gone && nbs.notOffered && nbs.road,
+    (nbs.who || 'nikdo') + ' sám pracuje (' + nbs.jobs + ' stroje, ' + nbs.done + ' m²) · nabídka zmizela ' + (nbs.gone ? 'ano' : 'ne') + ' · soused s přívěsem na silnici ' + (nbs.road ? 'jede' : 'nejede'));
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

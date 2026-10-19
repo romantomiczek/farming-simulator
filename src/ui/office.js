@@ -7,6 +7,7 @@ import {
 } from '../game/machines.js';
 import { takeLoan, repayLoan, dailyInterest, emergencyFuel, LOAN_MAX, LOAN_STEP, INTEREST_DAILY, EMERGENCY } from '../game/economy.js';
 import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../game/contracts.js';
+import { neighbourOf, neighbourJobs } from '../world/neighbours.js';
 import { CROPS } from '../game/crops.js';
 import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap, eatsText, mixShares, mixOk } from '../game/farm.js';
 import { COWS, MIXER } from '../game/balance.js';
@@ -345,10 +346,11 @@ function jobLine(c) {
 
 function jobsHTML() {
   const a = G.contracts.active;
-  let out = '<p class="lede small">Sousedovi obděláš pole, která ti nepatří, dokud je nekoupíš. Osivo a hnojivo dodá on, úrodu si odveze sám. Odměnu dostaneš, když dokončíš 90 % práce do dvou dnů.</p>';
+  let out = '<p class="lede small">Sousedům obděláš pole, která ti nepatří, dokud je nekoupíš. Osivo a hnojivo dodají oni, úrodu si odvezou sami. Odměnu dostaneš, když dokončíš 90 % práce do dvou dnů. Když nabídku asi čtyři hodiny nepřijmeš, soused práci udělá sám svým strojem.</p>';
+  for (const j of neighbourJobs()) out += `<p class="muted">${j.who} teď sám dělá ${CTYPES[j.type].name.toLowerCase()} pole ${j.field} (${Math.round((j.seg / j.of) * 100)} %).</p>`;
   if (a) {
     const left = Math.max(0, a.deadline - G.gameMin);
-    out += `<div class="row active"><div class="rmain"><b>${CTYPES[a.type].name} · pole ${a.field}</b><span>${jobLine(a)}</span>
+    out += `<div class="row active"><div class="rmain"><b>${CTYPES[a.type].name} · pole ${a.field}</b><span>Pro: ${neighbourOf(a.field).full} · ${jobLine(a)}</span>
       <div class="bar"><i style="width:${(progress(a) * 100).toFixed(1)}%"></i></div>
       <span class="muted">Hotovo ${pct(progress(a))} · zbývá ${Math.floor(left / 60)} h ${Math.floor(left % 60)} min</span></div>
       <div class="rstate"><span class="chip on">Rozpracováno</span><b>${fmt(a.reward)} Kč</b></div>
@@ -357,7 +359,8 @@ function jobsHTML() {
   if (!G.contracts.offers.length) out += '<p class="empty">Sousedé teď nic nepotřebují. Nové zakázky přicházejí s každým novým dnem.</p>';
   for (const o of G.contracts.offers) {
     const can = canDo(o);
-    out += `<div class="row"><div class="rmain"><b>${CTYPES[o.type].name} · pole ${o.field}</b><span>${jobLine(o)}</span>
+    const nb = neighbourOf(o.field), wait = Math.max(0, 240 - (G.gameMin - (o.at ?? G.gameMin)));
+    out += `<div class="row"><div class="rmain"><b>${CTYPES[o.type].name} · pole ${o.field}</b><span>${nb.full}: „${nb.ask}“</span><span>${jobLine(o)} · čeká ještě ${Math.floor(wait / 60)} h ${Math.floor(wait % 60)} min</span>
       ${can ? '' : '<p class="why">Ten stroj nemáš. Koupíš nebo pronajmeš ho v Obchodě.</p>'}</div>
       <div class="rstate"><b>${fmt(o.reward)} Kč</b></div>
       <div class="ract">${btn('accept', o.id, 'Přijmout', !!a || !can)}</div></div>`;
