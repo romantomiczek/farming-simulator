@@ -69,6 +69,8 @@ export function buildVillagers() {
       add({ kind: 'chat', x, z, h: Math.atan2(cx - x, cz - z) });
     }
   }
+  // at the harvest festival (last day of summer, by the road east of the oil mill): people at the stalls and by the wreath
+  for (const [x, z, h] of [[256, 34.6, 0], [267, 34.4, 0.3], [278, 34.6, -0.2], [289, 34.5, 0], [248, 31, -1.6], [249.5, 29, -2.2], [270, 32, Math.PI], [271, 30.6, 0], [284, 31.6, 2.6], [285.2, 30.4, -0.6]]) add({ kind: 'fest', x, z, h });
   // a buyer at every intake, by the edge of its ring on a free spot, facing the middle
   const free = (x, z) => {
     let ok = true;
@@ -123,7 +125,7 @@ export function updVillagers(ctx) {
   const bodyN = LOOKS.map(() => 0);
   let n = 0;
   for (const p of people) {
-    const out = (p.kind !== 'work' && !day) || Math.abs(p.x - target.x) > 160 || Math.abs(p.z - target.z) > 160;
+    const out = (p.kind !== 'work' && !day) || (p.kind === 'fest' && !ctx.fest) || Math.abs(p.x - target.x) > 160 || Math.abs(p.z - target.z) > 160;
     p.mover.r = out && p.kind !== 'work' ? 0 : 0.35; // gone home: nothing to bump into
     if (out) continue;
     let moving = 0, swing = 0;
@@ -143,7 +145,7 @@ export function updVillagers(ctx) {
     }
     p.mover.x = p.x; p.mover.z = p.z;
     const waving = p.kind === 'work' && selling.has(p.market);
-    const talk = p.kind === 'chat' ? Math.max(0, Math.sin(t * 0.7 + p.phase * 3)) : 0;
+    const talk = p.kind === 'chat' || p.kind === 'fest' ? Math.max(0, Math.sin(t * 0.7 + p.phase * 3)) : 0;
 
     M.root.makeRotationY(p.h).setPosition(p.x, groundH(p.x, p.z), p.z);
     const s = Math.sin(p.phase);

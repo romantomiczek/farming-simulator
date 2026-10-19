@@ -153,6 +153,13 @@ Budovy se nedají pronajmout, jen koupit. Dřívější vylepšení nahradily mo
 
 Pole, která nevlastníš, patří třem sousedům: Josef Novák (Zetor a starý Sampo), Marie Dvořáková (New Holland a Deutz-Fahr) a Petr Svoboda (Case IH). Zakázky v Kanceláři jsou od nich: každá nese jméno a prosbu („Kombajn mám v servisu, zaplatím slušně.“), při přijetí poděkují. Když nabídku asi čtyři herní hodiny nepřijmeš, soused práci udělá sám: na pole přijede jeho traktor s nářadím nebo kombajn a projede ho pruh po pruhu (najednou pracují nejvýš dva), nabídka zmizí a na tom poli nové zakázky nejsou, dokud nedojede. Po hlavní silnici jezdí další soused se Zetorem Major a přívěsem, a když mu v cestě něco stojí, otočí se. Stroje sousedů jsou slyšet a nenajedeš do nich. Kód je v `src/world/neighbours.js`.
 
+## Dožínky
+
+Poslední den léta (9:00–20:00) jsou u hlavní silnice za olejnou dožínky: stánky s pruhovanými stříškami, praporky, dožínkový věnec na tyči a lidé (`src/game/festival.js`). Ráno to oznámí hláška. V kroužku „Dožínky“:
+
+- **Soutěž o největší úrodu:** F pěšky nebo v jiném stroji než v traktoru porovná, kolik jsi toho léta sklidil, se sousedy. První tři dostanou 60 000, 25 000 a 10 000 Kč, jednou za rok.
+- **Traktoriáda:** F v traktoru spustí čas. Projeď slalomem šest bran z kuželů, minutá brána stojí 5 s trestu. První dojetí v roce vyplatí podle času (pod 35 s 30 000 Kč, pod 50 s 15 000 Kč, jinak 5 000 Kč) a hra si pamatuje rekord. HUD ukazuje bránu a čas.
+
 ## Pomocníci
 
 Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kancelář a klávesa H řeknou, kdo zrovna pracuje). Pomocníka najmeš dvěma způsoby:

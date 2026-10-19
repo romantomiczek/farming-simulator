@@ -23,6 +23,7 @@ import { logPrice, bestWood, woodBuyerAt } from '../game/forestry.js';
 import { trees, volume, matureCount, nearestTree, MATURE } from '../world/forest.js';
 import { person, machineInReach } from '../world/person.js';
 import { WASH_PRICE, dirtOf } from '../game/dirt.js';
+import { raceState } from '../game/festival.js';
 
 const $ = id => document.getElementById(id);
 const ui = {
@@ -113,6 +114,8 @@ function taskText() {
 function fPrompt(a) {
   if (!a) return null;
   switch (a.kind) {
+    case 'race': return 'Traktoriáda: start' + (G.fest?.best != null ? ' · rekord ' + G.fest.best.toFixed(1).replace('.', ',') + ' s' : '') + (G.fest?.race ? '' : ' · výhra až 30 000 Kč');
+    case 'contest': return 'Dožínky: výsledky soutěže o největší úrodu';
     case 'wash': return 'Umýt stroj' + (a.v.tool ? ' s nářadím' : '') + ' za ' + fmt(WASH_PRICE) + ' Kč';
     case 'refuel': { const l = refuelLiters(a.v); return l >= 1 ? 'Natankovat ' + fmt(l) + ' l nafty za ' + fmt(l * DIESEL) + ' Kč' : 'Na naftu nemáš peníze'; }
     case 'stopUnload': return 'Zastavit vykládku ' + a.h.gen;
@@ -249,7 +252,8 @@ export function updUI() {
 
   shedPanel(v);
 
-  const pr = [];
+  const pr = [], rs = raceState();
+  if (rs) pr.push(['', 'Traktoriáda · brána ' + Math.min(rs.of, rs.gate + 1) + ' z ' + rs.of + ' · ' + rs.t.toFixed(1).replace('.', ',') + ' s']);
   if (v.helper) pr.push(['H', 'Propustit pomocníka']);
   if (v.type === 'forest' && !v.cutting) {
     const ti = nearestTree(v.x, v.z, 9);

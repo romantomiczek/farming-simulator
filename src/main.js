@@ -41,6 +41,7 @@ import { updWet, wetness } from './fx/wet.js';
 import { updDirt } from './game/dirt.js';
 import { buildVillagers, updVillagers } from './world/villagers.js';
 import { updNeighbours } from './world/neighbours.js';
+import { buildFestival, festivalTick, festivalNow } from './game/festival.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI } from './ui/hud.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
@@ -61,6 +62,7 @@ const wildlife = buildWildlife();
 const traffic = buildTraffic();
 buildAtmosphere();
 buildVillagers();
+buildFestival();
 ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'sheep', 'pigs', 'mixer', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
@@ -178,8 +180,9 @@ function tick(dt) {
     selling.clear();
     for (const v of vehicles) if (v.harvester && v.unloading && v.tank.amount > 0) { const m = sellPoint(v, v.tank.crop); if (m) selling.add(m); }
     for (const t of tools) if (t.tipping && t.on) { const m = sellPoint(trailerCenter(t), t.tank.crop); if (m) selling.add(m); }
-    updVillagers({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, vehicles, selling });
+    updVillagers({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, vehicles, selling, fest: festivalNow() });
   }
+  if (G.playing) festivalTick(dt, G.onFoot ? null : G.active);
   const nbMachines = updNeighbours({ dt, playing: G.playing, target: cam.t, others: G.onFoot ? [...vehicles, person] : vehicles });
   if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: player(), hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);

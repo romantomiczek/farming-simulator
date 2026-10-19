@@ -448,6 +448,33 @@ try {
   check('sousedé', nbs.named && nbs.jobs > 0 && nbs.done > 50 && nbs.gone && nbs.notOffered && nbs.road,
     (nbs.who || 'nikdo') + ' sám pracuje (' + nbs.jobs + ' stroje, ' + nbs.done + ' m²) · nabídka zmizela ' + (nbs.gone ? 'ano' : 'ne') + ' · soused s přívěsem na silnici ' + (nbs.road ? 'jede' : 'nejede'));
 
+  // harvest festival on the last day of summer: the contest pays the first three, the tractor race
+  // through six gates pays by the time and keeps the record; a missed gate costs five seconds
+  const fest = await page.evaluate(async () => {
+    const z = window.__zl, Fe = await import('/src/game/festival.js'), A = await import('/src/game/actions.js');
+    const was = { min: z.G.gameMin, active: z.G.active, foot: z.G.onFoot };
+    const t = z.vehicles.find(v => v.type === 'tractor'), home = { x: t.x, z: t.z, h: t.h };
+    // a year and a summer later (the festival is on the last day of summer, day 3 of every 12)
+    const day = Math.floor(z.G.gameMin / 1440), next = day + ((2 - day) % 12 + 12) % 12 || 12;
+    z.G.gameMin = (next - 2) * 1440 + 9 * 60; z.step(2); // the summer starts: its harvest counts from here
+    z.G.stats.harvest[0] += 50000; // a good summer
+    z.G.gameMin = next * 1440 + 11 * 60; z.step(2);
+    const now = Fe.festivalNow();
+    z.G.onFoot = true; Object.assign(z.person, { x: Fe.FEST.x, z: Fe.FEST.z });
+    const m0 = z.G.money; z.act('KeyF'); const contest = z.G.money - m0, again = A.fAction();
+    // the race: in the tractor in the ring, F, then across the six gates (the third one missed)
+    z.seat(t); Object.assign(t, { x: Fe.FEST.x, z: Fe.FEST.z, h: Math.PI / 2, speed: 0 });
+    z.act('KeyF');
+    const gates = [[254, 22], [263, 30], [272, 22], [281, 30], [290, 22], [298, 30]];
+    const m1 = z.G.money;
+    for (const [i, [gx, gz]] of gates.entries()) for (const dx of [-1.5, 1.5]) { Object.assign(t, { x: gx + dx, z: i === 2 ? gz + 4 : gz, speed: 0 }); z.step(15); }
+    const race = { pay: z.G.money - m1, best: z.G.fest.best, state: Fe.raceState() };
+    Object.assign(t, home, { speed: 0 }); z.G.gameMin = was.min; z.seat(was.active); z.G.onFoot = was.foot; z.step(1);
+    return { now, contest, again: again?.kind || null, race };
+  });
+  check('dožínky', fest.now && fest.contest === 60000 && !fest.again && fest.race.pay > 0 && fest.race.best > 5 && !fest.race.state,
+    'soutěž o úrodu: výhra ' + fest.contest + ' Kč (podruhé nic) · traktoriáda: ' + (fest.race.best ? fest.race.best.toFixed(1) : '—') + ' s s trestem, výhra ' + fest.race.pay + ' Kč');
+
   // every model in the catalog: buy one piece, it has the catalog's numbers
   const models = await page.evaluate(async () => {
     const M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js'), C = await import('/src/game/catalog.js'), z = window.__zl;

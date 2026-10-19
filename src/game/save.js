@@ -13,6 +13,7 @@ import { emptyFarm } from './farm.js';
 import { person, startOnFoot } from '../world/person.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
 import { emptyStats, loadStats, loadGoals, GOALS, progressOf } from './goals.js';
+import { emptyFest } from './festival.js';
 
 const KEY = 'zlate-lany-v1';
 // 1 = first release, 2 = grain trailer, 3 = bonus bits, straw, bales, combine header.
@@ -48,7 +49,7 @@ export function newGame() {
   G.contracts = { offers: [], active: null };
   G.lastDay = dayOf(G.gameMin);
   G.farm = emptyFarm();
-  G.stats = emptyStats(); G.goals = [];
+  G.stats = emptyStats(); G.goals = []; G.fest = emptyFest();
   loadForest(null);
   startFleet();
   G.active = firstOf('combine');
@@ -77,7 +78,7 @@ export function serialize() {
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
-    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(),
+    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), fest: G.fest,
     bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3), hay: b.hay ? 1 : 0 })),
   };
 }
@@ -193,6 +194,7 @@ export function applySave(d) {
   G.onFoot = !!d.onFoot && Number.isFinite(d.person?.x) && Number.isFinite(d.person?.z);
   if (G.onFoot) Object.assign(person, { x: d.person.x, z: d.person.z, h: num(d.person.h, 0), speed: 0 });
   G.stats = loadStats(d.stats);
+  { const f = d.fest, e = emptyFest(); G.fest = f && Number.isFinite(f.year) ? { year: f.year, base: num(f.base, 0), contest: !!f.contest, race: !!f.race, best: Number.isFinite(f.best) ? f.best : null } : e; }
   // saves from before goals existed: whatever is already achieved counts as done, without a reward
   G.goals = d.stats ? loadGoals(d.goals) : GOALS.filter(g => progressOf(g) >= 1).map(g => g.id);
   return true;
