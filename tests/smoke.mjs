@@ -253,6 +253,7 @@ try {
     const others = V.vehicles.filter(v => v !== car).map(v => ({ v, x: v.x, z: v.z }));
     others.forEach((o, i) => { o.v.x = -600 - i * 20; o.v.z = -600; });
     const cx = f.x0 + f.w / 2, cz = f.z0 + f.h / 2, wet = V.surface.wet, snow = V.surface.snow;
+    const L0 = await import('/src/world/layout.js'), keptMovers = L0.movers.splice(0); // traffic, people and neighbours step aside
     V.surface.wet = false; V.surface.snow = false;
     const reset = (x, zz, h, speed) => Object.assign(car, { x, z: zz, h, speed, steer: 0, yaw: 0, lat: 0, hit: 0, knock: 0, offRoad: false, offT: 99 });
     // grip: the path's sideways acceleration
@@ -260,6 +261,7 @@ try {
     let g = 0, px = car.x, pz = car.z, pd = null;
     for (let i = 0; i < 90 && !car.hit; i++) {
       V.drive(car, dt, { thr: 1, st: 1 });
+      if (car.hit) break; // ran into something (a neighbour's machine): the push is not grip
       const vx = (car.x - px) / dt, vz = (car.z - pz) / dt, d = Math.atan2(vx, vz);
       if (pd != null && i > 20) g = Math.max(g, (Math.abs(((d - pd + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) / dt) * Math.hypot(vx, vz) / 9.81);
       pd = d; px = car.x; pz = car.z;
@@ -286,6 +288,7 @@ try {
     L.circles.splice(L.circles.indexOf(posts[0]), 2);
     for (const o of others) { o.v.x = o.x; o.v.z = o.z; }
     V.surface.wet = wet; V.surface.snow = snow;
+    L0.movers.push(...keptMovers);
     return { g, head, glance, through };
   });
   check('jízda a nárazy', phys.g > 0.8 && phys.g < 1.1 && phys.head.deep < 0.05 && phys.head.kmh <= 0 && phys.head.kmh > -10 && phys.glance.deep < 0.05 && phys.glance.kmh > 35 && phys.through,
