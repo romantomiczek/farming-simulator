@@ -78,7 +78,8 @@ function html() {
     ${range('devExposure', 'Expozice', 0.6, 1.6, 0.05)}
     ${check('devShadows', 'Stíny')}
     ${check('devCropShadows', 'Stíny plodin')}
-    ${check('devCropDetail', 'Plastické plodiny (snopky)')}
+    ${select('devCropCards', 'Plodiny', [[0, 'kvádry'], [2, '2 plochy'], [3, '3 plochy'], [4, '4 plochy']])}
+    ${select('devGrass', 'Trsy trávy na m²', [[0, 'žádné'], [2, '2'], [5, '5'], [9, '9'], [16, '16']])}
     <div class="devbtns">${button('gfxReset', 'Zpět na předvolbu')}</div>
     <p class="muted" id="devGfxNote"></p>`)}
   ${sec('Svět', `
@@ -143,7 +144,7 @@ function syncControls() {
   setVal('devExposure', q.exposure ?? 1, String((q.exposure ?? 1).toFixed(2)).replace('.', ','));
   $('#devShadows').checked = q.shadows !== false;
   $('#devCropShadows').checked = !!q.cropShadows;
-  $('#devCropDetail').checked = !!q.cropDetail;
+  $('#devCropCards').value = q.cropCards ?? 3; $('#devGrass').value = q.grass ?? 0;
   $('#devGfxNote').textContent = (settings.custom ? 'Vlastní úpravy předvolby ' + PRESETS[settings.preset].label + '. ' : '') +
     'Vyhlazování hran se mění jen v menu a po obnovení stránky' + (q.antialias !== startAntialias ? ' (čeká na obnovení).' : '.');
   $('#devSky').checked = skyParts.dome.visible; $('#devClouds').checked = skyParts.clouds.visible;
@@ -172,7 +173,7 @@ function info() {
     'Rychlost: ' + (Math.abs(v.speed) * 3.6).toFixed(1) + ' km/h · nafta ' + Math.round(v.fuel) + ' l',
     'Čas hry: ' + Math.round(G.gameMin) + ' min · vítr ' + wind.strength.value.toFixed(2) + ' · stín ' + (quality().shadowMap) + ' px',
     'Kamera: vzdálenost ' + cam.dist.toFixed(0) + ' m · sklon ' + cam.pitch.toFixed(2),
-    q.cropDetail ? 'Plodiny: snopky' : 'Plodiny: kvádry',
+    'Plodiny: ' + (q.cropCards ? q.cropCards + ' plochy' : 'kvádry') + ' · tráva ' + (q.grass || 0) + '/m²',
   ].join('\n');
   $('#devSnd').textContent = engineInfo(v);
   const nj = neighbourJobs();
@@ -298,7 +299,8 @@ function bind() {
   on('devExposure', 'input', t => setCustom('exposure', +t.value));
   on('devShadows', 'change', t => setCustom('shadows', t.checked));
   on('devCropShadows', 'change', t => setCustom('cropShadows', t.checked));
-  on('devCropDetail', 'change', t => setCustom('cropDetail', t.checked));
+  on('devCropCards', 'change', t => setCustom('cropCards', +t.value));
+  on('devGrass', 'change', t => setCustom('grass', +t.value));
   on('devSky', 'change', t => { skyParts.dome.visible = skyParts.stars.visible = t.checked; });
   on('devClouds', 'change', t => { skyParts.clouds.visible = t.checked; });
   on('devAnimals', 'change', t => { DEV.wildlife = t.checked; hooks.wildlife.setVisible(t.checked); });

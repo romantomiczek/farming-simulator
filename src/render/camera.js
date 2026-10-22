@@ -100,6 +100,16 @@ export function viewFocus() {
   return focus;
 }
 
+const gc = new THREE.Vector3();
+/** Middle of the patch of grass blades: a little ahead of the camera, where the near ground is seen. */
+export function grassCentre() {
+  camera.getWorldDirection(_f); _f.y = 0;
+  const n = _f.length();
+  gc.copy(camera.position);
+  if (n > 1e-3) gc.addScaledVector(_f, 14 / n);
+  return gc;
+}
+
 export function updateCamera(dt, v) {
   const t = performance.now() / 1000, foot = v.type === 'person', cab = inCab(v);
   // the cab needs a near clipping plane close to the eyes (the wheel), outside it would waste depth precision

@@ -11,7 +11,9 @@ export const wind = { time: { value: 0 }, strength: { value: 1 } };
  * spatial = how quickly the phase changes across the world (bigger = shorter waves).
  */
 export function addWind(material, { amp, base = 0, spatial = 0.12 }) {
-  material.onBeforeCompile = shader => {
+  const prev = material.onBeforeCompile, prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    prev.call(material, shader, renderer);
     shader.uniforms.windTime = wind.time;
     shader.uniforms.windStrength = wind.strength;
     // the sway is added in world space after the instance transform, so rotated instances
@@ -35,7 +37,7 @@ export function addWind(material, { amp, base = 0, spatial = 0.12 }) {
       mvPosition = modelViewMatrix * mvPosition;
       gl_Position = projectionMatrix * mvPosition;`);
   };
-  material.customProgramCacheKey = () => 'wind' + amp + base + spatial;
+  material.customProgramCacheKey = () => (prevKey ? prevKey.call(material) : '') + 'wind' + amp + base + spatial;
   return material;
 }
 

@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
 import { col } from '../core/util.js';
-import { groundH, WATER_Y, POND_Y } from './terrain.js';
+import { groundH, WATER_Y, POND_Y, groundMaterial } from './terrain.js';
 import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, circles, addBox, onBridge } from './layout.js';
+import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond } from './layout.js';
+import { roadTextures } from '../render/textures.js';
+import { addSnow } from '../render/snow.js';
 import { MARKETS } from '../game/markets.js';
 import { buildLandmarks } from './landmarks.js';
 import { WOOD_BUYERS } from './layout.js';
@@ -58,16 +61,125 @@ export function strip(pts, a, b, lift, hex, parent, yFn = groundH) {
   return m;
 }
 
-/** Gravel roads with two wheel ruts, field tracks with grass in the middle. */
-function road(r, parent) {
+/* ---------- roads ---------- */
+const RT = roadTextures(), ROAD_TILE = 12; // texture repeat along the road, metres
+/**
+ * Textured strip along polyline pts from offset a to b (negative = left), draped over the ground, added
+ * to the geometries of its material in parent (a Map; mergeRoads() makes one mesh per material):
+ * u runs across (0 at a, 1 at b), v along the road in tiles of ROAD_TILE m. vert(x, z, t) may return
+ * extra per-vertex values (attribute aLine); keep(x, z) = false leaves a piece out.
+ */
+function roadStrip(pts, a, b, lift, mat, parent, { across = 1, vert, keep, shade } = {}) {
+  const pos = [], uv = [], nrm = [], extra = [], cols = [];
+  let len = 0;
+  for (let k = 1; k < pts.length; k++) {
+    const [x0, z0] = pts[k - 1], [x1, z1] = pts[k], L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(L / 2.5));
+    const tx = (x1 - x0) / L, tz = (z1 - z0) / L, nx = tz, nz = -tx; // left normal (looking along the road)
+    const ext = k > 1 ? Math.max(Math.abs(a), Math.abs(b)) * 0.5 : 0; // overlap at the joints
+    for (let i = 0; i < n; i++) {
+      const s0 = (i / n) * L - (i === 0 ? ext : 0), s1 = ((i + 1) / n) * L, cx = x0 + tx * (s0 + s1) / 2, cz = z0 + tz * (s0 + s1) / 2;
+      if (keep && !keep(cx, cz)) continue;
+      for (let q = 0; q < across; q++) {
+        const corners = [[s0, q], [s0, q + 1], [s1, q + 1], [s0, q], [s1, q + 1], [s1, q]];
+        for (const [s, qq] of corners) {
+          const t = qq / across, o = a + (b - a) * t, x = x0 + tx * s + nx * o, z = z0 + tz * s + nz * o;
+          pos.push(x, groundH(x, z) + lift, z);
+          uv.push(t, (len + s) / ROAD_TILE);
+          const tilt = shade ? shade(t) : 0; // ditch: the normal leans across the road
+          const ln = Math.hypot(1, tilt);
+          nrm.push((nx * tilt) / ln, 1 / ln, (nz * tilt) / ln);
+          if (vert) extra.push(...vert(x0 + tx * s, z0 + tz * s, t));
+          if (shade) { const c = ditchCol(t); cols.push(c.r, c.g, c.b); }
+        }
+      }
+    }
+    len += L;
+  }
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  if (vert) g.setAttribute('aLine', new THREE.Float32BufferAttribute(extra, 2));
+  if (cols.length) g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  // counter-clockwise from above whichever way the road runs
+  const p = g.attributes.position.array;
+  const ax = p[3] - p[0], az = p[5] - p[2], bx = p[6] - p[0], bz = p[8] - p[2];
+  if (ax * bz - az * bx > 0) flipTris(g);
+  if (!parent.has(mat)) parent.set(mat, []);
+  parent.get(mat).push(g);
+  return g;
+}
+/** Swaps the second and third corner of every triangle (all attributes). */
+function flipTris(g) {
+  for (const at of Object.values(g.attributes)) {
+    const a = at.array, s = at.itemSize;
+    for (let i = 0; i < a.length; i += 3 * s) for (let c = 0; c < s; c++) { const t = a[i + s + c]; a[i + s + c] = a[i + 2 * s + c]; a[i + 2 * s + c] = t; }
+  }
+}
+const _dc = new THREE.Color(), DITCH_EDGE = col('#6a8f3e'), DITCH_BED = col('#41602d');
+/** Ditch colour across it: grass at the edges, darker and lusher at the wet bottom. */
+function ditchCol(t) { return _dc.copy(DITCH_EDGE).lerp(DITCH_BED, Math.sin(Math.PI * t) ** 1.5); }
+
+/** Road material: texture map with paint lines from the line texture where aLine allows (x = edges, y = centre). */
+function roadMat(map, lines, opts = {}) {
+  const m = new THREE.MeshStandardMaterial({ map, roughness: opts.roughness ?? 0.92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  if (lines) {
+    const tl = { value: lines };
+    m.onBeforeCompile = sh => {
+      sh.uniforms.tLines = tl;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute vec2 aLine;\nvarying vec2 vLine;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLine = aLine;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D tLines;\nvarying vec2 vLine;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          vec2 paintT = texture2D(tLines, vMapUv).rg;
+          float paint = max(paintT.r * vLine.x, paintT.g * vLine.y);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.78, 0.74), paint * 0.92);`);
+    };
+    m.customProgramCacheKey = () => 'roadlines';
+  }
+  return addSnow(m);
+}
+const ASPHALT = roadMat(RT.asphalt, RT.lines, { roughness: 0.85 }), DIRT = roadMat(RT.dirt), GRAVEL = roadMat(RT.gravel);
+RT.gravel.repeat.set(1, 3);
+
+/** Is (x, z) away from the other roads (junctions get no paint, no ditch)? */
+const clearOf = (r, x, z, m) => ROADS.every(o => o === r || polyDist(x, z, o.pts) > o.w / 2 + m);
+/** Room for a ditch at (x, z): out in the open land, not by fields, yards, water or junctions. */
+function ditchHere(r, x, z) {
+  if (inRect(x, z, HOME, 4) || inRect(x, z, TOWN, 4) || inRect(x, z, PAD, 6)) return false;
+  if (riverDist(x, z) < RIVER_HALF + 6 || PONDS.some(p => inPond(x, z, p, 8)) || Math.hypot(x - POND.x, z - POND.z) < POND.r + 6) return false;
+  if (FIELD_DEFS.some(f => x > f.x0 - 5 && x < f.x0 + f.w + 5 && z > f.z0 - 5 && z < f.z0 + f.h + 5)) return false;
+  return clearOf(r, x, z, 6);
+}
+
+/** One mesh per road material (asphalt, tracks, shoulders, ditches). */
+function mergeRoads(parts, group) {
+  for (const [mat, geos] of parts) {
+    const m = new THREE.Mesh(geos.length > 1 ? mergeGeometries(geos) : geos[0], mat);
+    m.receiveShadow = true; m.userData.noBake = true;
+    group.add(m);
+  }
+}
+
+/**
+ * Asphalt roads: wheel-worn surface, edge lines and a dashed centre line on the wide roads (paint
+ * stops at junctions), gravel shoulders and, out in the open, a shallow grassy ditch on each side.
+ * Field tracks: packed earth with two ruts and grass in the middle.
+ */
+function road(r, parent, k) {
   const h = r.w / 2;
   if (r.kind === 'road') {
-    strip(r.pts, -h, h, 0.07, '#d8c59f', parent);
-    strip(r.pts, -h * 0.55, -h * 0.25, 0.09, '#c7b186', parent);
-    strip(r.pts, h * 0.25, h * 0.55, 0.09, '#c7b186', parent);
+    const wide = r.w >= 8;
+    roadStrip(r.pts, -h, h, 0.08 + k * 0.002, ASPHALT, parent, { vert: (x, z) => { const on = clearOf(r, x, z, 2.5) ? 1 : 0; return [wide ? on : 0, wide ? on : 0]; } });
+    for (const s of [-1, 1]) {
+      roadStrip(r.pts, s * h, s * (h + 0.8), 0.055, GRAVEL, parent);
+      roadStrip(r.pts, s * (h + 0.8), s * (h + 3.4), 0.035, groundMaterial(), parent, { across: 4, keep: (x, z) => ditchHere(r, x + 0, z), shade: t => s * 0.85 * Math.cos(Math.PI * t) });
+    }
   } else {
-    strip(r.pts, -h, h, 0.07, '#cbb48a', parent);
-    strip(r.pts, -0.45, 0.45, 0.09, '#98b25e', parent);
+    roadStrip(r.pts, -h, h, 0.06 + k * 0.002, DIRT, parent);
   }
 }
 
@@ -126,7 +238,9 @@ export function buildFarm(scene) {
   const st = new THREE.Group(), lines = new THREE.Group(), towers = new THREE.Group(), village = new THREE.Group();
 
   // ground decals
-  ROADS.forEach(r => road(r, lines));
+  const roadParts = new Map();
+  ROADS.forEach((r, k) => road(r, roadParts, k));
+  mergeRoads(roadParts, lines);
   buildWater(lines);
   flatPlane(PAD.x1 - PAD.x0, PAD.z1 - PAD.z0, '#d3cec3', (PAD.x0 + PAD.x1) / 2, 0.03, (PAD.z0 + PAD.z1) / 2, st);
   const rim = mk(new THREE.CircleGeometry(POND.r + 1.5, 28), M('#d8cfa6', { flatShading: false, roughness: 1 }), POND.x, 0.03, POND.z, st, false);

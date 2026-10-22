@@ -5,6 +5,7 @@ import {
   riverDist, inRect, inPond, onBridge,
 } from './layout.js';
 import { addSnow } from '../render/snow.js';
+import { groundDetail } from '../render/textures.js';
 
 /**
  * Terrain (variant A): rolling hills whose height depends on the region, flattened into terraces
@@ -91,6 +92,12 @@ function buildGrid() {
 }
 const gh = (i, j) => grid[j * (NX + 1) + i];
 
+/** The 5 m height grid of the playable area: data[j * nx + i] is the height at (x0 + i·step, z0 + j·step). */
+export function heightGrid() {
+  if (!grid) buildGrid();
+  return { data: grid, nx: NX + 1, nz: NZ + 1, x0: GX0, z0: GZ0, step: STEP };
+}
+
 /** River and pond water levels, for the water meshes. */
 export const WATER_Y = -0.75, POND_Y = -0.6;
 
@@ -109,8 +116,17 @@ export function groundH(x, z) {
   return u + v <= 1 ? h00 + (h10 - h00) * u + (h01 - h00) * v : h11 + (h01 - h11) * (1 - u) + (h10 - h11) * (1 - v);
 }
 
+/** Height of the 5 m grid without bridges (for the mesh normals); terrainH outside the grid. */
+function meshH(x, z) {
+  const fx = (x - GX0) / STEP, fz = (z - GZ0) / STEP;
+  if (fx < 0 || fz < 0 || fx >= NX || fz >= NZ) return terrainH(x, z);
+  const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+  const h00 = gh(i, j), h10 = gh(i + 1, j), h01 = gh(i, j + 1), h11 = gh(i + 1, j + 1);
+  return u + v <= 1 ? h00 + (h10 - h00) * u + (h01 - h00) * v : h11 + (h01 - h11) * (1 - u) + (h10 - h11) * (1 - v);
+}
+
 /* ---------- mesh ---------- */
-const grass = ['#6f9a3e', '#679236', '#77a044', '#618c33'].map(col);
+const grass = ['#6a8f3e', '#638a39', '#71944a', '#5e8536'].map(col);
 const forestFloor = ['#557a35', '#5c7f38', '#4f7230'].map(col);
 const C = {
   gold: col('#d0b05a'), light: col('#9fba5a'), brown: col('#8e6646'), mint: col('#7caa62'),
@@ -136,18 +152,30 @@ function faceColor(c, cx, cz, cy) {
   c.multiplyScalar(cy > 0.5 ? 0.94 + hash2(cx, cz) * 0.1 : 0.98 + hash2(cx, cz) * 0.04);
 }
 
-/** One flat-shaded patch of terrain (nx × nz squares of sx × sz m); height(i, j) gives the vertex heights; skirt hangs its edges down. */
+/**
+ * One patch of terrain (nx × nz squares of sx × sz m); height(i, j) gives the vertex heights; skirt hangs
+ * its edges down. Smooth shading: colours and normals belong to the grid points (normals from the
+ * slope of the ground around them), so the light and the colours blend across the triangles.
+ */
 function patch(x0, z0, nx, nz, sx, sz, height, material, skirt) {
   const skirtTris = skirt ? (nx + nz) * 2 * 4 : 0, maxTri = nx * nz * 2 + skirtTris;
-  const pos = new Float32Array(maxTri * 9), cols = new Float32Array(maxTri * 9), c = new THREE.Color();
+  const pos = new Float32Array(maxTri * 9), cols = new Float32Array(maxTri * 9), nrms = new Float32Array(maxTri * 9), c = new THREE.Color();
+  const W1 = nx + 1, vc = new Float32Array(W1 * (nz + 1) * 3), vn = new Float32Array(W1 * (nz + 1) * 3), vh = new Float32Array(W1 * (nz + 1));
+  for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+    const k = j * W1 + i, x = x0 + i * sx, z = z0 + j * sz, y = (vh[k] = height(i, j)), e = Math.min(sx, 5);
+    faceColor(c, x, z, y);
+    vc[k * 3] = c.r; vc[k * 3 + 1] = c.g; vc[k * 3 + 2] = c.b;
+    const dx = meshH(x + e, z) - meshH(x - e, z), dz = meshH(x, z + e) - meshH(x, z - e), L = Math.hypot(dx, 2 * e, dz);
+    vn[k * 3] = -dx / L; vn[k * 3 + 1] = (2 * e) / L; vn[k * 3 + 2] = -dz / L;
+  }
   let n = 0;
-  const P = (i, j) => [x0 + i * sx, height(i, j), z0 + j * sz];
-  const tri = (a, b, d) => {
-    pos.set(a, n); pos.set(b, n + 3); pos.set(d, n + 6);
-    faceColor(c, (a[0] + b[0] + d[0]) / 3, (a[2] + b[2] + d[2]) / 3, (a[1] + b[1] + d[1]) / 3);
-    for (let k = 0; k < 9; k += 3) { cols[n + k] = c.r; cols[n + k + 1] = c.g; cols[n + k + 2] = c.b; }
-    n += 9;
+  const P = (i, j) => [x0 + i * sx, vh[j * W1 + i], z0 + j * sz, j * W1 + i];
+  const put = (p, dy = 0) => {
+    pos[n] = p[0]; pos[n + 1] = p[1] + dy; pos[n + 2] = p[2];
+    for (let q = 0; q < 3; q++) { cols[n + q] = vc[p[3] * 3 + q]; nrms[n + q] = vn[p[3] * 3 + q]; }
+    n += 3;
   };
+  const tri = (a, b, d, da = 0, db = 0, dd = 0) => { put(a, da); put(b, db); put(d, dd); };
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) {
       const a = P(i, j), b = P(i + 1, j), d = P(i, j + 1), e = P(i + 1, j + 1);
@@ -157,7 +185,7 @@ function patch(x0, z0, nx, nz, sx, sz, height, material, skirt) {
   }
   if (skirt) {
     // vertical strips under the outer edges hide cracks against the coarser hills beyond
-    const drop = (p, q) => { const p2 = [p[0], p[1] - 3, p[2]], q2 = [q[0], q[1] - 3, q[2]]; tri(p, q, p2); tri(q, q2, p2); tri(p, p2, q); tri(q, p2, q2); };
+    const drop = (p, q) => { tri(p, q, p, 0, 0, -3); tri(q, q, p, 0, -3, -3); tri(p, p, q, 0, -3, 0); tri(q, p, q, 0, -3, -3); };
     for (const [edge, n] of [['s', nx], ['n', nx], ['w', nz], ['e', nz]]) {
       if (!skirt[edge]) continue;
       for (let k = 0; k < n; k++) {
@@ -169,11 +197,46 @@ function patch(x0, z0, nx, nz, sx, sz, height, material, skirt) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, n), 3));
   g.setAttribute('color', new THREE.BufferAttribute(cols.subarray(0, n), 3));
-  g.computeVertexNormals();
+  g.setAttribute('normal', new THREE.BufferAttribute(nrms.subarray(0, n), 3));
   g.computeBoundingSphere();
   const m = new THREE.Mesh(g, material);
   m.receiveShadow = true;
   return m;
+}
+
+/**
+ * The ground's material: vertex colours with a detail texture in world space. Green ground gets
+ * grass (fine blades plus a coarser layer), brown and grey ground (mud, gravel) gets grain, and big
+ * soft patches of drier and lusher grass break up the colour over tens of metres. Shared by the
+ * terrain and the ditches along the roads.
+ */
+let groundMat = null;
+export function groundMaterial() {
+  if (groundMat) return groundMat;
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const tex = { value: groundDetail() };
+  m.onBeforeCompile = sh => {
+    sh.uniforms.tGround = tex;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D tGround;\nvarying vec3 vGPos;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          vec3 gd = texture2D(tGround, vGPos.xz * 0.37).rgb;
+          vec3 gd2 = texture2D(tGround, vGPos.xz * 0.071 + 0.37).rgb;
+          float mid = gd2.b;
+          float macro = texture2D(tGround, vGPos.xz * 0.0085).b;
+          float green = clamp((diffuseColor.g - max(diffuseColor.r, diffuseColor.b)) * 10.0, 0.0, 1.0);
+          float det = mix(gd.g * 0.5 + gd2.g * 0.5, gd.r * 0.4 + gd2.r * 0.6, green);
+          diffuseColor.rgb *= (0.5 + 1.0 * det) * (0.8 + 0.4 * mid);
+          vec3 patches = mix(vec3(0.8, 0.9, 0.8), vec3(1.16, 1.05, 0.76), smoothstep(0.3, 0.7, macro));
+          diffuseColor.rgb *= mix(vec3(1.0), patches, green);
+        }`);
+  };
+  m.customProgramCacheKey = () => 'ground';
+  return (groundMat = m);
 }
 
 const tiles = [];
@@ -195,7 +258,7 @@ export function updTerrainLOD(x, z, fine, mid) {
  */
 export function buildTerrain(scene) {
   if (!grid) buildGrid();
-  const material = addSnow(new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 }));
+  const material = addSnow(groundMaterial());
   const group = new THREE.Group();
   const TX = 3, TZ = 2, tnx = NX / TX, tnz = NZ / TZ;
   tiles.length = 0;

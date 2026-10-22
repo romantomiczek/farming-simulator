@@ -18,20 +18,20 @@ export const yieldMult = bits => 1 + (bits & B_FERT ? FERT_BONUS : 0) + (bits & 
 // hours = game hours from sowing to ripe; seed = Kč/m²; yield = l/m²; price = base Kč/l.
 // header = harvesting gear needed ('grain'/'corn' = combine headers, 'beet' = beet harvester);
 // straw = leaves a straw windrow when harvested; heap = colour of the harvested crop in a tank.
-// colors/h/fw are per visual stage 0..4 (0 = just sown, 4 = ripe); fw = row width share.
+// colors/h/fw are per visual stage 0..4 (0 = just sown, 4 = ripe); fw = row width share; tile = picture in the crop atlas (render/textures.js).
 // New crops are appended, so crop indexes in old saves stay valid.
 export const CROPS = [
-  { name: 'Pšenice', gen: 'pšenice', hours: 6, seed: 6, yield: 8, price: 7.2, header: 'grain', straw: true,
+  { name: 'Pšenice', gen: 'pšenice', hours: 6, seed: 6, yield: 8, price: 7.2, header: 'grain', straw: true, tile: 'cereal',
     colors: ['#000000', '#8fbf5a', '#a7c35a', '#cbbd5a', '#e4bc52'], h: [0, 0.16, 0.48, 0.82, 0.95], fw: [0, 0.3, 0.7, 0.95, 1] },
-  { name: 'Ječmen', gen: 'ječmene', hours: 5, seed: 5, yield: 8.5, price: 6.4, header: 'grain', straw: true,
+  { name: 'Ječmen', gen: 'ječmene', hours: 5, seed: 5, yield: 8.5, price: 6.4, header: 'grain', straw: true, tile: 'cereal',
     colors: ['#000000', '#94c460', '#b4c868', '#d4cd8c', '#e8d49c'], h: [0, 0.14, 0.42, 0.72, 0.8], fw: [0, 0.3, 0.7, 0.95, 1] },
-  { name: 'Řepka', gen: 'řepky', hours: 8, seed: 9, yield: 4.6, price: 14.5, header: 'grain', straw: false,
+  { name: 'Řepka', gen: 'řepky', hours: 8, seed: 9, yield: 4.6, price: 14.5, header: 'grain', straw: false, tile: 'rape',
     colors: ['#000000', '#7fb35a', '#6aa452', '#f0cd2e', '#8e8a4c'], h: [0, 0.2, 0.55, 1.05, 1.0], fw: [0, 0.4, 0.8, 1, 1] },
-  { name: 'Kukuřice', gen: 'kukuřice', hours: 9, seed: 8, yield: 9.5, price: 6.0, header: 'corn', straw: false,
+  { name: 'Kukuřice', gen: 'kukuřice', hours: 9, seed: 8, yield: 9.5, price: 6.0, header: 'corn', straw: false, tile: 'corn',
     colors: ['#000000', '#86bf58', '#5f9e45', '#4f8a3d', '#cdb67a'], h: [0, 0.3, 1.0, 2.0, 2.1], fw: [0, 0.3, 0.55, 0.72, 0.75] },
-  { name: 'Slunečnice', gen: 'slunečnice', hours: 8, seed: 7, yield: 3.6, price: 16.0, header: 'corn', straw: false,
+  { name: 'Slunečnice', gen: 'slunečnice', hours: 8, seed: 7, yield: 3.6, price: 16.0, header: 'corn', straw: false, tile: 'sunflower',
     colors: ['#000000', '#8cc25c', '#6fae4c', '#f2c230', '#6e5a3a'], h: [0, 0.25, 0.8, 1.55, 1.5], fw: [0, 0.35, 0.6, 0.8, 0.8] },
-  { name: 'Cukrovka', gen: 'cukrovky', hours: 10, seed: 9, yield: 18, price: 3.6, header: 'beet', straw: false, heap: '#d9c9a4',
+  { name: 'Cukrovka', gen: 'cukrovky', hours: 10, seed: 9, yield: 18, price: 3.6, header: 'beet', straw: false, heap: '#d9c9a4', tile: 'beet',
     colors: ['#000000', '#8cc25c', '#62a64a', '#4f9640', '#7a9c48'], h: [0, 0.12, 0.32, 0.48, 0.45], fw: [0, 0.35, 0.7, 0.9, 0.9] },
 ];
 CROPS.forEach(c => { c.cols = c.colors.map(col); c.rgb = c.colors.map(hexRgb); c.heapCol = col(c.heap || c.colors[4]); });

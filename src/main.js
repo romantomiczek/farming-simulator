@@ -4,7 +4,8 @@ import { quality, settings, saveSettings } from './core/settings.js';
 import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
 import { buildVegetation } from './world/vegetation.js';
-import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropDetail, updFieldLOD, fieldAt, setFieldWet } from './world/fields.js';
+import { buildGrass } from './world/grass.js';
+import { FIELDS, flushFields, growFields, countSomeFields, drawSigns, setCropShadows, setCropStyle, updFieldLOD, fieldAt, setFieldWet } from './world/fields.js';
 import { roadAt } from './world/layout.js';
 import { vehicles, tools, drive, visual, updateTrailers, attachTool, updLOD, surface, trailerCenter } from './vehicles/vehicles.js';
 import { CROPS } from './game/crops.js';
@@ -27,7 +28,7 @@ import { checkGoals } from './game/goals.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
 import { flushBales, bales, addBale } from './world/bales.js';
 import { bindInput, driveInput, releaseAll, keys } from './core/input.js';
-import { cam, bindCamera, updateCamera, shakeCamera, viewFocus } from './render/camera.js';
+import { cam, bindCamera, updateCamera, shakeCamera, viewFocus, grassCentre } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
 import { updSnow, snapSnow } from './render/snow.js';
 import { WX, updateWeather, season, isWinter } from './game/weather.js';
@@ -65,6 +66,7 @@ const traffic = buildTraffic();
 buildAtmosphere();
 buildVillagers();
 buildFestival();
+const grass = buildGrass();
 ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'sheep', 'pigs', 'mixer', 'greenhouse1', 'greenhouse2']) farmstead.setOwned(k, has(k)); });
 
 function applyQuality() {
@@ -72,7 +74,7 @@ function applyQuality() {
   applyRenderQuality();
   vegetation.setDensity(q.trees);
   setCropShadows(q.cropShadows);
-  setCropDetail(!!q.cropDetail);
+  setCropStyle(q.cropCards ?? 3);
 }
 
 /* ---------- game start ---------- */
@@ -201,6 +203,7 @@ function tick(dt) {
   const day = updEnv(viewFocus(), G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
   updAtmosphere({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, day, wx: WX, season: season().name, wind: DEV.wind ? wind.strength.value : 0 });
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season(), wetness());
+  grass.update(grassCentre(), quality().grass ?? 0, terrain.material.color);
   updRain(dt, cam.t, WX.rain, isWinter());
   if (DEV.wind) updWind(dt, WX.rain, WX.cloud);
   if (G.flashT > 0) G.flashT -= dt;
@@ -212,7 +215,7 @@ function tick(dt) {
   }
   updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.activeCars(), ...nbMachines], ear });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
-  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
+  mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod, quality().cardDist); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) { pumpPreviews(dt); updCabView(dt, renderer, scene, G.onFoot ? null : G.active, cam.cabNow, cabScreen); renderer.render(scene, camera); }
 }
 

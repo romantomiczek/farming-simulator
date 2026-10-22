@@ -10,6 +10,7 @@ import { G } from '../game/state.js';
 import { addWind } from '../render/wind.js';
 import { FIELD_PER_HA, MEADOW_PER_HA } from '../game/balance.js';
 import { addSnow } from '../render/snow.js';
+import { soilDetail, cropAtlas, CROP_TILE } from '../render/textures.js';
 
 const CP = 4; // canvas pixels per field cell
 // crop block without its bottom face (never visible): 10 triangles instead of 12
@@ -20,22 +21,96 @@ const cropGeo = (() => {
   g.setIndex(idx); g.clearGroups();
   return g;
 })();
-// "Ultra": each cell is four tapered sheaves of slightly different height instead of one block
-const cropDetailGeo = (() => {
-  const parts = [[-0.25, -0.25, 0.92], [0.25, -0.25, 1.0], [-0.25, 0.25, 0.97], [0.25, 0.25, 0.86]].map(([x, z, h]) => {
-    const g = new THREE.CylinderGeometry(0.24 * Math.SQRT2 * 0.8, 0.24 * Math.SQRT2, h, 4, 1);
-    g.rotateY(Math.PI / 4); g.translate(x, h / 2, z);
-    const idx = Array.from(g.index.array), bottom = g.groups[2];
-    idx.splice(bottom.start, bottom.count);
-    g.setIndex(idx); g.clearGroups();
-    return g.toNonIndexed();
-  });
-  const g = mergeGeometries(parts);
-  g.computeVertexNormals();
-  return g;
-})();
+/**
+ * Crop cards: n upright planes crossing at the cell centre, 1 m wide and 1 m tall (the instance scales
+ * them), showing a picture from the crop atlas. Their normals point up, so the crop is lit like a
+ * canopy whichever way a card faces.
+ */
+function cardGeo(n) {
+  const parts = [];
+  for (let k = 0; k < n; k++) {
+    const g = new THREE.PlaneGeometry(1, 1); g.translate(0, 0.5, 0); g.rotateY((k * Math.PI) / n + 0.3);
+    const nr = g.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 1, 0);
+    parts.push(g);
+  }
+  return mergeGeometries(parts);
+}
+const cardGeos = { 2: cardGeo(2), 3: cardGeo(3), 4: cardGeo(4) };
 // crops sway in the wind: waves roll across the field
 const cropMat = addWind(new THREE.MeshLambertMaterial({ color: 0xffffff }), { amp: 0.14, base: 0.2, spatial: 0.16 });
+const ATLAS = cropAtlas();
+/** Atlas tile of each instance (aTile) → its part of the texture; a little inset so tiles do not bleed. */
+const TILE_UV = `
+  #ifdef USE_MAP
+    vMapUv = vec2(0.006 + vMapUv.x * 0.988, vMapUv.y * 0.99) * vec2(1.0 / 3.0, 0.5) + vec2(mod(aTile, 3.0) / 3.0, (1.0 - floor(aTile / 3.0)) * 0.5);
+  #endif`;
+function tiled(m, key) {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    prev.call(m, sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTile;').replace('#include <uv_vertex>', '#include <uv_vertex>' + TILE_UV);
+    // both sides of a card are lit as the top of the canopy (no flipped normal on the back)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection; nonPerturbedNormal = normal;\n#endif');
+  };
+  m.customProgramCacheKey = () => key;
+  return m;
+}
+const cardMat = addWind(tiled(new THREE.MeshLambertMaterial({ color: new THREE.Color(1.3, 1.3, 1.3), map: ATLAS, alphaTest: 0.42, side: THREE.DoubleSide }), 'cards'), { amp: 0.14, base: 0.2, spatial: 0.16 });
+const cardDepth = tiled(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: ATLAS, alphaTest: 0.42, side: THREE.DoubleSide }), 'cardsDepth');
+/** Atlas tile of every crop, and of meadow grass. */
+const TILE_OF = CROPS.map(c => CROP_TILE[c.tile] ?? 0), GRASS_TILE = CROP_TILE.grass;
+/** How crops are drawn: 0 = blocks, 2–4 = crossing cards near the camera (see setCropStyle and updFieldLOD). */
+let cropCards = 3;
+/** The geometry for a chunk: a shared shape (base) plus the chunk's own atlas tile per instance. */
+function chunkGeo(ch, base) {
+  const g = new THREE.BufferGeometry();
+  for (const [k, a] of Object.entries(base.attributes)) g.setAttribute(k, a);
+  if (base.index) g.setIndex(base.index);
+  g.setAttribute('aTile', ch.tile);
+  return g;
+}
+
+/** Fine soil detail for the field planes (clods, crumbs, stubble). */
+const SOIL_TEX = { value: soilDetail() };
+/**
+ * Surface kind of a cell for the soil detail, stored ×40 in each field's kind map:
+ * 0 crop on top, 1 stubble, 2 cultivated or freshly sown, 3 ploughed, 4 meadow grass, 5 windrow.
+ */
+const K_CROP = 0, K_STUB = 1, K_CULT = 2, K_PLOW = 3, K_GRASS = 4, K_ROW = 5;
+/**
+ * The field plane's material: its painted canvas plus soil detail in world space chosen by the kind
+ * map, and a ragged edge where the field meets the grass border (rectangular fields).
+ */
+function fieldMat(f) {
+  const m = new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 });
+  const kind = { value: f.kindTex }, size = { value: new THREE.Vector2(f.w, f.h) }, ragged = { value: f.poly ? 0 : 1 };
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { tKind: kind, tSoil: SOIL_TEX, uSize: size, uRagged: ragged });
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D tKind; uniform sampler2D tSoil; uniform vec2 uSize; uniform float uRagged; varying vec3 vFPos;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+          vec2 fuv = vec2(vMapUv.x, 1.0 - vMapUv.y);
+          float kind = floor(texture2D(tKind, fuv).r * 6.375 + 0.5);
+          vec4 sd = texture2D(tSoil, vFPos.xz * 0.25), sd2 = texture2D(tSoil, vFPos.xz * 0.061 + 0.3);
+          float k = 0.5 + (sd.g - 0.5) * 0.5, amp = 0.6;
+          if (kind == 1.0) { k = sd.b * 0.7 + sd2.g * 0.3; amp = 0.95; }
+          else if (kind == 2.0) { k = sd.g * 0.65 + sd2.g * 0.35; amp = 1.1; }
+          else if (kind == 3.0) { k = sd.r * 0.75 + sd2.r * 0.25; amp = 1.5; }
+          else if (kind == 4.0 || kind == 5.0) { k = sd.g * 0.5 + sd2.b * 0.5; amp = 0.8; }
+          diffuseColor.rgb *= clamp(1.0 + (k - 0.5) * amp, 0.4, 1.6);
+          // ragged edge: the border grass shows through in a noisy band of up to half a metre
+          vec2 cell = fuv * uSize;
+          float edge = min(min(cell.x, uSize.x - cell.x), min(cell.y, uSize.y - cell.y));
+          if (uRagged > 0.5 && edge < 0.55 && sd2.g * 0.75 + sd.g * 0.25 > edge * 1.6 + 0.12) discard;
+        }`);
+  };
+  m.customProgramCacheKey = () => 'fieldsoil';
+  return addSnow(m);
+}
 const _m = new THREE.Matrix4(), _s = new THREE.Matrix4(), _c = new THREE.Color();
 export const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 /** Crops are drawn in square chunks of CHUNK cells; chunks far from the camera are hidden (see updFieldLOD). */
@@ -91,9 +166,12 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.tex.colorSpace = THREE.SRGBColorSpace;
   f.tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   f.upT = 0;
+  f.kind = new Uint8Array(f.n);
+  f.kindTex = new THREE.DataTexture(f.kind, f.w, f.h, THREE.RedFormat, THREE.UnsignedByteType);
+  f.kindTex.needsUpdate = true;
 
-  if (!f.poly) flatPlane(f.w + 1.4, f.h + 1.4, '#6c9440', f.x0 + f.w / 2, f.y + 0.012, f.z0 + f.h / 2, borders);
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), addSnow(new THREE.MeshStandardMaterial({ map: f.tex, roughness: 1, alphaTest: f.poly ? 0.5 : 0 })));
+  if (!f.poly) flatPlane(f.w + 1.4, f.h + 1.4, '#647f3c', f.x0 + f.w / 2, f.y + 0.012, f.z0 + f.h / 2, borders);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.h), fieldMat(f));
   plane.rotation.x = -Math.PI / 2; plane.position.set(f.x0 + f.w / 2, f.y + 0.03, f.z0 + f.h / 2); plane.receiveShadow = true;
   scene.add(plane);
   f.plane = plane;
@@ -107,6 +185,7 @@ export const FIELDS = FIELD_DEFS.map(def => {
   for (let cz = 0; cz < f.h; cz += CHUNK) {
     for (let cx = 0; cx < f.w; cx += CHUNK) {
       const cw = Math.min(CHUNK, f.w - cx), chh = Math.min(CHUNK, f.h - cz);
+      const tile = new THREE.InstancedBufferAttribute(new Float32Array(cw * chh), 1);
       const mesh = new THREE.InstancedMesh(cropGeo, cropMat, cw * chh);
       mesh.castShadow = true; mesh.receiveShadow = true;
       // fixed bounds so chunks off screen (and outside the shadow area) are skipped entirely
@@ -115,7 +194,7 @@ export const FIELDS = FIELD_DEFS.map(def => {
       for (let k = 0; k < cw * chh; k++) { mesh.setMatrixAt(k, ZERO); mesh.setColorAt(k, _c.set(0xffffff)); }
       scene.add(mesh);
       // on = which cells show a crop, filled = how many: empty chunks (stubble, ploughed land) are not drawn at all
-      f.chunks.push({ mesh, cx, cz, cw, x0, z0, x1: x0 + cw, z1: z0 + chh, dirty: false, on: new Uint8Array(cw * chh), filled: 0 });
+      f.chunks.push({ mesh, tile, cx, cz, cw, x0, z0, x1: x0 + cw, z1: z0 + chh, dirty: false, on: new Uint8Array(cw * chh), filled: 0 });
     }
   }
   return f;
@@ -130,13 +209,24 @@ function chunkOf(f, i) {
   return [ch, (iz - ch.cz) * ch.cw + (ix - ch.cx)];
 }
 
-/** Hides crop chunks further than dist metres from (x, z) (the painted ground stands in for them), and far signs. */
-export function updFieldLOD(x, z, dist) {
+/**
+ * Hides crop chunks further than dist metres from (x, z) (the painted ground stands in for them), and far
+ * signs. Chunks closer than cardDist show the crossing cards, further ones the cheaper solid blocks
+ * (cut-out cards far away cost a lot of overdraw and look the same as blocks from there).
+ */
+export function updFieldLOD(x, z, dist, cardDist = 90) {
   for (const s of signs) s.g.visible = Math.hypot(s.x - x, s.z - z) < 100;
   for (const f of FIELDS) {
     for (const ch of f.chunks) {
       const d = Math.hypot(Math.max(0, ch.x0 - x, x - ch.x1), Math.max(0, ch.z0 - z, z - ch.z1));
       ch.mesh.visible = d < dist && ch.filled > 0;
+      const cards = cropCards > 0 && d < cardDist + (ch.cards ? 6 : 0);
+      if (cards !== ch.cards && ch.boxGeo) {
+        ch.cards = cards;
+        ch.mesh.geometry = cards ? ch.cardGeo : ch.boxGeo;
+        ch.mesh.material = cards ? cardMat : cropMat;
+        ch.mesh.customDepthMaterial = cards ? cardDepth : undefined;
+      }
     }
   }
 }
@@ -231,9 +321,22 @@ export function markTrack(x, z, h) {
   drawCell(f, i);
 }
 
+/** Surface kind of cell i for the soil detail (see fieldMat). */
+function kindOf(f, i) {
+  const s = f.state[i];
+  if (s === S_NONE) return K_CROP;
+  if (f.meadow) return f.straw[i] ? K_ROW : K_GRASS;
+  if (f.straw[i]) return K_ROW;
+  if (s === S_RIPE || (s === S_SOWN && f.stage[i] >= 2)) return K_CROP;
+  if (s === S_STUB) return K_STUB;
+  return s === S_CULT && f.bonus[i] & B_PLOW ? K_PLOW : K_CULT;
+}
+
 export function drawMini(f, i) {
   const s = f.state[i], d = f.miniImg.data, o = i * 4;
   f.miniDirty = true;
+  const kd = kindOf(f, i) * 40;
+  if (f.kind[i] !== kd) { f.kind[i] = kd; f.kindDirty = true; }
   if (s === S_NONE) { d[o + 3] = 0; return; }
   let rgb;
   if (f.meadow) rgb = f.straw[i] ? HAY.rgb : GRASS.rgb[s === S_RIPE ? 4 : grassStage(f.growth[i])];
@@ -254,8 +357,12 @@ export function updCrop(f, i) {
   if (ch.on[k] !== show) { ch.on[k] = show; ch.filled += show ? 1 : -1; }
   if (!show) { ch.mesh.setMatrixAt(k, ZERO); return; }
   const cr = f.meadow ? GRASS : CROPS[f.crop[i]], j = f.jit[i];
-  const row = (f.dir[i] === 0 ? i % f.w : (i / f.w) | 0) & 1;
-  const hgt = cr.h[st] * (0.95 + j * 0.08 + row * 0.03), fw = cr.fw[st];
+  const row = (f.dir[i] === 0 ? i % f.w : (i / f.w) | 0) & 1, ix = i % f.w, iz = (i / f.w) | 0;
+  // cards vary more in height; the outermost cells stay lower, so the field has no hard wall at its edge
+  const edge = !f.poly && (ix === 0 || iz === 0 || ix === f.w - 1 || iz === f.h - 1) ? 0.8 : 1;
+  const hgt = cr.h[st] * (cropCards ? 0.86 + j * 0.24 + row * 0.03 : 0.95 + j * 0.08 + row * 0.03) * edge, fw = cr.fw[st];
+  const tl = f.meadow ? GRASS_TILE : TILE_OF[f.crop[i]];
+  if (ch.tile.array[k] !== tl) { ch.tile.array[k] = tl; ch.tile.needsUpdate = true; }
   const sx = f.dir[i] === 0 ? fw : 1, sz = f.dir[i] === 0 ? 1 : fw;
   // quarter turns vary the sheaf pattern between cells (a plain block looks the same either way)
   _m.makeRotationY(((j * 4) | 0) * Math.PI / 2).premultiply(_s.makeScale(sx, hgt, sz));
@@ -319,6 +426,7 @@ export function flushFields() {
   const now = performance.now();
   for (const f of FIELDS) {
     if (f.texDirty && (f.n < 6000 || now - f.upT > 120)) { f.tex.needsUpdate = true; f.texDirty = false; f.upT = now; }
+    if (f.kindDirty && (f.n < 6000 || now - (f.kindT || 0) > 150)) { f.kindTex.needsUpdate = true; f.kindDirty = false; f.kindT = now; }
     if (f.cropDirty) {
       for (const ch of f.chunks) {
         if (!ch.dirty) continue;
@@ -390,7 +498,22 @@ export function countSomeFields(x, z) {
 }
 
 export function setCropShadows(on) { for (const f of FIELDS) for (const ch of f.chunks) ch.mesh.castShadow = on; }
-export function setCropDetail(on) { for (const f of FIELDS) for (const ch of f.chunks) ch.mesh.geometry = on ? cropDetailGeo : cropGeo; }
+/**
+ * n = 0: crops are coloured blocks (cheapest, for weak graphics); 2, 3 or 4: crossing cards with
+ * stalks, ears and leaves (more cards = denser crop). Changing it re-makes the cells' transforms.
+ */
+export function setCropStyle(n) {
+  n = [0, 2, 3, 4].includes(n) ? n : 3;
+  const changed = n !== cropCards;
+  cropCards = n;
+  for (const f of FIELDS) for (const ch of f.chunks) {
+    ch.boxGeo ??= chunkGeo(ch, cropGeo);
+    ch.cardGeo = n ? chunkGeo(ch, cardGeos[n]) : null;
+    ch.cards = false;
+    ch.mesh.geometry = ch.boxGeo; ch.mesh.material = cropMat; ch.mesh.customDepthMaterial = undefined; // updFieldLOD brings the cards in
+  }
+  if (changed) for (const f of FIELDS) for (let i = 0; i < f.n; i++) if (f.state[i] !== S_NONE) updCrop(f, i);
+}
 
 /* ---------- field signs ---------- */
 export const signs = FIELDS.map(f => {

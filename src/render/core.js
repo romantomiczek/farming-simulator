@@ -8,10 +8,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
-// Colour grade right after tone mapping (no extra pass): ACES leaves colours pale, so they get a bit
-// more saturation and a gentle S-curve in display space (black and white stay where they are).
+// Colour grade right after tone mapping (no extra pass): ACES leaves colours pale, so they get a touch
+// more saturation (kept low for natural tones) and a gentle S-curve in display space (black and white stay where they are).
 // The sky dome is not tone mapped and has its colours picked to match.
-const GRADE_SAT = '1.22', GRADE_CURVE = '0.32';
+const GRADE_SAT = '1.06', GRADE_CURVE = '0.28';
 THREE.ShaderChunk.tonemapping_fragment = /* glsl */`
 #if defined( TONE_MAPPING )
   gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
