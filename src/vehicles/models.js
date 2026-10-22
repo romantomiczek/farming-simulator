@@ -1037,3 +1037,109 @@ export function buildForester(o = {}) {
   for (const w of wheels) w.userData.r *= sc;
   return { group: root, wheels, front: rear, rear: [], crane, boom, logMeshes: logs, spot, scale: sc, exhaust: new THREE.Vector3(0.7, 3.7, -0.9).multiplyScalar(sc) };
 }
+
+/**
+ * A wing of a folding implement: a group hinged at (x, y, z) that turns about `axis` from `shut`
+ * (transport, raised) to `open` (working, lowered); vehicles.js moves it with the lift.
+ */
+function wing(lift, x, y, z, axis, open, shut) {
+  const w = new THREE.Group(); w.position.set(x, y, z); w.rotation[axis] = shut; lift.add(w);
+  w.userData = { axis, open, shut };
+  return w;
+}
+
+/**
+ * Mounted field sprayer: a tank on a frame and a boom of `width` metres. Raised, both halves of the
+ * boom swing forward beside the tractor (transport); lowered, they open out with nozzles every half metre.
+ * o = look: body (tank), frame, width, brand.
+ */
+export function buildSprayer(o = {}) {
+  const L = { body: '#e9ebe6', frame: '#2f6fb0', width: 18, brand: null, ...o }, W = L.width, HINGE = 1.45, half = W / 2 - HINGE;
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const tank = P(L.body), frame = P(L.frame), steel = S(), nozzle = F('#2a2d2f');
+  RB(0.24, 0.24, 1.0, 0.04, frame, 0, 0.72, -0.4, lift);
+  RB(1.5, 0.16, 1.5, 0.04, frame, 0, 0.62, -1.15, lift);
+  RB(1.4, 1.05, 1.3, 0.3, tank, 0, 1.25, -1.15, lift, 3); // the tank, rounded
+  CY(0.18, 0.18, 0.12, 12, F('#2a2d2f'), 0, 1.84, -1.15, lift); // filler lid
+  decal('level', 0.5, 0.12, 0.55, 1.2, -1.82, Math.PI, lift);
+  brandOn(L, 0.16, 1.1, 0, 1.45, -1.81, Math.PI, lift);
+  RB(0.3, 1.2, 0.2, 0.04, frame, 0, 1.15, -1.95, lift); // boom mast
+  B(HINGE * 2, 0.12, 0.12, frame, 0, 0.95, -2.05, lift); // centre section
+  for (let x = -1.25; x <= 1.25; x += 0.5) B(0.04, 0.12, 0.04, nozzle, x, 0.86, -2.05, lift);
+  const wings = [];
+  for (const sx of [-1, 1]) {
+    // hinge at the end of the centre section, outside the tractor's wheels; open = along ±x, shut = folded forward
+    const w = wing(lift, sx * HINGE, 0.95, -2.05, 'y', 0, -sx * Math.PI * 0.5);
+    const seg = Math.max(2, Math.round(half / 3));
+    for (let k = 0; k < seg; k++) {
+      const x0 = (k * half) / seg, len = half / seg;
+      B(len, 0.09 - k * 0.01, 0.09, frame, sx * (x0 + len / 2), 0.0, 0, w);
+      rod([sx * x0, 0.0, 0], [sx * (x0 + len), 0.28 - k * 0.05, 0], 0.02, frame, w); // truss
+    }
+    for (let x = 0.5; x < half; x += 0.5) B(0.03, 0.1, 0.03, nozzle, sx * x, -0.09, 0, w);
+    B(0.05, 0.4, 0.05, frame, sx * (half - 0.05), -0.2, 0, w); // end guard
+    wings.push(w);
+  }
+  for (const sx of [-1, 1]) tailCluster(lift, sx * 0.6, 1.0, -1.82);
+  implHoses(lift, 2, 0.95, -0.55);
+  bake(g, NO_SNOW);
+  return { group: g, lift, wings, up: 0.35, down: 0.05 };
+}
+
+/**
+ * Cambridge roller: rings of steel on three sections; the side sections fold up for transport.
+ * o = look: color, width, brand.
+ */
+export function buildRoller(o = {}) {
+  const L = { color: '#d9472f', width: 6, brand: null, ...o }, W = L.width, side = (W - 2.6) / 2;
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const red = P(L.color), frame = F(), steel = S('#8f979b');
+  RB(0.24, 0.24, 1.2, 0.04, red, 0, 0.72, -0.5, lift);
+  RB(2.8, 0.22, 0.25, 0.05, red, 0, 0.95, -1.25, lift);
+  brandOn(L, 0.14, 1.2, 0, 0.95, -1.38, Math.PI, lift);
+  const drum = (p, x, w) => { // rings on a shaft, turning as the roller rolls
+    const d = new THREE.Group(); d.position.set(x, 0.32, -1.7); p.add(d);
+    const spin = new THREE.Group(); d.add(spin); d.userData = { spin, r: 0.32 };
+    CY(0.06, 0.06, w, 8, steel, 0, 0, 0, spin).rotation.z = Math.PI / 2;
+    for (let k = 0; k < Math.round(w / 0.16); k++) { const r = mk(new THREE.TorusGeometry(0.28, 0.05, 6, 12), steel, -w / 2 + 0.08 + k * 0.16, 0, 0, spin); r.rotation.y = Math.PI / 2; }
+    return d;
+  };
+  const drums = [drum(lift, 0, 2.6)];
+  for (const sx of [-1, 1]) RB(0.12, 0.6, 0.12, 0.03, frame, sx * 1.25, 0.65, -1.7, lift);
+  const wings = [];
+  for (const sx of [-1, 1]) {
+    // hinge at the edge of the middle section: open = flat on the ground, shut = standing up
+    const w = wing(lift, sx * 1.3, 0.32, 0, 'z', 0, sx * Math.PI * 0.5);
+    RB(side, 0.18, 0.22, 0.04, red, sx * side / 2, 0.62, -1.25, w);
+    for (const dz of [-1.25]) RB(0.1, 0.4, 0.1, 0.03, frame, sx * (side - 0.1), 0.45, dz - 0.2, w);
+    const d = drum(w, sx * side / 2, side - 0.1); d.position.y = 0;
+    drums.push(d);
+    decal('warnR', 0.5, 0.16, sx * (side - 0.3), 0.62, -1.38, Math.PI, w);
+    wings.push(w);
+  }
+  ram([0, 1.15, -0.6], [0, 1.0, -1.2], 0.04, frame, lift);
+  implHoses(lift, 2, 0.95, -0.55);
+  bake(g, NO_SNOW);
+  return { group: g, lift, wings, wheels: drums, up: 0.5, down: 0 };
+}
+
+/** Flail mulcher: a hood over a rotor and a rear roller, chops stubble and straw. o = look: color, width, brand. */
+export function buildMulcher(o = {}) {
+  const L = { color: '#2f8f3a', width: 3, brand: null, ...o }, W = L.width;
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const body = P(L.color), frame = F();
+  RB(0.24, 0.24, 0.8, 0.04, frame, 0, 0.72, -0.4, lift);
+  RB(W, 0.55, 1.0, 0.12, body, 0, 0.45, -1.15, lift, 3); // hood
+  RB(W + 0.06, 0.08, 0.2, 0.03, P('#e8e4da'), 0, 0.75, -0.7, lift);
+  for (const sx of [-1, 1]) RB(0.06, 0.6, 1.1, 0.02, body, sx * (W / 2 + 0.03), 0.35, -1.15, lift); // side skids
+  for (let k = 0; k < Math.round(W / 0.3); k++) B(0.02, 0.28, 0.16, RUBBER, -W / 2 + 0.15 + k * 0.3, 0.17, -0.64, lift); // front curtain
+  RB(0.5, 0.4, 0.4, 0.05, body, 0, 0.85, -0.85, lift); // gearbox
+  CY(0.06, 0.06, 0.5, 8, S(), 0, 0.95, -0.45, lift).rotation.x = Math.PI / 2;
+  const roll = new THREE.Group(); roll.position.set(0, 0.16, -1.75); lift.add(roll);
+  CY(0.15, 0.15, W - 0.1, 12, S('#9aa1a5'), 0, 0, 0, roll).rotation.z = Math.PI / 2;
+  for (const sx of [-1, 1]) decal('warnR', 0.5, 0.18, sx * (W / 2 - 0.3), 0.45, -1.66, Math.PI, lift);
+  brandOn(L, 0.14, 1.2, 0, 0.5, -1.656, Math.PI, lift);
+  implHoses(lift, 1, 0.9, -0.55);
+  bake(g, NO_SNOW);
+  return { group: g, lift, roller: roll, up: 0.45, down: 0 };
+}

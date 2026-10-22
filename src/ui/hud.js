@@ -2,13 +2,14 @@ import { activeGoals, progressText } from '../game/goals.js';
 import { fmt, fmt2, plural } from '../core/util.js';
 import { G, TIME_SCALES } from '../game/state.js';
 import {
-  CROPS, HEADERS, STATE_NAMES, S_STUB, S_CULT, S_SOWN, S_RIPE, FERT_COST, FERT_BONUS, PLOW_BONUS, balePrice, hayPrice,
+  CROPS, HEADERS, STATE_NAMES, S_STUB, S_CULT, S_SOWN, S_RIPE, FERT_COST, FERT_BONUS, PLOW_BONUS, HERB_COST, LIME_COST, FERT2_BONUS, ROLL_BONUS, MULCH_BONUS, balePrice, hayPrice,
 } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
 import { bales } from '../world/bales.js';
 import { BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo, labelOf, powerShare, towShare, loadOf, toolInReach, toolNearby } from '../vehicles/vehicles.js';
 import { baleValue } from '../game/work.js';
 import { fAction, gAction, inShed } from '../game/actions.js';
+import { sowable, sowSeasons, sowableNow, LIME_DUE } from '../game/agro.js';
 import { SILO_CAP, siloTotal, siloValue, deliveryMarket, deliveryPrice, goodSale } from '../game/silo.js';
 import { has } from '../game/machines.js';
 import { marketPrice, bestMarket, buyersOf } from '../game/markets.js';
@@ -179,6 +180,9 @@ function taskText() {
   const waitingH = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
   const loadedH = HARVESTERS.find(h => h.tank.amount > 0);
   const unfert = owned.filter(f => f.cnt[S_SOWN] > f.area * 0.3 && f.fertShare < 0.5).map(f => f.id);
+  const ids = test => owned.filter(test).map(f => f.id);
+  const withering = ids(f => f.witherShare > 0.05), weedy = ids(f => f.weedShare > 0.2), stony = ids(f => f.stoneShare > 0.01 && f.cnt[S_RIPE] < f.area * 0.5);
+  const sour = ids(f => f.limeShare > 0.5 && f.cnt[S_RIPE] < f.area * 0.5);
   const hungryKey = Object.keys(BUILDINGS).find(k => has(k) && daysLeft(k) < 0.4);
   const tl = trailers(), towing = tl.some(x => x.on), tractorNow = G.active.type === 'tractor' ? G.active : firstOf('tractor');
   const fullT = tl.find(x => full(x.tank)), balesFull = tl.find(x => x.bales >= x.baleCap), loadedT = tl.find(x => x.tank.amount > 0), balesT = tl.find(x => x.bales);
@@ -195,7 +199,8 @@ function taskText() {
   else if (greenhouses() && daysLeft('water') < 0.4) t = has('watertank') ? 'Skleníkům dochází voda. Cisternu (připojíš ji klávesou Q) naplníš u rybníka a vyleješ v modrém kruhu u skleníků.' : 'Skleníkům dochází voda. Cisternu na vodu koupíš v Kanceláři (K).';
   else if (waitingH) t = (waitingH.type === 'combine' ? 'Kombajn' : 'Sklízeč') + ' vykládá. Najeď přívěsem vlevo od něj pod výsypnou rouru.';
   else if ((ripe.length || ripeBeet.length) && isWet()) t = 'Prší, sklízet se teď nedá. Plodiny oschnou hodinu po dešti, mezitím můžeš kultivovat, hnojit nebo prodávat.';
-  else if (ripe.length) t = 'Skliď zralé plodiny kombajnem na poli ' + ripe.join(' a ') + '. Spusť lištu mezerníkem.';
+  else if (ripe.length) t = 'Skliď zralé plodiny kombajnem na poli ' + ripe.join(' a ') + '. Spusť lištu mezerníkem.' +
+    (withering.length ? ' Na poli ' + withering.join(' a ') + ' už přezrávají a dají jen polovinu.' : ' Zralé plodiny po ' + 16 + ' hodinách přezrají.');
   else if (ripeBeet.length) t = has('beet') ? 'Skliď cukrovku na poli ' + ripeBeet.join(' a ') + ' sklízečem cukrovky. Přesedneš do něj klávesou Tab.'
     : 'Cukrovka na poli ' + ripeBeet.join(' a ') + ' je zralá. Sklízeč cukrovky si pronajmi nebo kup v Kanceláři (K).';
   else if (loadedH) t = towing ? 'Přelož úrodu ze zásobníku ' + loadedH.gen + ' do přívěsu (F), nebo ji prodej ve výkupu.' : 'Prodej úrodu ze zásobníku ' + loadedH.gen + ' ve výkupu (F). Nejvíc teď platí ' + bestMarket(loadedH.tank.crop, G.gameMin).m.name + '.';
@@ -210,9 +215,13 @@ function taskText() {
     ? (has('plough') ? 'Zkultivuj nebo zoráš strniště. Pluh je pomalejší, ale dá +15 % výnosu.' : 'Zkultivuj strniště. Pluh (+15 % výnosu) koupíš v Kanceláři (K).')
     : 'Na strniště potřebuješ kultivátor nebo pluh. Odpoj nářadí klávesou Q, zacouvej k jednomu z nich a připoj ho (Q).';
   else if (sum(S_CULT) > 0 && isWinter()) t = 'Zima: nesije se a nic neroste. Zoráš strniště, opravíš stroje v kůlně (R), nebo počkáš na jaro (T zrychlí čas).';
-  else if (sum(S_CULT) > 0) t = tractorNow?.impl === 'seeder' ? 'Zasej zkultivovanou půdu. Osivo změníš klávesou C.' : 'Odpoj nářadí (Q), zacouvej k secímu stroji, připoj ho (Q) a zasej.';
+  else if (stony.length && has('roller')) t = 'Na poli ' + stony.join(' a ') + ' jsou po orbě kameny, ničí lištu kombajnu. Uválcuj ho válcem (+5 % výnosu), před setím nebo hned po něm.';
+  else if (sum(S_CULT) > 0) t = (tractorNow?.impl === 'seeder' ? 'Zasej zkultivovanou půdu. Osivo změníš klávesou C.' : 'Odpoj nářadí (Q), zacouvej k secímu stroji, připoj ho (Q) a zasej.') +
+    ' Teď se seje: ' + sowableNow().map(k => CROPS[k].name.toLowerCase()).join(', ') + '. Jiná plodina než minule dá +8 %.';
   else if (unfert.length && has('spreader')) t = 'Pohnoj pole ' + unfert.join(' a ') + ' rozmetadlem (+25 % výnosu), dokud plodiny rostou.';
   else if (unfert.length && G.money > 90000 && !G.contracts.active) t = 'Rozmetadlo za 90 000 Kč z Kanceláře (K) přidá rostoucím plodinám 25 % výnosu.';
+  else if (weedy.length) t = 'Na poli ' + weedy.join(' a ') + ' roste plevel a bere až 25 % výnosu. ' + (has('sprayer') ? 'Postříkej ho postřikovačem (' + HERB_COST + ' Kč/m²), dokud plodiny rostou.' : 'Postřikovač koupíš v Kanceláři (K).');
+  else if (sour.length && has('spreader')) t = 'Pole ' + sour.join(' a ') + ' má kyselou půdu (−15 % výnosu). Rozmetadlo přepni klávesou C na vápno a pole vyvápni.';
   else if (has('forest') && matureCount() > 0 && sum(S_SOWN) > 0) t = 'Plodiny rostou. V lese na severu je ' + matureCount() + ' vzrostlých stromů: harvestorem je pokácíš (F) a dřevo prodáš na pile.';
   else if (grass.length) t = has('mower') ? 'Tráva na louce ' + grass.join(' a ') + ' je vysoká. Připoj žací lištu (Q) a poseč ji.'
     : 'Tráva na louce ' + grass.join(' a ') + ' je vysoká. Žací lištu koupíš v Kanceláři (K).';
@@ -275,8 +284,13 @@ function toolKv(v) {
   let kv = '<dt>Nářadí</dt><dd>' + (v.tool ? implLabel(v.impl, v.tool) : 'bez nářadí') + '</dd>';
   kv += '<dt>Výkon</dt><dd' + (powerShare(v, v.tool) < 1 || towShare(v) < 1 ? ' class="down"' : '') + '>' + powerText(v) + '</dd>';
   if (v.impl === 'seeder') kv += '<dt>Osivo <kbd>C</kbd></dt><dd>' + c.name + ' · ' + c.seed + ' Kč/m²</dd>';
-  if (v.impl === 'plough') kv += '<dt>Účinek</dt><dd>+' + pct(PLOW_BONUS) + ' výnosu</dd>';
-  if (v.impl === 'spreader') kv += '<dt>Hnojivo</dt><dd>' + FERT_COST + ' Kč/m² · +' + pct(FERT_BONUS) + ' výnosu</dd>';
+  if (v.impl === 'seeder') kv += '<dt>Kalendář</dt><dd' + (sowable(v.seedCrop) ? '' : ' class="down"') + '>' + (sowable(v.seedCrop) ? 'seje se: ' : 'teď ne, jen: ') + sowSeasons(v.seedCrop) + '</dd>';
+  if (v.impl === 'plough') kv += '<dt>Účinek</dt><dd>+' + pct(PLOW_BONUS) + ' výnosu · vyorá kameny</dd>';
+  if (v.impl === 'spreader') kv += v.spreadLime ? '<dt>Sype <kbd>C</kbd></dt><dd>vápno · ' + LIME_COST + ' Kč/m² · po ' + LIME_DUE + ' sklizních −15 %</dd>'
+    : '<dt>Sype <kbd>C</kbd></dt><dd>hnojivo · ' + FERT_COST + ' Kč/m² · +' + pct(FERT_BONUS) + ', 2. dávka +' + pct(FERT2_BONUS) + '</dd>';
+  if (v.impl === 'sprayer') kv += '<dt>Postřik</dt><dd>' + HERB_COST + ' Kč/m² · na rostoucí plodiny</dd>';
+  if (v.impl === 'roller') kv += '<dt>Účinek</dt><dd>+' + pct(ROLL_BONUS) + ' výnosu · zatlačí kameny</dd>';
+  if (v.impl === 'mulcher') kv += '<dt>Účinek</dt><dd>+' + pct(MULCH_BONUS) + ' výnosu · na strniště</dd>';
   if (v.impl === 'baler') kv += '<dt>Komora lisu</dt><dd>' + pct(v.baleAcc / BALE_CELLS) + '</dd>';
   if (v.impl === 'watertank') kv += '<dt>' + (v.tool.milk ? 'Mléko' : 'Voda') + '</dt><dd>' + fmt(v.tool.water) + ' / ' + fmt(v.tool.waterCap) + ' l</dd>';
   if (v.impl === 'trailer' && v.tool.bales) kv += '<dt>Balíky</dt><dd>' + v.tool.bales + ' / ' + v.tool.baleCap + '</dd>';
@@ -366,6 +380,8 @@ export function updUI() {
     let line = '<b>' + (f.meadow ? 'Louka ' : 'Pole ') + f.id + '</b>' + (f.owned ? '' : job ? ' · zakázka' : ' · cizí') + ' · ' +
       parts.slice(0, 2).map(p => Math.max(1, Math.round((p[0] / f.area) * 100)) + ' % ' + p[1]).join(', ');
     if (f.fertShare > 0.01) line += ' · hnojeno ' + pct(f.fertShare);
+    if (f.owned && !f.meadow) line += ' · výnos ' + Math.round(f.yieldAvg * f.q * 100) + ' %';
+    if (f.weedShare > 0.05) line += ' · plevel ' + pct(f.weedShare);
     if (f.strawCnt > 0) line += (f.meadow ? ' · seno ' : ' · sláma ') + fmt(f.strawCnt) + ' m²';
     setHTML(ui.vField, 'fl', line);
   }

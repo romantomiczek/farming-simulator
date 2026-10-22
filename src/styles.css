@@ -319,6 +319,15 @@ body.incab .vinfo{display:none;}
 .bigtip b{font-family:var(--display);font-size:15px;}
 .bigtip .need{color:#f0b43c;font-weight:600;}
 
+/* office: sowing calendar and yield breakdown */
+.cal{border-collapse:collapse;font-size:13px;width:100%;max-width:560px;}
+.cal th,.cal td{padding:4px 8px;text-align:center;border-bottom:1px solid var(--line);}
+.cal td:first-child,.cal th:first-child{text-align:left;font-weight:600;}
+.cal .now{background:rgba(77,138,93,.1);}
+.cal i.sow{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--leaf);}
+.yrow{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;font-weight:600;margin-top:2px;}
+.ytot{font-variant-numeric:tabular-nums;}
+
 /* office: prices and the silo */
 .charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:8px;}
 .chartcard{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;}

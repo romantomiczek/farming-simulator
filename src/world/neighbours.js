@@ -4,6 +4,7 @@ import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW } from '../game/c
 import { MODEL } from '../game/catalog.js';
 import { CTYPES, generateOffers, setBusyFields } from '../game/contracts.js';
 import { FIELDS, drawCell, updCrop, drawMini } from './fields.js';
+import { harvestCell, sowCell } from '../game/agro.js';
 import { ROADS, movers } from './layout.js';
 import { buildModel, sitOnGround } from '../vehicles/vehicles.js';
 import { emit, CHAFF } from '../fx/particles.js';
@@ -107,10 +108,10 @@ function workCells(j, cx, cz) {
     if (ix < 0 || iz < 0 || ix >= f.w || iz >= f.h) continue;
     const i = ix + iz * f.w, s = f.state[i];
     let ch = false;
-    if (type === 'harvest' && s === S_RIPE) { f.state[i] = S_STUB; f.straw[i] = 0; ch = true; }
+    if (type === 'harvest' && s === S_RIPE) { harvestCell(f, i); f.state[i] = S_STUB; f.straw[i] = 0; f.bonus[i] = 0; f.stage[i] = 0; f.growth[i] = 0; ch = true; }
     else if (type === 'cultivate' && s === S_STUB) { f.state[i] = S_CULT; f.straw[i] = 0; ch = true; }
     else if (type === 'plough' && (s === S_STUB || s === S_CULT)) { f.state[i] = S_CULT; f.bonus[i] |= B_PLOW; f.straw[i] = 0; ch = true; }
-    else if (type === 'sow' && s === S_CULT) { f.state[i] = S_SOWN; f.crop[i] = j.crop >= 0 ? j.crop : 0; f.growth[i] = 0; f.stage[i] = 0; ch = true; }
+    else if (type === 'sow' && s === S_CULT) { sowCell(f, i, j.crop >= 0 ? j.crop : 0); f.state[i] = S_SOWN; f.crop[i] = j.crop >= 0 ? j.crop : 0; f.growth[i] = 0; f.stage[i] = 0; ch = true; }
     else if (type === 'fertilize' && s !== S_RIPE && !(f.bonus[i] & B_FERT)) { f.bonus[i] |= B_FERT; ch = true; }
     if (ch) { f.dir[i] = Math.abs(rx) > Math.abs(rz) ? 0 : 1; drawCell(f, i); updCrop(f, i); drawMini(f, i); j.done++; }
   }

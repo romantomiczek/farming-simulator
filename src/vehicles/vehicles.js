@@ -7,7 +7,7 @@ import { flatPlane, glassMat, lampMat, beaconMat, dirtMaterials } from '../rende
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher } from './models.js';
 import { CROPS } from '../game/crops.js';
 import { MODEL, START_MODEL, modelName } from '../game/catalog.js';
 import { forestColliders } from '../world/forest.js';
@@ -35,8 +35,12 @@ const TOOL_SPEC = {
   trailer: { build: buildTrailer, name: 'Přívěs', width: 0, workZ: 0, speed: 4.2, park: [23.5, -37], trailed: true },
   watertank: { build: buildWaterTank, name: 'Cisterna', width: 0, workZ: 0, speed: 4.2, park: [4.5, -48.5], trailed: true },
   mower: { build: buildMower, name: 'Žací lišta', width: 3.0, workZ: -1.25, speed: 4.6, park: [12, -49], dust: col('#9cbf6a') },
+  // finer field work (game/agro.js): weeds, a firm seedbed and stones, chopped stubble
+  sprayer: { build: buildSprayer, name: 'Postřikovač', width: 18, workZ: -2.05, speed: 5.0, park: [23.5, -49], dust: col('#e6efe8') },
+  roller: { build: buildRoller, name: 'Válec', width: 6, workZ: -1.7, speed: 4.6, park: [-16.5, -50], dust: col('#a8865f') },
+  mulcher: { build: buildMulcher, name: 'Mulčovač', width: 3, workZ: -1.2, speed: 3.6, park: [18.5, -49.5], dust: col('#d9c27a') },
 };
-export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher'];
 /** Static facts about an implement kind (name, width) for the UI, also when none is owned. */
 export const toolInfo = key => TOOL_SPEC[key];
 export const isToolKey = key => key in TOOL_SPEC;
@@ -131,7 +135,7 @@ function makeTool(key, mid) {
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
   if (s.trailed) Object.assign(im, { trailed: true, x: 0, z: 0, h: 0 });
   else {
-    im.foot = footprint(im.group); // collision shape while hitched (trailers have their circles)
+    im.foot = footprint(im.group, im.group, im.wings || []); // collision shape while hitched (trailers have their circles; folding wings left out)
     im.part = partOf(im.foot); // and while it stands alone (x, z = hitch point, h = heading)
     Object.assign(im, { x: 0, z: 0, h: 0 });
   }
@@ -789,6 +793,8 @@ export function visual(v, dt, tankCropColor) {
       if (im.roller && v.lowered) im.roller.rotation.x += (v.speed * dt) / 0.3;
       if (im.wheels && v.lowered && !im.trailed) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
       if (im.discs && v.lowered) im.discs.forEach((d, i) => (d.rotation.y += (i ? 1 : -1) * dt * 18));
+      // booms and side sections unfold when lowered and fold for the road when raised
+      if (im.wings) for (const w of im.wings) { const u = w.userData; w.rotation[u.axis] += ((v.lowered ? u.open : u.shut) - w.rotation[u.axis]) * k * 0.6; }
     }
   } else if (v.type === 'jeep') {
     // nothing to animate besides wheels and steering

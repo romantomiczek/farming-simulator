@@ -10,6 +10,7 @@ import { bales, setBales, flushBales } from '../world/bales.js';
 import { serializeForest, loadForest } from '../world/forest.js';
 import { MAP_DEFAULTS } from '../world/layout.js';
 import { emptyFarm } from './farm.js';
+import { WITHER_H } from './agro.js';
 import { emptySilo, emptyDeliveries, generateDeliveries, loadSilo, loadDeliveries } from './silo.js';
 import { person, startOnFoot } from '../world/person.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
@@ -32,7 +33,7 @@ const b64 = {
 function stageOf(f, i) {
   const s = f.state[i];
   if (f.meadow) return s === S_RIPE ? 4 : 0;
-  if (s === S_RIPE) return 4;
+  if (s === S_RIPE) return f.growth[i] >= CROPS[f.crop[i]].hours + WITHER_H ? 5 : 4;
   if (s === S_SOWN) return Math.min(3, Math.floor((f.growth[i] / CROPS[f.crop[i]].hours) * 4));
   return 0;
 }
@@ -70,6 +71,7 @@ export function serialize() {
     fields: FIELDS.map(f => ({
       id: f.id, x0: f.x0, z0: f.z0, owned: f.owned, state: b64.enc(f.state), crop: b64.enc(f.crop), dir: b64.enc(f.dir),
       growth: b64.enc(new Uint8Array(f.growth.buffer)), bonus: b64.enc(f.bonus), straw: b64.enc(f.straw),
+      weed: b64.enc(f.weed), lime: b64.enc(f.lime), prev: b64.enc(f.prev),
     })),
     fleet: vehicles.map(v => ({
       id: v.id, type: v.type, model: v.model, own: v.own, cond: v.cond, slot: v.slot, x: r2(v.x), z: r2(v.z), h: v.h, fuel: v.fuel, tool: v.tool?.id ?? null,
@@ -146,8 +148,10 @@ export function applySave(d) {
     const out = {
       owned: !!s.owned, state: b64.dec(s.state), crop: b64.dec(s.crop), dir: b64.dec(s.dir), growth: b64.dec(s.growth),
       bonus: s.bonus ? b64.dec(s.bonus) : new Uint8Array(f.n), straw: s.straw ? b64.dec(s.straw) : new Uint8Array(f.n),
+      // saves from before field work had weeds, lime and the crop before: clean, limed, no rotation yet
+      weed: s.weed ? b64.dec(s.weed) : new Uint8Array(f.n), lime: s.lime ? b64.dec(s.lime) : new Uint8Array(f.n), prev: s.prev ? b64.dec(s.prev) : new Uint8Array(f.n),
     };
-    const sized = ['state', 'crop', 'dir', 'bonus', 'straw'].every(key => out[key].length === f.n) && out.growth.length === f.n * 4;
+    const sized = ['state', 'crop', 'dir', 'bonus', 'straw', 'weed', 'lime', 'prev'].every(key => out[key].length === f.n) && out.growth.length === f.n * 4;
     if (!sized) { decoded.set(f, { owned: out.owned, fresh: true }); moved.add(f.id); return; }
     for (let i = 0; i < f.n; i++) if ((out.state[i] > S_RIPE && out.state[i] !== S_NONE) || out.crop[i] >= CROPS.length) throw new Error('bad cell');
     decoded.set(f, out);
@@ -158,6 +162,7 @@ export function applySave(d) {
     const s = decoded.get(f);
     if (!s || s.fresh) { applyStart(f); if (s) f.owned = s.owned; continue; } // new or resized field
     f.owned = s.owned; f.state.set(s.state); f.crop.set(s.crop); f.dir.set(s.dir); f.bonus.set(s.bonus); f.straw.set(s.straw);
+    f.weed.set(s.weed); f.lime.set(s.lime); f.prev.set(s.prev);
     f.growth.set(new Float32Array(s.growth.buffer));
     for (let i = 0; i < f.n; i++) f.stage[i] = stageOf(f, i);
   }

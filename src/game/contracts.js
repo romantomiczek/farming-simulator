@@ -6,6 +6,7 @@ import { has, setContractNeeds } from './machines.js';
 import { FIELDS, countFields, drawSigns } from '../world/fields.js';
 import { toast } from '../ui/toast.js';
 import { season } from './weather.js';
+import { sowableNow } from './agro.js';
 
 /** Fields the neighbours are working themselves right now (world/neighbours.js tells). */
 let busyNow = () => [];
@@ -68,7 +69,7 @@ export function generateOffers() {
     const share = k => f.cnt[k] / f.area;
     if (share(S_RIPE) > 0.5) offers.push(offer('harvest', f, dominantCrop(f, S_RIPE)));
     else if (share(S_STUB) > 0.5) { offers.push(offer('cultivate', f)); offers.push(offer('plough', f)); }
-    else if (share(S_CULT) > 0.5 && season().sow) offers.push(offer('sow', f, (day * 7 + f.id * 3) % CROPS.length)); // the neighbour picks the crop
+    else if (share(S_CULT) > 0.5 && sowableNow().length) { const ok = sowableNow(); offers.push(offer('sow', f, ok[(day * 7 + f.id * 3) % ok.length])); } // the neighbour picks a crop of the season
     else if (share(S_SOWN) > 0.5 && f.fertShare < 0.3) offers.push(offer('fertilize', f));
   }
   G.contracts.offers = offers;

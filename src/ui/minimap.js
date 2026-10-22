@@ -218,7 +218,7 @@ function showTip(e) {
   big.tip.hidden = !f;
   if (!f) return;
   const t = fieldInfo(f);
-  big.tip.innerHTML = '<b>' + t.title + '</b><span>' + t.line + '</span><span>' + t.grow + '</span><span class="need">' + t.need + '</span>';
+  big.tip.innerHTML = '<b>' + t.title + '</b><span>' + t.line + '</span><span>' + t.grow + '</span>' + (t.yield ? '<span>' + t.yield + '</span>' : '') + '<span class="need">' + t.need + '</span>';
   const tw = big.tip.offsetWidth;
   big.tip.style.left = Math.min(e.clientX - r.left + 14, r.width - tw - 10) + 'px';
   big.tip.style.top = Math.min(e.clientY - r.top + 14, r.height - big.tip.offsetHeight - 10) + 'px';

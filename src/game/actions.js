@@ -6,6 +6,8 @@ import {
   sellPoint, inBaleZone, trailerInReach, trailerUnder, startUnload, stopUnload, startTipping, stopTipping, sellBales, startLoading, stopLoading,
 } from './work.js';
 import { inSiloLoad, siloCrop, cycleSiloCrop, siloSpace, SILO_CAP } from './silo.js';
+import { sowable, sowSeasons, LIME_DUE } from './agro.js';
+import { FERT_COST, LIME_COST } from './crops.js';
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
 import { inFuel, refuel, repair } from './economy.js';
@@ -95,10 +97,15 @@ export function doG() {
   if (siloSpace() < 1) { toast('Sila jsou plná (' + fmt(SILO_CAP) + ' l). Nalož část zásoby do přívěsu u výdeje a prodej ji.', 'bad'); return; }
   if (a.kind === 'store') startUnload(a.h, true); else startTipping(a.t, true);
 }
-/** C: at the silo outlet with a trailer the next stored crop, elsewhere the seed. */
+/** C: at the silo outlet with a trailer the next stored crop; with the spreader fertiliser or lime; else the seed. */
 export function doC() {
-  const t = !G.onFoot && towed(G.active);
+  const v = !G.onFoot && G.active, t = v && towed(v);
   if (t && t.key === 'trailer' && inSiloLoad(trailerCenter(t))) { cycleSiloCrop(); return; }
+  if (v?.type === 'tractor' && v.impl === 'spreader') {
+    v.spreadLime = !v.spreadLime;
+    toast(v.spreadLime ? 'Rozmetadlo sype vápno · ' + LIME_COST + ' Kč/m². Kyselá půda (po ' + LIME_DUE + ' sklizních) bere 15 % výnosu.' : 'Rozmetadlo sype hnojivo · ' + FERT_COST + ' Kč/m². Druhá dávka na vzrostlé plodiny dá dalších +10 %.');
+    return;
+  }
   cycleSeed();
 }
 
@@ -180,7 +187,7 @@ export function cycleSeed() {
   v.seedCrop = (v.seedCrop + 1) % CROPS.length;
   const c = CROPS[v.seedCrop];
   const hdr = c.header === 'corn' ? ' · sklízí se řádkovým adaptérem' : c.header === 'beet' ? ' · sklízí se sklízečem cukrovky' : '';
-  toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h' + hdr);
+  toast('Osivo: ' + c.name + ' · ' + c.seed + ' Kč/m² · zraje za ' + c.hours + ' h' + hdr + ' · seje se: ' + sowSeasons(v.seedCrop) + (sowable(v.seedCrop) ? '' : ' (teď ne)'), sowable(v.seedCrop) ? '' : 'bad');
 }
 
 export function cycleTime() { G.tsIdx = (G.tsIdx + 1) % TIME_SCALES.length; }

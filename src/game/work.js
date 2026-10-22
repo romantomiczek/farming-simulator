@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { lerp, fmt, plural, col } from '../core/util.js';
 import { G } from './state.js';
 import {
-  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, FERT_COST, yieldMult, balePrice, hayPrice, S_NONE,
+  CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, B_FERT2, B_ROLL, B_MULCH, B_STONE, FERT_COST, HERB_COST, LIME_COST, balePrice, hayPrice, S_NONE,
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { BALE_CELLS, HARVESTERS, toolLine, tools, towed, trailerCenter, eyeOf } from '../vehicles/vehicles.js';
@@ -17,9 +17,10 @@ import { pourStream } from '../fx/streams.js';
 import { freshSoil } from '../fx/furrows.js';
 import { groundH } from '../world/terrain.js';
 
-const CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
+const MIST = col('#e6efe8'), CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
 import { toast, warn } from '../ui/toast.js';
 import { contractAllows, contractCell } from './contracts.js';
+import { cellYield, sowCell, harvestCell, sowable, sowSeasons, WEED_SPRAYED } from './agro.js';
 import { season, isWet } from './weather.js';
 
 const inZone = (zone, p) => Math.hypot(p.x - zone.x, p.z - zone.z) < zone.r;
@@ -64,27 +65,57 @@ function applyCell(v, x, z, k, dirBit, res) {
         if (s === S_STUB) { f.state[i] = S_CULT; f.straw[i] = 0; changed = true; stat('cult'); }
         break;
       case 'plough':
-        if ((s === S_STUB || s === S_CULT) && !(f.bonus[i] & B_PLOW)) { f.state[i] = S_CULT; f.bonus[i] |= B_PLOW; f.straw[i] = 0; changed = true; stat('plough'); }
+        if ((s === S_STUB || s === S_CULT) && !(f.bonus[i] & B_PLOW)) {
+          f.state[i] = S_CULT; f.bonus[i] |= B_PLOW; f.straw[i] = 0; changed = true; stat('plough');
+          if (f.jit[i] < 0.05) f.bonus[i] |= B_STONE; // the plough turns up stones here and there: roll them in
+        }
+        break;
+      case 'roller': // before or just after sowing: firmer seedbed (+5 %), the stones pressed in
+        if ((s === S_CULT || (s === S_SOWN && f.stage[i] <= 1)) && !(f.bonus[i] & B_ROLL)) {
+          f.bonus[i] = (f.bonus[i] | B_ROLL) & ~B_STONE; changed = true; setDir = false; stat('rolled');
+        }
+        break;
+      case 'mulcher': // chops the stubble and straw (+5 %); the field still needs cultivating
+        if (s === S_STUB && !(f.bonus[i] & B_MULCH)) { f.bonus[i] |= B_MULCH; f.straw[i] = 0; changed = true; stat('mulched'); }
+        break;
+      case 'sprayer': // herbicide on the growing crop: the weeds die and do not come back this season
+        if (s === S_SOWN && !(f.weed[i] & WEED_SPRAYED)) {
+          if (!job) {
+            if (G.money < HERB_COST) { res.blocked = 'money'; return; }
+            G.money -= HERB_COST;
+          }
+          f.weed[i] = WEED_SPRAYED; changed = true; setDir = false; stat('sprayed');
+        }
         break;
       case 'seeder':
         if (s === S_CULT) {
           if (!season().sow) { res.blocked = 'winter'; return; }
           const crop = job ? G.contracts.active.crop : v.seedCrop, cr = CROPS[crop];
+          if (!job && !sowable(crop)) { res.blocked = 'calendar'; res.crop = crop; return; }
           if (!job) {
             if (G.money < cr.seed) { res.blocked = 'money'; return; }
             G.money -= cr.seed;
           }
+          sowCell(f, i, crop);
           f.state[i] = S_SOWN; f.crop[i] = crop; f.growth[i] = 0; f.stage[i] = 0;
           changed = true; stat('sown');
         } else if (s === S_STUB) res.stub = true;
         break;
       case 'spreader':
-        if (s !== S_RIPE && !(f.bonus[i] & B_FERT)) {
+        if (v.spreadLime && !job) { // lime: the soil is sweet again for LIME_DUE harvests
+          if (s !== S_RIPE && f.lime[i] > 0) {
+            if (G.money < LIME_COST) { res.blocked = 'money'; return; }
+            G.money -= LIME_COST; f.lime[i] = 0; changed = true; setDir = false; stat('limed');
+          }
+          break;
+        }
+        // fertiliser: the first dose any time before harvest, a second one on the grown crop
+        if (s !== S_RIPE && (!(f.bonus[i] & B_FERT) || (!job && s === S_SOWN && f.stage[i] >= 2 && !(f.bonus[i] & B_FERT2)))) {
           if (!job) {
             if (G.money < FERT_COST) { res.blocked = 'money'; return; }
             G.money -= FERT_COST;
           }
-          f.bonus[i] |= B_FERT; changed = true; setDir = false; stat('fert');
+          f.bonus[i] |= f.bonus[i] & B_FERT ? B_FERT2 : B_FERT; changed = true; setDir = false; stat('fert');
         }
         break;
       case 'baler':
@@ -100,11 +131,13 @@ function applyCell(v, x, z, k, dirBit, res) {
     if (isWet()) { res.blocked = 'wet'; return; }
     if (!job) {
       if (tk.amount > 0 && tk.crop !== c) { res.blocked = 'mix'; return; }
-      const y = cr.yield * yieldMult(f.bonus[i]) * f.q;
+      const y = cr.yield * cellYield(f, i) * f.q;
       if (tk.amount + y > tk.cap) { res.blocked = 'full'; return; }
       tk.crop = c; tk.amount += y; stat('harvest', y, c);
     }
-    f.state[i] = S_STUB; f.stage[i] = 0; f.bonus[i] = 0;
+    if (f.bonus[i] & B_STONE) { v.cond = Math.max(0, v.cond - 0.0004); res.stones = true; } // stones hit the header
+    harvestCell(f, i);
+    f.state[i] = S_STUB; f.stage[i] = 0; f.bonus[i] = 0; f.growth[i] = 0;
     f.straw[i] = cr.straw && Math.abs(k) < 0.9 ? 1 : 0;
     v.harvestT = 0.35;
     changed = true;
@@ -143,7 +176,7 @@ export function work(v, dt) {
   if (res.notOwned && !res.onField) warn('own', 'Pole ' + res.notOwned.id + ' ti nepatří. Koupit ho můžeš u cedule u cesty, nebo na něm vzít zakázku v Kanceláři (K).');
   if (res.blocked === 'money') {
     v.lowered = false;
-    warn('money', v.impl === 'spreader' ? 'Došly peníze na hnojivo. Prodej úrodu.' : 'Došly peníze na osivo. Prodej úrodu.');
+    warn('money', v.impl === 'spreader' ? (v.spreadLime ? 'Došly peníze na vápno. Prodej úrodu.' : 'Došly peníze na hnojivo. Prodej úrodu.') : v.impl === 'sprayer' ? 'Došly peníze na postřik. Prodej úrodu.' : 'Došly peníze na osivo. Prodej úrodu.');
   }
   if (res.blocked === 'full') warn('full', 'Zásobník je plný. Přelož úrodu do přívěsu nebo jeď k silům.');
   if (res.blocked === 'mix') warn('mix', 'V zásobníku je jiná plodina. Nejdřív ji prodej.');
@@ -154,6 +187,8 @@ export function work(v, dt) {
   }
   if (res.blocked === 'wet') warn('wet', 'Za deště a hodinu po něm se nesklízí, plodiny musí oschnout.');
   if (res.blocked === 'winter') { v.lowered = false; warn('winter', 'V zimě se nesije. Počkej na jaro.'); }
+  if (res.blocked === 'calendar') { v.lowered = false; warn('calendar', CROPS[res.crop].name + ' se teď neseje (seje se: ' + sowSeasons(res.crop) + '). Klávesou C vyber jinou plodinu.'); }
+  if (res.stones) warn('stones', 'Kameny na poli poškozují lištu. Po orbě pole uválcuj, válec je zatlačí do země.');
   if (res.stub && !res.changed) warn('stub', 'Secí stroj potřebuje zkultivovanou nebo zoranou půdu.', '');
   if (res.meadow && !res.changed) warn('meadow', 'Louka ' + res.meadow.id + ': tady se jen seče žací lištou a lisuje seno. Polní nářadí ani kombajn tu nic neudělají.');
   if (res.noGrass && !res.changed) warn('noGrass', 'Žací lišta seče jen louky (u řeky a u rybníků).');
@@ -175,7 +210,11 @@ export function work(v, dt) {
     }
   }
 
-  if (res.onField && v.tool && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
+  if (res.onField && v.impl === 'sprayer' && Math.random() < dt * 90) { // fine mist under the boom
+    const k = (Math.random() - 0.5) * W;
+    emit(cx + rx * k, 0.7 + (v.y || 0), cz + rz * k, MIST, 0.22, (Math.random() - 0.5) * 0.3, -0.4, (Math.random() - 0.5) * 0.3, 0.6, 1);
+  }
+  if (res.onField && v.tool && v.impl !== 'sprayer' && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
     const k = (Math.random() - 0.5) * W, im = v.tool;
     const up = v.impl === 'spreader' ? 0.4 : 0.6 + Math.random() * 0.6;
     emit(cx + rx * k, (v.impl === 'spreader' ? 0.6 : 0.3) + (v.y || 0), cz + rz * k, im.dust, v.impl === 'spreader' ? 0.25 : 0.9 + Math.random() * 0.6,
@@ -195,6 +234,10 @@ export function work(v, dt) {
       emit(bx + rx * fan * 0.5, 1.0 + y, bz + rz * fan * 0.5, Math.random() < 0.5 ? CLOD : CLOD_LIGHT, 0.35 + Math.random() * 0.2, -sh * 1.5, 0.5, -ch * 1.5, 0.8, 9);
       emit(cx + rx * fan, 0.6 + y, cz + rz * fan, LEAF_C, 0.28, rx * (Math.random() - 0.5) * 3, 1.2 + Math.random(), rz * (Math.random() - 0.5) * 3, 1, 6);
     }
+  }
+  if (res.onField && v.impl === 'mulcher' && Math.random() < dt * 40) { // chopped straw blown out behind the hood
+    const k = (Math.random() - 0.5) * W;
+    emit(cx + rx * k, 0.4 + (v.y || 0), cz + rz * k, STRAW_C, 0.25, -sh * 1.2 + (Math.random() - 0.5), 0.8 + Math.random() * 0.6, -ch * 1.2 + (Math.random() - 0.5), 0.9, 5);
   }
   if (res.onField && (v.impl === 'plough' || v.impl === 'cultivator') && Math.random() < dt * (v.impl === 'plough' ? 45 : 28)) {
     // clods: the mouldboards turn the soil over to the right, the cultivator tines toss it up

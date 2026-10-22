@@ -1,6 +1,7 @@
 import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
-import { CROPS, S_STUB, S_CULT, S_RIPE, S_NONE, B_FERT, B_PLOW, FERT_COST } from './crops.js';
+import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_FERT2, B_ROLL, B_MULCH, FERT_COST, HERB_COST, LIME_COST } from './crops.js';
+import { sowable, WEED_SPRAYED } from './agro.js';
 import { fieldAt, FIELDS } from '../world/fields.js';
 import { vehicles, tools, toolLine, blockedAt, attachTool, labelOf, eyeOf } from '../vehicles/vehicles.js';
 import { pushBales } from '../world/bales.js';
@@ -32,8 +33,8 @@ export const WAGE = HELPER_WAGE; // Kč per hour of work; an hour = 60 s real ti
 const PAD = 1.0; // how far inside the field edge the vehicle origin stays
 const OVERHANG = 1.0; // how far the machine may stick out past the field edge on headland passes
 const STUCK_S = 8; // seconds a helper waits at an obstacle before giving up
-const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'mower'];
-const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', mower: 'sečení', harvest: 'sklizeň', wood: 'těžba dřeva' };
+const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'mower', 'sprayer', 'roller', 'mulcher'];
+const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', mower: 'sečení', sprayer: 'postřik', roller: 'válení', mulcher: 'mulčování', harvest: 'sklizeň', wood: 'těžba dřeva' };
 
 export const helpers = () => vehicles.filter(v => v.helper);
 export const jobName = v => WHAT[v.type === 'forest' ? 'wood' : v.harvester ? 'harvest' : v.impl];
@@ -48,8 +49,13 @@ function needs(f, v, i) {
   switch (v.impl) {
     case 'cultivator': return s === S_STUB;
     case 'plough': return (s === S_STUB || s === S_CULT) && !(f.bonus[i] & B_PLOW);
-    case 'seeder': return s === S_CULT;
-    case 'spreader': return s !== S_RIPE && !(f.bonus[i] & B_FERT);
+    case 'seeder': return s === S_CULT && (!f.owned || sowable(v.seedCrop));
+    case 'spreader':
+      if (v.spreadLime) return f.owned && s !== S_RIPE && f.lime[i] > 0;
+      return s !== S_RIPE && (!(f.bonus[i] & B_FERT) || (f.owned && s === S_SOWN && f.stage[i] >= 2 && !(f.bonus[i] & B_FERT2)));
+    case 'sprayer': return s === S_SOWN && !(f.weed[i] & WEED_SPRAYED);
+    case 'roller': return (s === S_CULT || (s === S_SOWN && f.stage[i] <= 1)) && !(f.bonus[i] & B_ROLL);
+    case 'mulcher': return s === S_STUB && !(f.bonus[i] & B_MULCH);
     case 'baler': return !!f.straw[i];
   }
   return false;
@@ -442,8 +448,9 @@ export function helperTick(v, dt) {
     if (!workLeft(f, v)) { finishField(v); return; }
     if (!f.owned && !contractAllows(f, v)) { if (hp.remote) goHome(v, 'Zakázka skončila, pomocník se vrací na dvůr.'); else dismiss(v, 'Zakázka skončila, pomocník odchází.'); return; }
   }
-  if (hp.mode === 'field' && v.type === 'tractor' && ((v.impl === 'seeder' && G.money < CROPS[v.seedCrop].seed) || (v.impl === 'spreader' && G.money < FERT_COST)) && hp.field.owned) {
-    dismiss(v, 'Došly peníze na ' + (v.impl === 'seeder' ? 'osivo' : 'hnojivo') + ', pomocník odchází.'); return;
+  const cost = { seeder: CROPS[v.seedCrop]?.seed, spreader: v.spreadLime ? LIME_COST : FERT_COST, sprayer: HERB_COST }[v.impl];
+  if (hp.mode === 'field' && v.type === 'tractor' && cost && G.money < cost && hp.field.owned) {
+    dismiss(v, 'Došly peníze na ' + { seeder: 'osivo', spreader: v.spreadLime ? 'vápno' : 'hnojivo', sprayer: 'postřik' }[v.impl] + ', pomocník odchází.'); return;
   }
 
   // waiting states that do not move the vehicle

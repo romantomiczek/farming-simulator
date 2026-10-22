@@ -3,7 +3,8 @@ import { renderer, scene } from '../render/core.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
-import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, HAY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW } from '../game/crops.js';
+import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, HAY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_ROLL, B_MULCH, B_STONE } from '../game/crops.js';
+import { WITHER_H, LIME_DUE, weedsGrow, weedLevel, cellYield } from '../game/agro.js';
 import { FIELD_DEFS, ROADS, circles, inPoly, polyDist, roadAt } from './layout.js';
 import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
@@ -145,6 +146,8 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.state = new Uint8Array(f.n); f.crop = new Uint8Array(f.n); f.growth = new Float32Array(f.n);
   f.stage = new Uint8Array(f.n); f.dir = new Uint8Array(f.n); f.jit = new Float32Array(f.n);
   f.bonus = new Uint8Array(f.n); f.straw = new Uint8Array(f.n);
+  // weeds, harvests since liming, the crop before (game/agro.js)
+  f.weed = new Uint8Array(f.n); f.lime = new Uint8Array(f.n); f.prev = new Uint8Array(f.n);
   // wheel ruts: track = 1 + orientation * 4 + offset in pixels, trackS = state + 1 when it was made
   // (a rut disappears as soon as a tool works the cell); not saved
   f.track = new Uint8Array(f.n); f.trackS = new Uint8Array(f.n);
@@ -235,7 +238,8 @@ export function updFieldLOD(x, z, dist, cardDist = 90) {
 export function applyStart(f) {
   const st = f.start || { s: 'stub' };
   const S = { stub: S_STUB, cult: S_CULT, sown: S_SOWN, ripe: S_RIPE }[st.s] ?? S_STUB;
-  f.state.fill(S); f.crop.fill(st.crop || 0); f.growth.fill(0); f.stage.fill(S === S_RIPE ? 4 : 0);
+  f.state.fill(S); f.crop.fill(st.crop || 0); f.growth.fill(S === S_RIPE ? CROPS[st.crop || 0].hours : 0); f.stage.fill(S === S_RIPE ? 4 : 0);
+  f.weed.fill(0); f.prev.fill(0); f.lime.fill(f.ownedStart ? 0 : (f.id * 3) % 5); // some of the neighbours' fields need lime when you buy them
   f.dir.fill(st.dir || 0); f.bonus.fill(0); f.straw.fill(0); f.track.fill(0);
   if (S === S_SOWN) {
     const hours = CROPS[st.crop || 0].hours;
@@ -277,7 +281,7 @@ export function drawCell(f, i) {
     if (along) ctx.fillRect(px + 1 + (v & 1), py, 1, CP); else ctx.fillRect(px, py + 1 + (v & 1), CP, 1);
     return;
   }
-  const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+  const st = cellStage(f, i);
   if (st >= 2) {
     // grown crop: the ground takes its colour, so chunks drawn flat in the distance still read as a field
     const c = f.crop[i];
@@ -286,14 +290,14 @@ export function drawCell(f, i) {
     if (along) ctx.fillRect(px + 2, py, 1, CP); else ctx.fillRect(px, py + 2, CP, 1);
     return;
   }
-  const plowed = s === S_CULT && f.bonus[i] & B_PLOW;
-  const pal = plowed ? SOIL_PLOW : SOIL[s];
+  const { pal, lines, plowed } = soilLook(f, i, s);
   ctx.fillStyle = pal.base[v]; ctx.fillRect(px, py, CP, CP);
   ctx.fillStyle = pal.line[v];
-  if (plowed) { // deep double furrows
+  if (lines && plowed) { // deep double furrows
     if (along) { ctx.fillRect(px, py, 1, CP); ctx.fillRect(px + 2, py, 1, CP); } else { ctx.fillRect(px, py, CP, 1); ctx.fillRect(px, py + 2, CP, 1); }
-  } else if (along) ctx.fillRect(px + 2, py, 1, CP); else ctx.fillRect(px, py + 2, CP, 1);
-  if (s === S_STUB && j > 0.45) { ctx.fillStyle = '#ecdcab'; ctx.fillRect(px + ((j * 13) | 0) % 4, py + ((j * 29) | 0) % 4, 1, 1); }
+  } else if (lines && along) ctx.fillRect(px + 2, py, 1, CP); else if (lines) ctx.fillRect(px, py + 2, CP, 1);
+  if (s === S_STUB && j > 0.45 && !(f.bonus[i] & B_MULCH)) { ctx.fillStyle = '#ecdcab'; ctx.fillRect(px + ((j * 13) | 0) % 4, py + ((j * 29) | 0) % 4, 1, 1); }
+  soilMarks(f, i, (dx, dy, hex) => { ctx.fillStyle = hex; ctx.fillRect(px + dx, py + dy, 1, 1); });
   if (f.bonus[i] & B_FERT && j < 0.6) { // a few fertiliser granules
     ctx.fillStyle = s === S_STUB ? '#cfc6ad' : '#a58e78';
     ctx.fillRect(px + ((j * 7) | 0) % 4, py + ((j * 17) | 0) % 4, 1, 1);
@@ -304,6 +308,23 @@ export function drawCell(f, i) {
     const o = (t - 1) & 3;
     if ((t - 1) >> 2) ctx.fillRect(px, py + o, CP, 2); else ctx.fillRect(px + o, py, 2, CP);
   }
+}
+
+/** Visual stage of a cell: 0..3 growing, 4 ripe, 5 overripe (withered). */
+const cellStage = (f, i) => { const s = f.state[i]; return s === S_RIPE ? (f.stage[i] === 5 ? 5 : 4) : s === S_SOWN ? f.stage[i] : 0; };
+const MULCHED = { base: ['#c4ad7a', '#bfa874', '#c9b282', '#b9a26e'], line: ['#a8915f', '#a38c5a', '#ad9665', '#9d8654'] };
+/** Bare soil of cell i: its colours and whether it shows rows (a roller leaves it smooth). */
+function soilLook(f, i, s) {
+  const b = f.bonus[i], plowed = s === S_CULT && !!(b & B_PLOW);
+  if (s === S_STUB && b & B_MULCH) return { pal: MULCHED, lines: true, plowed: false };
+  if (b & B_ROLL && (s === S_CULT || s === S_SOWN)) return { pal: SOIL[s], lines: false, plowed: false };
+  return { pal: plowed ? SOIL_PLOW : SOIL[s], lines: true, plowed };
+}
+/** Small things on bare soil: stones the plough turned up, weeds coming up between young plants. */
+function soilMarks(f, i, put) {
+  const j = f.jit[i], b = f.bonus[i];
+  if (b & B_STONE) { put(((j * 31) | 0) % 3, ((j * 53) | 0) % 3, '#a19d92'); put(((j * 31) | 0) % 3 + 1, ((j * 53) | 0) % 3 + 1, '#6f6b62'); }
+  for (let k = 0, n = weedLevel(f, i); k < n; k++) put(((j * (11 + k * 7)) | 0) % 4, ((j * (19 + k * 5)) | 0) % 4, k & 1 ? '#5f9a3a' : '#457a2c');
 }
 
 /** A wheel at (x, z) heading h leaves a rut in the field cell under it. */
@@ -340,7 +361,7 @@ export function drawMini(f, i) {
   if (s === S_NONE) { d[o + 3] = 0; return; }
   let rgb;
   if (f.meadow) rgb = f.straw[i] ? HAY.rgb : GRASS.rgb[s === S_RIPE ? 4 : grassStage(f.growth[i])];
-  else if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[4];
+  else if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[f.stage[i] === 5 ? 5 : 4];
   else if (s === S_SOWN && f.stage[i] > 0) rgb = CROPS[f.crop[i]].rgb[f.stage[i]];
   else if (f.straw[i]) rgb = STRAW.rgb;
   else if (s === S_CULT && f.bonus[i] & B_PLOW) rgb = SOIL_PLOW.rgb;
@@ -350,7 +371,7 @@ export function drawMini(f, i) {
 
 export function updCrop(f, i) {
   const s = f.state[i];
-  const st = f.meadow ? (s === S_RIPE ? 4 : s === S_STUB && !f.straw[i] ? grassStage(f.growth[i]) : 0) : s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+  const st = f.meadow ? (s === S_RIPE ? 4 : s === S_STUB && !f.straw[i] ? grassStage(f.growth[i]) : 0) : cellStage(f, i);
   const [ch, k] = chunkOf(f, i);
   ch.dirty = true; f.cropDirty = true;
   const show = st === 0 ? 0 : 1;
@@ -369,9 +390,11 @@ export function updCrop(f, i) {
   _m.setPosition(f.x0 + (i % f.w) + 0.5, f.y + 0.03, f.z0 + ((i / f.w) | 0) + 0.5);
   ch.mesh.setMatrixAt(k, _m);
   _c.copy(cr.cols[st]).multiplyScalar(0.95 + j * 0.06 + row * 0.05);
+  if (!f.meadow && f.weed[i] & 3) _c.lerp(WEEDY, (f.weed[i] & 3) * 0.12); // weeds between the plants: patchier, greener
   ch.mesh.setColorAt(k, _c);
 }
 
+const WEEDY = new THREE.Color('#5d8a35');
 export function refreshField(f) { f.track.fill(0); applyMask(f); paintAll(f); for (let i = 0; i < f.n; i++) { updCrop(f, i); drawMini(f, i); } f.upT = 0; }
 
 /* Whole-field repaint straight into pixels: the same picture as drawCell for every cell, but one
@@ -400,18 +423,19 @@ function paintAll(f) {
       if (along) col(px + 1 + (v & 1), py, rgb(STRAW.line)); else row(px, py + 1 + (v & 1), rgb(STRAW.line));
       continue;
     }
-    const st = s === S_RIPE ? 4 : s === S_SOWN ? f.stage[i] : 0;
+    const st = cellStage(f, i);
     if (st >= 2) {
       fill(px, py, rgb(cropCss[f.crop[i]][st]));
       if (along) col(px + 2, py, rgb(cropLine[f.crop[i]][st])); else row(px, py + 2, rgb(cropLine[f.crop[i]][st]));
       continue;
     }
-    const plowed = s === S_CULT && f.bonus[i] & B_PLOW, pal = plowed ? SOIL_PLOW : SOIL[s];
+    const { pal, lines, plowed } = soilLook(f, i, s);
     fill(px, py, rgb(pal.base[v]));
     const ln = rgb(pal.line[v]);
-    if (plowed) { if (along) { col(px, py, ln); col(px + 2, py, ln); } else { row(px, py, ln); row(px, py + 2, ln); } }
-    else if (along) col(px + 2, py, ln); else row(px, py + 2, ln);
-    if (s === S_STUB && j > 0.45) px1(px + ((j * 13) | 0) % 4, py + ((j * 29) | 0) % 4, rgb('#ecdcab'));
+    if (lines && plowed) { if (along) { col(px, py, ln); col(px + 2, py, ln); } else { row(px, py, ln); row(px, py + 2, ln); } }
+    else if (lines && along) col(px + 2, py, ln); else if (lines) row(px, py + 2, ln);
+    if (s === S_STUB && j > 0.45 && !(f.bonus[i] & B_MULCH)) px1(px + ((j * 13) | 0) % 4, py + ((j * 29) | 0) % 4, rgb('#ecdcab'));
+    soilMarks(f, i, (dx, dy, hex) => px1(px + dx, py + dy, rgb(hex)));
     if (f.bonus[i] & B_FERT && j < 0.6) px1(px + ((j * 7) | 0) % 4, py + ((j * 17) | 0) % 4, rgb(s === S_STUB ? '#cfc6ad' : '#a58e78'));
   }
   f.ctx.putImageData(img, 0, 0);
@@ -444,15 +468,20 @@ export function growFields(dh) {
   if (dh <= 0) return;
   for (const f of FIELDS) {
     if (f.meadow) { growMeadow(f, dh); continue; }
-    if (!f.cnt[S_SOWN] && f.counted) continue; // nothing growing here
+    if (!f.cnt[S_SOWN] && !f.cnt[S_RIPE] && f.counted) continue; // nothing growing or ripening here
     const st = f.state, gr = f.growth;
     for (let i = 0; i < f.n; i++) {
+      if (st[i] === S_RIPE) {
+        // a ripe crop left standing too long withers (agro.js: half the yield)
+        if (f.stage[i] === 4 && (gr[i] += dh) >= CROPS[f.crop[i]].hours + WITHER_H) { f.stage[i] = 5; updCrop(f, i); drawMini(f, i); drawCell(f, i); }
+        continue;
+      }
       if (st[i] !== S_SOWN) continue;
       const cr = CROPS[f.crop[i]], g = (gr[i] += dh);
       if (g >= cr.hours) { st[i] = S_RIPE; f.stage[i] = 4; updCrop(f, i); drawMini(f, i); drawCell(f, i); }
       else {
         const s = Math.min(3, Math.floor((g / cr.hours) * 4));
-        if (s !== f.stage[i]) { f.stage[i] = s; updCrop(f, i); drawMini(f, i); if (s >= 2) drawCell(f, i); }
+        if (s !== f.stage[i]) { f.stage[i] = s; weedsGrow(f, i, s); updCrop(f, i); drawMini(f, i); drawCell(f, i); }
       }
     }
   }
@@ -475,18 +504,26 @@ function growMeadow(f, dh) {
 
 export function countField(f) {
   const c = [0, 0, 0, 0], st = f.state, cr = f.crop;
-  let pg = 0, straw = 0, fert = 0, ripeBeet = 0;
+  let pg = 0, straw = 0, fert = 0, ripeBeet = 0, weedy = 0, limeDue = 0, stones = 0, withered = 0, ySum = 0, yN = 0, yAll = 0;
   for (let i = 0; i < f.n; i++) {
     const s = st[i];
     if (s === S_NONE) continue;
     c[s]++;
-    if (s === S_SOWN) pg += f.growth[i] / HOURS[cr[i]];
-    else if (s === S_RIPE && IS_BEET[cr[i]]) ripeBeet++;
+    if (s === S_SOWN) { pg += f.growth[i] / HOURS[cr[i]]; if (f.weed[i] & 3) weedy++; }
+    else if (s === S_RIPE) { if (IS_BEET[cr[i]]) ripeBeet++; if (f.stage[i] === 5) withered++; }
     straw += f.straw[i];
     fert += f.bonus[i] & B_FERT;
+    if (f.lime[i] >= LIME_DUE) limeDue++;
+    if (f.bonus[i] & B_STONE) stones++;
+    const y = cellYield(f, i);
+    yAll += y; if (s === S_SOWN || s === S_RIPE) { ySum += y; yN++; }
   }
   f.cnt = c; f.prog = c[2] ? pg / c[2] : 0; f.counted = true;
   f.strawCnt = straw; f.fertShare = fert / f.area; f.ripeBeet = ripeBeet;
+  // what the finer field work is waiting for (game/agro.js), as shares of the field
+  // expected yield multiplier (agro.js) of the growing crop, or of the next one on a bare field
+  f.yieldAvg = yN > f.area * 0.2 ? ySum / yN : yAll / Math.max(1, f.area);
+  f.weedShare = weedy / f.area; f.limeShare = limeDue / f.area; f.stoneShare = stones / f.area; f.witherShare = withered / f.area;
 }
 export function countFields() { for (const f of FIELDS) countField(f); }
 let rr = 0;

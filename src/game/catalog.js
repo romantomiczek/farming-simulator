@@ -161,6 +161,13 @@ export const MODELS = [
   { id: 'amazone-zats-24', kind: 'spreader', brand: 'Amazone', name: 'ZA-TS 24 m', price: 220000, width: 24, hp: 90, look: { body: '#f4f4f0', accent: '#ef7d00', hopper: 1.25, brand: 'AMAZONE', text: '#ef7d00', stroke: null }, desc: 'Dvojnásobný záběr, pole pohnojíš za polovinu času.' },
   { id: 'rauch-axis-30', kind: 'spreader', brand: 'Rauch', name: 'Axis 30 m', price: 320000, width: 30, hp: 110, look: { body: '#e8e8e4', accent: '#1f4f9c', hopper: 1.4, brand: 'RAUCH', text: '#1f4f9c', stroke: null }, desc: 'Největší rozmetadlo se záběrem 30 m.' },
 
+  { id: 'postrik-18', kind: 'sprayer', brand: '', name: 'Postřikovač 18 m', price: 120000, width: 18, hp: 70, look: {}, desc: 'Postřik proti plevelu na rostoucí plodiny, plevel bere až 25 % výnosu. Rameno se na cestu sklopí.' },
+  { id: 'amazone-ux-30', kind: 'sprayer', brand: 'Amazone', name: 'UF 2002, 30 m', price: 380000, width: 30, hp: 110, look: { body: '#f4f4f0', frame: '#ef7d00', width: 30, brand: 'AMAZONE', text: '#ef7d00', stroke: null }, desc: 'Třicetimetrové rameno, velká pole postříkáš rychle.' },
+  { id: 'valec-6', kind: 'roller', brand: '', name: 'Cambridge válec 6 m', price: 80000, width: 6, hp: 90, look: {}, desc: 'Uválcuje půdu před setím nebo hned po něm (+5 % výnosu) a zatlačí kameny po orbě, které jinak ničí lištu.' },
+  { id: 'vaderstad-rollex-12', kind: 'roller', brand: 'Väderstad', name: 'Rollex 12 m', price: 230000, width: 12, hp: 170, look: { color: '#f2c200', width: 12, brand: 'VÄDERSTAD', text: '#26282a', stroke: null }, desc: 'Dvanáctimetrový válec.' },
+  { id: 'mulc-3', kind: 'mulcher', brand: '', name: 'Mulčovač 3 m', price: 70000, width: 3, hp: 80, look: {}, desc: 'Rozseká strniště a slámu po sklizni (+5 % výnosu). Pole pak ještě zkultivuj.' },
+  { id: 'kuhn-bpr-6', kind: 'mulcher', brand: 'Kuhn', name: 'BPR 6 m', price: 210000, width: 6, hp: 150, look: { color: '#c42b2f', width: 6, brand: 'KUHN' }, desc: 'Široký mulčovač na velká pole.' },
+
   { id: 'zaci-3', kind: 'mower', brand: '', name: 'Žací lišta', price: 140000, width: 3.0, hp: 60, start: true, look: {}, desc: 'Poseče louku a nechá řádek sena pro lis; tráva pak sama doroste.' },
   { id: 'pottinger-novacat-35', kind: 'mower', brand: 'Pöttinger', name: 'Novacat 352', price: 190000, width: 3.5, hp: 70, look: { color: '#2f8f3a', width: 3.5, brand: 'PÖTTINGER' }, desc: 'Lišta se záběrem 3,5 m.' },
   { id: 'krone-easycut-87', kind: 'mower', brand: 'Krone', name: 'EasyCut B 870', price: 450000, width: 8.7, hp: 150, look: { color: '#1f7a3a', width: 8.7, brand: 'KRONE' }, desc: 'Motýlková kombinace tří lišt, záběr 8,7 m.' },

@@ -27,6 +27,9 @@ import { GOALS, activeGoals, isDone, progressOf, progressText } from '../game/go
 import { FIELDS } from '../world/fields.js';
 import { S_STUB, S_CULT, S_SOWN, S_RIPE } from '../game/crops.js';
 import { buyField } from '../game/actions.js';
+import { fieldYield, WITHER_H, LIME_DUE } from '../game/agro.js';
+import { SEASONS, seasonIdx } from '../game/weather.js';
+import { dayOf } from '../game/state.js';
 
 // The farm office (K): machine shop, the fleet, neighbour contracts, the farm and its fields, goals and finances.
 // Time stops while it is open.
@@ -150,7 +153,7 @@ function parkedAt(key) {
 const SHOP = [
   { id: 'tractor', name: 'Traktory', kinds: ['tractor'] },
   { id: 'harvest', name: 'Sklízeče', kinds: ['combine', 'beet'], extra: ['cornHeader'] },
-  { id: 'tools', name: 'Nářadí', kinds: ['cultivator', 'plough', 'seeder', 'spreader', 'mower', 'baler'] },
+  { id: 'tools', name: 'Nářadí', kinds: ['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'mower', 'baler'] },
   { id: 'haul', name: 'Přívěsy a cisterny', kinds: ['trailer', 'watertank'] },
   { id: 'forest', name: 'Lesnictví', kinds: ['forest'] },
   { id: 'cars', name: 'Auta', kinds: ['jeep'] },
@@ -158,7 +161,7 @@ const SHOP = [
 ];
 const KIND_TITLE = {
   tractor: 'Traktory', combine: 'Kombajny', beet: 'Sklízeče cukrovky', cultivator: 'Kultivátory', plough: 'Pluhy', seeder: 'Secí stroje',
-  spreader: 'Rozmetadla', mower: 'Žací lišty', baler: 'Lisy', trailer: 'Přívěsy', watertank: 'Cisterny', forest: 'Harvestory', jeep: 'Auta',
+  spreader: 'Rozmetadla', sprayer: 'Postřikovače', roller: 'Válce', mulcher: 'Mulčovače', mower: 'Žací lišty', baler: 'Lisy', trailer: 'Přívěsy', watertank: 'Cisterny', forest: 'Harvestory', jeep: 'Auta',
 };
 const n1 = x => String(Math.round(x * 10) / 10).replace('.', ',');
 /** The numbers a card shows for each kind: [label, value, text, more is better]. */
@@ -507,14 +510,32 @@ function helpersHTML() {
   return out;
 }
 
+/** Sowing calendar: in which seasons each crop is sown, how long it ripens, now highlighted. */
+function calendarHTML() {
+  const now = seasonIdx(dayOf(G.gameMin));
+  let out = '<h3 class="grp">Kalendář setí</h3><p class="lede small">Každá plodina se seje jen v některých ročních obdobích, v zimě se neseje nic. Zralá plodina, kterou do ' + WITHER_H + ' hodin nesklidíš, přezraje a dá jen polovinu.</p><table class="cal"><tr><th></th>';
+  SEASONS.forEach((s, k) => { out += `<th class="${k === now ? 'now' : ''}">${s.name}</th>`; });
+  out += '<th>Zraje</th></tr>';
+  for (const c of CROPS) {
+    out += `<tr><td>${c.name}</td>` + SEASONS.map((_, k) => `<td class="${k === now ? 'now' : ''}">${c.sowIn.includes(k) ? '<i class="sow" title="seje se"></i>' : ''}</td>`).join('') + `<td>${c.hours} h</td></tr>`;
+  }
+  return out + '</table>';
+}
+/** The yield breakdown of a field, as Farming Simulator shows it: each factor in per cent. */
+function yieldHTML(f) {
+  const y = fieldYield(f), rows = y.rows.filter(r => Math.abs(r.v) >= 0.005 || ['Hnojení', 'Plevel', 'Vápnění'].includes(r.label));
+  const cell = r => `<span class="${r.v > 0 ? 'up' : r.v < 0 ? 'down' : 'muted'}">${r.label} ${r.v > 0 ? '+' : r.v < 0 ? '−' : '±'}${Math.round(Math.abs(r.v) * 100)} %</span>`;
+  return `<div class="yrow">${rows.map(cell).join('')}${f.q !== 1 ? `<span class="${f.q > 1 ? 'up' : 'down'}">Půda ${Math.round(f.q * 100)} %</span>` : ''}${y.stones > 0.005 ? '<span class="down">Kameny ' + pct(y.stones) + '</span>' : ''}</div>`;
+}
 function fieldsHTML() {
-  let out = '<h3 class="grp">Pozemky</h3>';
+  let out = calendarHTML() + '<h3 class="grp">Pozemky</h3><p class="lede small">U každého tvého pole je rozpis výnosu: co ho zvedá (hnojení dvakrát, orba, válení, mulčování strniště, jiná plodina než minule) a co ho bere (plevel, kyselá půda po ' + LIME_DUE + ' sklizních bez vápnění, přezrálé plodiny). Kameny po orbě výnos neberou, ale ničí lištu: uválcuj je.</p>';
   for (const f of FIELDS) {
     const parts = (f.meadow ? [[S_RIPE, 'k posečení'], [S_STUB, 'dorůstá']] : [[S_RIPE, 'zralé'], [S_SOWN, 'oseto'], [S_CULT, 'připraveno'], [S_STUB, 'strniště']])
       .filter(([k]) => f.cnt[k] / f.area >= 0.05).map(([k, name]) => name + ' ' + pct(f.cnt[k] / f.area));
     const state = f.owned ? '<span class="chip on">Tvoje</span>' : '<span class="chip">Soused</span>';
     const buyBtn = f.owned ? '' : `<div class="ract">${btn('field', f.id, 'Koupit · ' + fmt(f.price) + ' Kč', G.money < f.price)}</div>`;
-    out += `<div class="row"><div class="rmain"><b>${f.meadow ? 'Louka' : 'Pole'} ${f.id} · ${ha(f.area)}${f.q !== 1 ? ' · půda ' + Math.round(f.q * 100) + ' %' : ''}</b><span>${parts.join(' · ') || '—'}</span></div><div class="rstate">${state}</div>${buyBtn}</div>`;
+    const yld = f.owned && !f.meadow ? `<b class="ytot">Výnos ${Math.round(fieldYield(f).total * f.q * 100)} %</b>` : '';
+    out += `<div class="row"><div class="rmain"><b>${f.meadow ? 'Louka' : 'Pole'} ${f.id} · ${ha(f.area)}${f.q !== 1 ? ' · půda ' + Math.round(f.q * 100) + ' %' : ''}</b><span>${parts.join(' · ') || '—'}</span>${f.owned && !f.meadow ? yieldHTML(f) : ''}</div><div class="rstate">${state}${yld}</div>${buyBtn}</div>`;
   }
   return out;
 }

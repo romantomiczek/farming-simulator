@@ -125,6 +125,53 @@ try {
   });
   check('kultivátor zpracuje strniště', cult > 0, cult + ' m²');
 
+  // finer field work on field 2: the plough turns up stones, the roller presses them in, the sprayer
+  // kills weeds, lime mode limes the soil, a ripe crop left standing withers, the calendar keeps
+  // beet out of summer, and the yield follows it all
+  const agro = await page.evaluate(async () => {
+    const { G, vehicles, fields, attach } = window.__zl, f = fields.find(x => x.id === 2), t = vehicles.find(v => v.type === 'tractor' && !v.helper);
+    const A = await import('/src/game/agro.js'), F = await import('/src/world/fields.js'), M = await import('/src/game/machines.js'), C = await import('/src/game/crops.js');
+    for (const [kind, id] of [['sprayer', 'postrik-18'], ['roller', 'valec-6'], ['plough', 'pluh-5'], ['spreader', 'rozm-12']]) if (!window.__zl.tools.some(x => x.key === kind)) M.buy(id);
+    const lane = (key, setup) => {
+      attach(key, t); G.active = t; setup?.();
+      Object.assign(t, { x: f.x0 + 14, z: f.z0 + 3, h: 0, speed: 0, helper: null });
+      window.__zl.act('Space'); window.__zl.hold('KeyW', 240); window.__zl.act('Space');
+      return t.tool;
+    };
+    const cells = () => { const out = []; for (let i = 0; i < f.n; i++) { const x = i % f.w, z = (i / f.w) | 0; if (x >= 10 && x <= 18 && z >= 8 && z <= 40) out.push(i); } return out; };
+    // plough: stones on some of the cells
+    for (const i of cells()) { f.state[i] = C.S_STUB; f.bonus[i] = 0; }
+    lane('plough');
+    const ploughed = cells().filter(i => f.bonus[i] & C.B_PLOW), stones = ploughed.filter(i => f.bonus[i] & C.B_STONE).length;
+    // roller: stones pressed in, rolled bit
+    lane('roller');
+    const rolled = cells().filter(i => f.bonus[i] & C.B_ROLL).length, stonesLeft = cells().filter(i => f.bonus[i] & C.B_STONE && f.bonus[i] & C.B_ROLL).length;
+    // sprayer on a growing, weedy crop
+    for (const i of cells()) { f.state[i] = C.S_SOWN; f.crop[i] = 0; f.stage[i] = 2; f.growth[i] = 3; f.weed[i] = 2; }
+    F.refreshField(f);
+    const was = new Map(cells().map(i => [i, A.cellYield(f, i)]));
+    lane('sprayer');
+    const done = cells().filter(i => f.weed[i] === A.WEED_SPRAYED), sprayed = done.length, before = was.get(done[0]), after = A.cellYield(f, done[0]);
+    // lime mode of the spreader
+    for (const i of cells()) f.lime[i] = A.LIME_DUE;
+    lane('spreader', () => { t.spreadLime = true; });
+    const limed = cells().filter(i => f.lime[i] === 0).length; t.spreadLime = false;
+    // a ripe crop left standing withers and gives half
+    const i0 = cells()[0];
+    f.state[i0] = C.S_RIPE; f.stage[i0] = 4; f.growth[i0] = C.CROPS[0].hours; f.weed[i0] = 0; f.lime[i0] = 0; f.bonus[i0] = 0;
+    const ripe = A.cellYield(f, i0);
+    F.countField(f); F.growFields(A.WITHER_H + 1);
+    const withered = f.stage[i0] === 5, dry = A.cellYield(f, i0);
+    // calendar: summer takes wheat, not beet
+    const summer = A.sowable(0) && !A.sowable(5);
+    const y = A.fieldYield(f);
+    return { stones, ploughed: ploughed.length, rolled, stonesLeft, sprayed, before: +before.toFixed(3), after: +after.toFixed(3), limed, withered, ripe: +ripe.toFixed(2), dry: +dry.toFixed(2), summer, rows: y.rows.length };
+  });
+  check('polní práce: kameny, válec, postřik, vápno, přezrání, kalendář', agro.ploughed > 50 && agro.stones > 0 && agro.rolled > 50 && agro.stonesLeft === 0 && agro.sprayed > 50 && agro.after > agro.before &&
+    agro.limed > 50 && agro.withered && Math.abs(agro.dry - agro.ripe / 2) < 0.01 && agro.summer && agro.rows === 9,
+    'zoráno ' + agro.ploughed + ' m², kameny ' + agro.stones + ' · uválcováno ' + agro.rolled + ' m², kamenů zbylo ' + agro.stonesLeft + ' · postřik ' + agro.sprayed + ' m², výnos ' + agro.before + ' → ' + agro.after +
+    ' · vyvápněno ' + agro.limed + ' m² · přezrálé ' + (agro.withered ? 'ano' : 'ne') + ' ' + agro.ripe + ' → ' + agro.dry + ' · v létě pšenice ano, cukrovka ne: ' + (agro.summer ? 'ano' : 'ne'));
+
   // a helper sent from the office: drives to field 2 along the roads, cultivates it and comes home
   const helper = await page.evaluate(async () => {
     const H = await import('/src/game/helpers.js');

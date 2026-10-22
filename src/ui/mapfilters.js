@@ -1,4 +1,5 @@
-import { CROPS, GRASS, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW } from '../game/crops.js';
+import { CROPS, GRASS, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_FERT2, B_STONE } from '../game/crops.js';
+import { weedLevel, LIME_DUE, yieldLine } from '../game/agro.js';
 import { G } from '../game/state.js';
 import { NEIGHBOURS, neighbourOf } from '../world/neighbours.js';
 import { fmt, fmt2, hexRgb } from '../core/util.js';
@@ -23,11 +24,11 @@ export const VIEWS = [
   },
   {
     key: 'growth', name: 'Růst',
-    cats: [cat('Zaseto', '#d8ecb0'), cat('Klíčí', '#a6d27a'), cat('Roste', '#6fb04f'), cat('Před zralostí', '#3f8a3a'), cat('Zralé', '#f0c22e'), cat('Nic neroste', '#cdc3a6')],
+    cats: [cat('Zaseto', '#d8ecb0'), cat('Klíčí', '#a6d27a'), cat('Roste', '#6fb04f'), cat('Před zralostí', '#3f8a3a'), cat('Zralé', '#f0c22e'), cat('Nic neroste', '#cdc3a6'), cat('Přezrálé', '#8a6a3a')],
     of(f, i) {
       const s = f.state[i];
       if (f.meadow) return s === S_RIPE ? 4 : Math.min(3, Math.floor((f.growth[i] / GRASS.hours) * 4));
-      if (s === S_RIPE) return 4;
+      if (s === S_RIPE) return f.stage[i] === 5 ? 6 : 4;
       if (s === S_SOWN) return Math.min(3, f.stage[i]);
       return 5;
     },
@@ -35,15 +36,20 @@ export const VIEWS = [
   {
     key: 'soil', name: 'Stav půdy',
     cats: [cat('Kultivovat nebo zorat', '#d65a3a'), cat('Sláma nebo seno k lisování', '#e8c95a'), cat('Připraveno k setí', '#5a8fd6'), cat('Zoráno, k setí', '#3a63b0'),
-      cat('Pohnojit', '#e8902a'), cat('Roste, hotovo', '#5aa64a'), cat('Sklidit / posekat', '#9b59b6')],
+      cat('Pohnojit', '#e8902a'), cat('Roste, hotovo', '#5aa64a'), cat('Sklidit / posekat', '#9b59b6'),
+      cat('Postříkat plevel', '#c7e03a'), cat('Kameny: uválcovat', '#9a9a92'), cat('Vápnit (kyselá půda)', '#e8e0d0'), cat('Pohnojit podruhé', '#f2b86a'), cat('Přezrálé: sklidit hned', '#7a3a2a')],
     of(f, i) {
-      const s = f.state[i];
+      const s = f.state[i], b = f.bonus[i];
       if (f.straw[i]) return 1;
-      if (s === S_RIPE) return 6;
+      if (s === S_RIPE) return f.stage[i] === 5 ? 11 : 6;
       if (f.meadow) return 5;
+      if (b & B_STONE) return 8;
       if (s === S_STUB) return 0;
-      if (s === S_CULT) return f.bonus[i] & B_PLOW ? 3 : 2;
-      return f.bonus[i] & B_FERT ? 5 : 4;
+      if (f.lime[i] >= LIME_DUE) return 9;
+      if (s === S_CULT) return b & B_PLOW ? 3 : 2;
+      if (weedLevel(f, i)) return 7;
+      if (!(b & B_FERT)) return 4;
+      return f.stage[i] >= 2 && !(b & B_FERT2) ? 10 : 5;
     },
   },
   {
@@ -100,5 +106,9 @@ export function fieldInfo(f) {
   if (!f.meadow && c[S_CULT] > f.area * 0.05) need.push('zasít ' + share(S_CULT) + ' %');
   if (!f.meadow && c[S_SOWN] > f.area * 0.3 && f.fertShare < 0.5) need.push('pohnojit');
   if (c[S_RIPE] > f.area * 0.05) need.push(f.meadow ? 'posekat' : 'sklidit');
-  return { title: (f.meadow ? 'Louka ' : 'Pole ') + f.id, line: ha + ' · ' + who, grow, need: need.length ? 'Potřebuje: ' + need.join(', ') : 'Nic nepotřebuje' };
+  if (!f.meadow && f.weedShare > 0.05) need.push('postříkat plevel');
+  if (!f.meadow && f.limeShare > 0.3) need.push('vyvápnit');
+  if (!f.meadow && f.stoneShare > 0.005) need.push('uválcovat kameny');
+  if (f.witherShare > 0.02) need.push('sklidit, přezrává');
+  return { title: (f.meadow ? 'Louka ' : 'Pole ') + f.id, line: ha + ' · ' + who, grow, need: need.length ? 'Potřebuje: ' + need.join(', ') : 'Nic nepotřebuje', yield: f.meadow ? '' : yieldLine(f) };
 }
