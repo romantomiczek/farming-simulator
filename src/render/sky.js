@@ -15,7 +15,7 @@ const domeMat = new THREE.ShaderMaterial({
   uniforms: {
     zenith: { value: new THREE.Color() }, horizon: { value: new THREE.Color() },
     sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color() }, sunVis: { value: 1 },
-    glow: { value: 0 }, moonDir: { value: new THREE.Vector3(0, 1, 0) }, moonVis: { value: 0 },
+    glow: { value: 0 }, moonDir: { value: new THREE.Vector3(0, 1, 0) }, moonVis: { value: 0 }, skyAlpha: { value: 1 },
   },
   vertexShader: /* glsl */`
     varying vec3 vDir;
@@ -25,7 +25,7 @@ const domeMat = new THREE.ShaderMaterial({
     }`,
   fragmentShader: /* glsl */`
     uniform vec3 zenith, horizon, sunCol, sunDir, moonDir;
-    uniform float sunVis, glow, moonVis;
+    uniform float sunVis, glow, moonVis, skyAlpha;
     varying vec3 vDir;
     void main() {
       vec3 d = normalize(vDir);
@@ -37,10 +37,12 @@ const domeMat = new THREE.ShaderMaterial({
       c += sunCol * sunVis * (pow(s, 64.0) * 0.35 + smoothstep(0.9990, 0.9994, s) * 2.0);
       float m = max(dot(d, moonDir), 0.0);
       c += vec3(0.75, 0.8, 0.95) * moonVis * (smoothstep(0.9993, 0.9996, m) * 0.9 + pow(m, 200.0) * 0.12);
-      gl_FragColor = vec4(c, 1.0);
+      gl_FragColor = vec4(c, skyAlpha); // 0 under post-processing: the sky stays out of tone mapping and occlusion
       #include <colorspace_fragment>
     }`,
 });
+/** Post-processing marks the sky with alpha 0 (on screen the alpha must stay 1, or the page shows through). */
+export const setSkyAlpha = a => { domeMat.uniforms.skyAlpha.value = a; };
 const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 16), domeMat);
 dome.renderOrder = -10;
 dome.frustumCulled = false;

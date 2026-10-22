@@ -2,16 +2,32 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { col } from '../core/util.js';
 import { addSnow } from './snow.js';
+import { surfaceDetail, sharedGroundDetail } from './textures.js';
+
+/**
+ * Surface textures for buildings (opts.tex of M): projected from the three axes in the merged
+ * material, so walls and roofs need no texture coordinates. Corrugated sheet, brick, boards,
+ * concrete, plaster, sheet with level ribs (silos).
+ */
+export const TEX = { metal: 1, brick: 2, wood: 3, concrete: 4, plaster: 5, rings: 6, tiles: 7 };
 
 const cache = new Map();
-/** Shared flat-shaded material per colour + options, so meshes can be merged by material. */
+/**
+ * Shared flat-shaded material per colour + options, so meshes can be merged by material.
+ * opts.tex = a TEX kind: the surface texture once the mesh is merged by bake().
+ */
 export function M(hex, opts) {
   const k = hex + (opts ? JSON.stringify(opts) : '');
   if (!cache.has(k)) {
-    cache.set(k, new THREE.MeshStandardMaterial(Object.assign({ color: col(hex), roughness: 0.88, metalness: 0, flatShading: true }, opts || {})));
+    const { tex, ...rest } = opts || {};
+    const m = new THREE.MeshStandardMaterial(Object.assign({ color: col(hex), roughness: 0.88, metalness: 0, flatShading: true }, rest));
+    if (tex) m.userData.tex = TEX[tex] ?? tex;
+    cache.set(k, m);
   }
   return cache.get(k);
 }
+/** M(hex) with a surface texture (see TEX). */
+export const MT = (hex, tex, opts) => M(hex, { ...opts, tex });
 
 export function mk(geo, mat, x, y, z, parent, cast = true) {
   const m = new THREE.Mesh(geo, typeof mat === 'string' ? M(mat) : mat);
@@ -65,6 +81,34 @@ const plain = m => m.isMeshStandardMaterial && !m.map && !m.transparent && m.opa
 const vcCache = new Map();
 /** Dirt of a machine: a uniform per machine (dirtMaterials()); the rest of the world stays clean. */
 const DIRT0 = { value: 0 };
+const SURF_TEX = { value: null }, STAIN_TEX = { value: null };
+/** Building surfaces (vSurf.z = TEX kind): pattern from the axis the face looks along, soft stains and a darker foot of the wall. */
+const SURF_GLSL = `
+  float sk = floor(vSurf.z + 0.5);
+  // walls: u along the wall, v up; slopes: u along the ridge, v down the slope; flat: plan view.
+  // Derivatives are taken here, outside the branch, so the texture reads below are skipped for
+  // untextured surfaces (machines) instead of being run for every pixel anyway.
+  vec3 sn = normalize(vObjN);
+  vec2 hz = sn.xz; float hl = length(hz);
+  vec2 dir = hl > 0.05 ? hz / hl : vec2(0.0, 1.0), perp = vec2(-dir.y, dir.x);
+  vec2 wuv = abs(sn.y) > 0.92 ? vLocal.xz : abs(sn.y) > 0.3 ? vec2(dot(vLocal.xz, perp), dot(vLocal.xz, dir)) : vec2(dot(vLocal.xz, perp), vLocal.y);
+  vec2 suv = vLocal.xz * 0.05 + vLocal.y * 0.031;
+  vec2 gx = dFdx(wuv), gy = dFdy(wuv), sgx = dFdx(suv), sgy = dFdy(suv);
+  if (sk > 0.5) {
+    vec3 st = textureGrad(tSurf, wuv, gx, gy).rgb;
+    float stain = textureGrad(tStain, suv, sgx, sgy).b;
+    float grain = textureGrad(tStain, wuv * 0.41, gx * 0.41, gy * 0.41).g;
+    float m = 1.0;
+    if (sk < 1.5) m = 0.55 + 0.9 * st.r;
+    else if (sk < 2.5) m = 0.5 + st.g;
+    else if (sk < 3.5) m = 0.5 + st.b;
+    else if (sk < 4.5) m = 0.78 + 0.44 * grain;
+    else if (sk < 5.5) m = 0.9 + 0.2 * grain;
+    else if (sk < 6.5) m = 0.55 + 0.9 * textureGrad(tSurf, wuv.yx, gx.yx, gy.yx).r;
+    else m = 1.45 - textureGrad(tSurf, wuv * vec2(1.2, 0.33), gx * vec2(1.2, 0.33), gy * vec2(1.2, 0.33)).g;
+    float foot = abs(sn.y) > 0.7 ? 1.0 : mix(0.78, 1.0, smoothstep(0.0, 1.4, vLocal.y));
+    diffuseColor.rgb *= m * foot * mix(0.8, 1.06, smoothstep(0.25, 0.75, stain));
+  }`;
 /** Mud on a machine's vertex-coloured surfaces: thicker low down, blotchy (blocky noise suits the low-poly look). */
 const DIRT_GLSL = `
   float mudK = 0.0;
@@ -91,14 +135,18 @@ function vcMat(m, snowy, atlas) {
     // a function (not an arrow): a machine's own copy binds its own dirt uniform (this.userData.dirt)
     vm.onBeforeCompile = function (sh) {
       sh.uniforms.uDirt = this?.userData?.dirt || DIRT0;
+      SURF_TEX.value ??= surfaceDetail(); STAIN_TEX.value ??= sharedGroundDetail();
+      sh.uniforms.tSurf = SURF_TEX; sh.uniforms.tStain = STAIN_TEX;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec2 surf;\nvarying vec2 vSurf;\nvarying vec3 vLocal;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf = surf;\nvLocal = position;');
+        .replace('#include <common>', '#include <common>\nattribute vec3 surf;\nvarying vec3 vSurf;\nvarying vec3 vLocal;\nvarying vec3 vObjN;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf = surf;\nvLocal = position;\nvObjN = normal;');
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vSurf;\nvarying vec3 vLocal;\nuniform float uDirt;')
-        .replace('#include <color_fragment>', '#include <color_fragment>' + DIRT_GLSL)
+        .replace('#include <common>', '#include <common>\nvarying vec3 vSurf;\nvarying vec3 vLocal;\nvarying vec3 vObjN;\nuniform float uDirt;\nuniform sampler2D tSurf;\nuniform sampler2D tStain;')
+        .replace('#include <color_fragment>', '#include <color_fragment>' + DIRT_GLSL + SURF_GLSL)
         .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = mix(roughness * vSurf.x, 1.0, mudK);')
-        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = metalness * vSurf.y * (1.0 - mudK);');
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = metalness * vSurf.y * (1.0 - mudK);')
+        // the sky map (envmap.js) only adds reflections here: the hemisphere light already gives the diffuse light
+        .replace('#include <lights_fragment_maps>', THREE.ShaderChunk.lights_fragment_maps.replace('iblIrradiance += getIBLIrradiance( geometryNormal );', ''));
     };
     vm.customProgramCacheKey = () => 'surf';
     vcCache.set(k, snowy ? addSnow(vm) : vm);
@@ -147,11 +195,12 @@ export function bake(root, opts = {}) {
       for (const name of Object.keys(g.attributes)) if (!KEEP_ATTR.has(name)) g.deleteAttribute(name);
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
       if (vc) {
-        const n = g.attributes.position.count, cols = new Float32Array(n * 3), surf = new Float32Array(n * 2), m = ch.material, c = decal ? WHITE : m.color; // linear, like the material colour
-        for (let i = 0; i < n; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; surf[i * 2] = m.roughness; surf[i * 2 + 1] = m.metalness; }
+        const n = g.attributes.position.count, cols = new Float32Array(n * 3), surf = new Float32Array(n * 3), m = ch.material, c = decal ? WHITE : m.color; // linear, like the material colour
+        const tex = decal ? 0 : m.userData.tex || 0;
+        for (let i = 0; i < n; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; surf[i * 3] = m.roughness; surf[i * 3 + 1] = m.metalness; surf[i * 3 + 2] = tex; }
         if (atlas && !decal) { const uv = g.attributes.uv; for (let i = 0; i < n; i++) uv.setXY(i, atlas.white[0], atlas.white[1]); }
         g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-        g.setAttribute('surf', new THREE.BufferAttribute(surf, 2));
+        g.setAttribute('surf', new THREE.BufferAttribute(surf, 3));
         if (m.flatShading) g.computeVertexNormals(); // non-indexed here, so these are face normals
       }
       g.clearGroups();

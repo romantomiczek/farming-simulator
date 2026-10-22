@@ -236,3 +236,52 @@ export function cropAtlas() {
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return t;
 }
+
+let groundTex = null;
+/** One shared copy of groundDetail() (terrain, building stains). */
+export const sharedGroundDetail = () => (groundTex ??= groundDetail());
+
+/**
+ * Building surfaces, 512 px over 1 m (shaders project it onto walls and roofs in world space):
+ * R = corrugated sheet (ribs along v, a few rust streaks), G = brick wall (25 × 6.5 cm bricks, light
+ * mortar), B = vertical boards (15 cm, dark gaps and grain). 0.5 keeps the base colour.
+ */
+export function surfaceDetail() {
+  const S = 512, cv = makeCanvas(S, S), ctx = cv.getContext('2d'), img = ctx.createImageData(S, S), d = img.data;
+  const n = tileNoise(13), r = rng(61);
+  const shade = new Float32Array(64 * 16).map(() => r()); // per brick
+  const board = new Float32Array(8).map(() => r());
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const u = x / S, v = y / S, o = (y * S + x) * 4, nn = fractal(n, x, y, S, 8, 3);
+    // corrugated: 13 ribs per metre, lit on one flank
+    const rib = Math.sin(u * Math.PI * 2 * 13);
+    const streak = Math.max(0, fractal(n, x * 6, 0, S, 32, 2) - 0.62) * 2.2 * (0.4 + v * 0.6);
+    const metal = 0.5 + rib * 0.2 - streak * 0.25 + (nn - 0.5) * 0.12;
+    // bricks: 14 rows, 4 bricks a row, every other row shifted half a brick
+    const row = Math.floor(v * 14), fu = u * 4 + (row & 1) * 0.5, col = Math.floor(fu), bu = fu - col, bv = v * 14 - row;
+    const mortar = bu < 0.04 || bv < 0.12;
+    const brick = mortar ? 0.82 : 0.4 + shade[(row * 4 + (col & 3)) % shade.length] * 0.2 + (nn - 0.5) * 0.12 + (r() - 0.5) * 0.06;
+    // boards: 6.67 per metre, dark gap, grain along v
+    const bi = Math.floor(u * 6.67), bf = u * 6.67 - bi;
+    const grain = fractal(n, x * 0.25, y * 4, S, 16, 3);
+    const wood = bf < 0.05 ? 0.12 : 0.42 + board[bi % 8] * 0.16 + (grain - 0.5) * 0.25;
+    d[o] = Math.max(0, Math.min(1, metal)) * 255; d[o + 1] = Math.max(0, Math.min(1, brick)) * 255; d[o + 2] = Math.max(0, Math.min(1, wood)) * 255; d[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvasTex(cv);
+}
+
+/** Leaf clusters for tree crowns: many small leaves, white-ish on transparent (vertex colours tint them). */
+export function leafTexture() {
+  const S = 256, cv = makeCanvas(S, S), c = cv.getContext('2d'), r = rng(73);
+  for (let k = 0; k < 420; k++) {
+    // denser towards the middle, so the card's edge is ragged
+    const a = r() * Math.PI * 2, rad = Math.sqrt(r()) * S * 0.47, x = S / 2 + Math.cos(a) * rad, y = S / 2 + Math.sin(a) * rad;
+    const len = 9 + r() * 12, ang = r() * Math.PI * 2, v = Math.round(170 + r() * 85);
+    c.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+    c.beginPath(); c.ellipse(x, y, len, len * 0.42, ang, 0, Math.PI * 2); c.fill();
+  }
+  const t = canvasTex(cv, { repeat: false, srgb: true, aniso: 4 });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}

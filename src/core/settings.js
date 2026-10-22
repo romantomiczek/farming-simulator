@@ -6,27 +6,30 @@
 // models; beyond treeFar only treeFarKeep of the trees in the playable area are drawn (all keep their
 // collisions); hedgeLow = simple hedge bushes; casterK scales the radius of tree shadows.
 // cropCards = crops as 2–4 crossing cards with stalks and leaves closer than cardDist m (further and with
-// 0 plain blocks); grass = tufts of grass blades around the camera per square metre (0 = none).
+// 0 plain blocks); grass = tufts of grass blades around the camera per square metre (0 = none). env = sky reflections and light (environment map);
+// post = post-processing with ao (ambient occlusion), bloom, rays (sun rays at dawn and dusk) and haze 0..1;
+// postAA = 'msaa' smooths edges by multisampling the scene, otherwise FXAA at the end (much cheaper);
+// leaves = leaf cards round the crowns of near broadleaves and birches.
 const KEY = 'zlate-lany-settings-v1';
 
 export const PRESETS = {
   low: {
-    label: 'Nízká', scale: 0.7, pixelCap: 1.5, shadowMap: 1024, cropShadows: false, trees: 0.4, view: 320, cropLod: 110, antialias: false, cropCards: 0, grass: 0,
+    label: 'Nízká', scale: 0.7, pixelCap: 1.5, shadowMap: 1024, cropShadows: false, trees: 0.4, view: 320, cropLod: 110, antialias: false, cropCards: 0, grass: 0, env: false, post: false,
     terrainFine: 60, terrainMid: 320, treeNear: 0, treeFar: 170, treeFarKeep: 0.45, hedgeLow: true, casterK: 0.6, machineLod: 70,
     desc: 'Vykresluje v 70 % rozlišení, plodiny jsou jednoduché kvádry bez stínů, tráva bez stébel, na kopcích je méně stromů a dohled je kratší. Pro integrovanou grafiku Intel.',
   },
   medium: {
-    label: 'Střední', scale: 0.85, pixelCap: 1.5, shadowMap: 1024, cropShadows: true, trees: 0.7, view: 460, cropLod: 160, antialias: true, cropCards: 2, cardDist: 60, grass: 2,
+    label: 'Střední', scale: 0.85, pixelCap: 1.5, shadowMap: 1024, cropShadows: true, trees: 0.7, view: 460, cropLod: 160, antialias: true, cropCards: 2, cardDist: 60, grass: 2, env: true, post: false, leaves: true,
     terrainFine: 160, terrainMid: 600, treeNear: 90, treeFar: 300, treeFarKeep: 0.7, hedgeLow: true, casterK: 0.8, machineLod: 90,
     desc: 'Vykresluje v 85 % rozlišení s vyhlazováním hran a stíny všech objektů. Pro slabší samostatné karty, třeba GeForce 840M.',
   },
   high: {
-    label: 'Vysoká', scale: 1, pixelCap: 2, shadowMap: 2048, cropShadows: true, trees: 1, view: 620, cropLod: 240, antialias: true, cropCards: 2, cardDist: 90, grass: 5,
+    label: 'Vysoká', scale: 1, pixelCap: 2, shadowMap: 2048, cropShadows: true, trees: 1, view: 620, cropLod: 240, antialias: true, cropCards: 2, cardDist: 90, grass: 5, env: true, post: true, leaves: true, ao: true, bloom: true, rays: true, haze: 0.35,
     terrainFine: 420, terrainMid: Infinity, treeNear: 170, treeFar: Infinity, treeFarKeep: 1, hedgeLow: false, casterK: 1, machineLod: 120,
-    desc: 'Plné rozlišení i na displejích s jemnými pixely, ostřejší stíny, všechny stromy a nejdelší dohled.',
+    desc: 'Plné rozlišení i na displejích s jemnými pixely, ostřejší stíny, všechny stromy, nejdelší dohled a postprocessing: zastínění koutů, záře světel, opar a paprsky slunce.',
   },
   ultra: {
-    label: 'Ultra', scale: 1, pixelCap: 2, shadowMap: 4096, cropShadows: true, cropCards: 3, cardDist: 140, grass: 9, trees: 2, view: 620, cropLod: 400, antialias: true,
+    label: 'Ultra', scale: 1, pixelCap: 2, shadowMap: 4096, cropShadows: true, cropCards: 3, cardDist: 140, grass: 9, env: true, post: true, leaves: true, ao: true, bloom: true, rays: true, haze: 0.45, postAA: 'msaa', trees: 2, view: 620, cropLod: 400, antialias: true,
     terrainFine: Infinity, terrainMid: Infinity, treeNear: 300, treeFar: Infinity, treeFarKeep: 1, hedgeLow: false, casterK: 1, machineLod: 160,
     desc: 'Jako Vysoká, navíc nejostřejší stíny, hustší plodiny a tráva a dvakrát hustší les na kopcích. Pro výkonné grafické karty.',
   },

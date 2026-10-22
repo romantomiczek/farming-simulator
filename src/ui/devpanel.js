@@ -53,6 +53,8 @@ const PLACES = [
 /* ---------- markup ---------- */
 const sec = (title, inner, open = true) => `<details${open ? ' open' : ''}><summary>${title}</summary><div class="devsec">${inner}</div></details>`;
 const range = (id, label, min, max, step) => `<label class="devrow"><span>${label} <output id="${id}Out"></output></span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}"></label>`;
+/** Quality flags with a checkbox each: [element id, preset key]. */
+const DEV_FLAGS = [['devEnv', 'env'], ['devLeaves', 'leaves'], ['devPost', 'post'], ['devAO', 'ao'], ['devBloom', 'bloom'], ['devRays', 'rays']];
 const check = (id, label) => `<label class="devcheck"><input type="checkbox" id="${id}"> ${label}</label>`;
 const button = (act, label) => `<button class="chipbtn" data-dev="${act}">${label}</button>`;
 const select = (id, label, opts) => `<label class="devrow"><span>${label}</span><select id="${id}">${opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label>`;
@@ -80,6 +82,12 @@ function html() {
     ${check('devCropShadows', 'Stíny plodin')}
     ${select('devCropCards', 'Plodiny', [[0, 'kvádry'], [2, '2 plochy'], [3, '3 plochy'], [4, '4 plochy']])}
     ${select('devGrass', 'Trsy trávy na m²', [[0, 'žádné'], [2, '2'], [5, '5'], [9, '9'], [16, '16']])}
+    ${check('devEnv', 'Odlesky oblohy (mapa okolí)')}
+    ${check('devLeaves', 'Listí na stromech')}
+    ${check('devPost', 'Postprocessing')}
+    ${check('devAO', 'Zastínění koutů (SSAO)')}
+    ${check('devBloom', 'Záře světel (bloom)')}
+    ${check('devRays', 'Paprsky slunce')}
     <div class="devbtns">${button('gfxReset', 'Zpět na předvolbu')}</div>
     <p class="muted" id="devGfxNote"></p>`)}
   ${sec('Svět', `
@@ -145,6 +153,7 @@ function syncControls() {
   $('#devShadows').checked = q.shadows !== false;
   $('#devCropShadows').checked = !!q.cropShadows;
   $('#devCropCards').value = q.cropCards ?? 3; $('#devGrass').value = q.grass ?? 0;
+  for (const [id, k] of DEV_FLAGS) $('#' + id).checked = !!q[k];
   $('#devGfxNote').textContent = (settings.custom ? 'Vlastní úpravy předvolby ' + PRESETS[settings.preset].label + '. ' : '') +
     'Vyhlazování hran se mění jen v menu a po obnovení stránky' + (q.antialias !== startAntialias ? ' (čeká na obnovení).' : '.');
   $('#devSky').checked = skyParts.dome.visible; $('#devClouds').checked = skyParts.clouds.visible;
@@ -301,6 +310,7 @@ function bind() {
   on('devCropShadows', 'change', t => setCustom('cropShadows', t.checked));
   on('devCropCards', 'change', t => setCustom('cropCards', +t.value));
   on('devGrass', 'change', t => setCustom('grass', +t.value));
+  for (const [id, k] of DEV_FLAGS) on(id, 'change', t => setCustom(k, t.checked));
   on('devSky', 'change', t => { skyParts.dome.visible = skyParts.stars.visible = t.checked; });
   on('devClouds', 'change', t => { skyParts.clouds.visible = t.checked; });
   on('devAnimals', 'change', t => { DEV.wildlife = t.checked; hooks.wildlife.setVisible(t.checked); });

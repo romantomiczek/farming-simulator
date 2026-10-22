@@ -5,7 +5,7 @@ import {
   riverDist, inRect, inPond, onBridge,
 } from './layout.js';
 import { addSnow } from '../render/snow.js';
-import { groundDetail } from '../render/textures.js';
+import { sharedGroundDetail } from '../render/textures.js';
 
 /**
  * Terrain (variant A): rolling hills whose height depends on the region, flattened into terraces
@@ -214,7 +214,7 @@ let groundMat = null;
 export function groundMaterial() {
   if (groundMat) return groundMat;
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
-  const tex = { value: groundDetail() };
+  const tex = { value: sharedGroundDetail() };
   m.onBeforeCompile = sh => {
     sh.uniforms.tGround = tex;
     sh.vertexShader = sh.vertexShader

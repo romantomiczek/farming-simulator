@@ -7,20 +7,24 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
+renderer.info.autoReset = false; // main.js resets it once per frame
 
 // Colour grade right after tone mapping (no extra pass): ACES leaves colours pale, so they get a touch
 // more saturation (kept low for natural tones) and a gentle S-curve in display space (black and white stay where they are).
 // The sky dome is not tone mapped and has its colours picked to match.
 const GRADE_SAT = '1.06', GRADE_CURVE = '0.28';
-THREE.ShaderChunk.tonemapping_fragment = /* glsl */`
-#if defined( TONE_MAPPING )
-  gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+/** The grade on gl_FragColor.rgb after tone mapping (shared with the post-processing's final pass). */
+export const GRADE_GLSL = /* glsl */`
   vec3 gradeC = clamp( gl_FragColor.rgb, 0.0, 1.0 );
   float gradeL = dot( gradeC, vec3( 0.2126, 0.7152, 0.0722 ) );
   gradeC = max( mix( vec3( gradeL ), gradeC, ${GRADE_SAT} ), 0.0 );
   vec3 gradeD = pow( gradeC, vec3( 1.0 / 2.2 ) );
   gradeD = mix( gradeD, gradeD * gradeD * ( 3.0 - 2.0 * gradeD ), ${GRADE_CURVE} );
-  gl_FragColor.rgb = pow( clamp( gradeD, 0.0, 1.0 ), vec3( 2.2 ) );
+  gl_FragColor.rgb = pow( clamp( gradeD, 0.0, 1.0 ), vec3( 2.2 ) );`;
+THREE.ShaderChunk.tonemapping_fragment = /* glsl */`
+#if defined( TONE_MAPPING )
+  gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+  ${GRADE_GLSL}
 #endif
 `;
 

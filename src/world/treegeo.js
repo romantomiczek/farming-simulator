@@ -55,13 +55,13 @@ function branch(a, b, r, hex) {
  * A crown made of lumpy clusters. blobs = [{ x, y, z, r, sy }], centre/rad = the whole crown (for the
  * normals and the shading), dark/light = deep-inside and sunlit leaf colours.
  */
-function crown(blobs, detail, centre, rad, dark, light, seed) {
+function crown(blobs, detail, centre, rad, dark, light, seed, core = 1) {
   const D = new THREE.Color(dark), L = new THREE.Color(light), top = centre.y + rad.y, bot = centre.y - rad.y;
   const parts = blobs.map((b, k) => {
     const g = new THREE.IcosahedronGeometry(1, detail), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) {
       _a.fromBufferAttribute(p, i);
-      const j = 0.74 + 0.5 * h3(_a.x + seed + k * 3.1, _a.y, _a.z);
+      const j = (0.74 + 0.5 * h3(_a.x + seed + k * 3.1, _a.y, _a.z)) * core;
       p.setXYZ(i, b.x + _a.x * b.r * j, b.y + _a.y * b.r * b.sy * j, b.z + _a.z * b.r * j);
     }
     g.computeVertexNormals(); // non-indexed: face normals
@@ -83,6 +83,56 @@ function crown(blobs, detail, centre, rad, dark, light, seed) {
   return parts;
 }
 
+/**
+ * Leaf cards around a crown: n square cards per cluster, about the cluster's size, near its surface
+ * and leaning every way, so the crown's outline frays into leaves. Normals point out of the whole
+ * crown (soft light like the crown itself), colours follow the same light inside the crown. With uv
+ * for the leaf texture and the leaf flag for the season tint.
+ */
+function leafCards(blobs, n, centre, rad, dark, light, seed) {
+  const R = rng(seed * 101 + 7), D = new THREE.Color(dark), L = new THREE.Color(light), top = centre.y + rad.y, bot = centre.y - rad.y;
+  const pos = [], nor = [], cols = [], uvs = [], q = new THREE.Quaternion(), e = new THREE.Euler();
+  const corners = [[-0.5, -0.5, 0, 0], [0.5, -0.5, 1, 0], [0.5, 0.5, 1, 1], [-0.5, -0.5, 0, 0], [0.5, 0.5, 1, 1], [-0.5, 0.5, 0, 1]];
+  blobs.forEach(b => {
+    for (let k = 0; k < n; k++) {
+      // a point on the cluster, more of them on its top and outer side
+      _a.set(R() * 2 - 1, R() * 1.6 - 0.5, R() * 2 - 1).normalize();
+      _b.set(b.x - centre.x, 0, b.z - centre.z); if (_b.lengthSq() > 0.01) _a.addScaledVector(_b.normalize(), 0.5).normalize();
+      const c = new THREE.Vector3(b.x + _a.x * b.r * (0.7 + 0.35 * R()), b.y + _a.y * b.r * b.sy * (0.7 + 0.35 * R()), b.z + _a.z * b.r * (0.7 + 0.35 * R()));
+      const size = b.r * (1.05 + 0.45 * R());
+      e.set((R() - 0.5) * 2.4, R() * Math.PI * 2, (R() - 0.5) * 2.4); q.setFromEuler(e);
+      const up = clamp((c.y - bot) / (top - bot), 0, 1);
+      _c.copy(c).sub(centre);
+      const out = clamp(Math.hypot(_c.x / rad.x, _c.y / rad.y, _c.z / rad.x), 0, 1);
+      _n.set(_c.x / rad.x, (_c.y + rad.y * 0.25) / rad.y, _c.z / rad.x).normalize();
+      const lit = clamp(0.25 + 0.5 * up + 0.35 * out + (R() - 0.5) * 0.2, 0, 1);
+      _col.copy(D).lerp(L, lit).multiplyScalar(0.92 + 0.16 * R());
+      for (const [x, y, u, v] of corners) {
+        _a.set(x * size, y * size, 0).applyQuaternion(q).add(c);
+        pos.push(_a.x, _a.y, _a.z); nor.push(_n.x, _n.y, _n.z); cols.push(_col.r, _col.g, _col.b); uvs.push(u, v);
+      }
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setAttribute('leaf', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3).fill(1), 1));
+  return g;
+}
+/** Leaf cards of the near broadleaf and birch (drawn with their own cut-out material, see vegetation.js). */
+export function broadleafLeaves() {
+  const R = rng(11), centre = new THREE.Vector3(0, 6.1, 0), rad = new THREE.Vector3(3.2, 2.7, 0);
+  const blobs = [{ x: 0.1, y: 6.9, z: -0.1, r: 2.1, sy: 0.85 }, ...ring(R, 5, 5.0, 6.4, 1.8, 1.5, 1.9, 0.82)];
+  return leafCards(blobs, 10, centre, rad, '#2c4a1c', '#8fb24c', 1);
+}
+export function birchLeaves() {
+  const R = rng(23), centre = new THREE.Vector3(0, 6.6, 0), rad = new THREE.Vector3(2.1, 3.3, 0);
+  const blobs = [{ x: 0, y: 8.2, z: 0, r: 1.3, sy: 1.3 }, ...ring(R, 5, 4.8, 7.6, 1.15, 0.95, 1.3, 1.25)];
+  return leafCards(blobs, 9, centre, rad, '#3d5e24', '#abc964', 2);
+}
+
 /** Ring of cluster centres around the crown. */
 function ring(R, n, y0, y1, dist, r0, r1, sy) {
   const out = [];
@@ -93,22 +143,22 @@ function ring(R, n, y0, y1, dist, r0, r1, sy) {
   return out;
 }
 
-/** Broadleaf (lime, oak, maple): short trunk, wide round crown of clusters; about 9 m tall. */
-export function broadleaf(detail) {
+/** Broadleaf (lime, oak, maple): short trunk, wide round crown of clusters; about 9 m tall. core < 1 = smaller clusters (under leaf cards). */
+export function broadleaf(detail, core = 1) {
   const R = rng(11), centre = new THREE.Vector3(0, 6.1, 0), rad = new THREE.Vector3(3.2, 2.7, 0);
   const blobs = [{ x: 0.1, y: 6.9, z: -0.1, r: 2.1, sy: 0.85 }, ...ring(R, detail ? 5 : 2, 5.0, 6.4, 1.8, 1.5, 1.9, 0.82)];
   const parts = [trunk(-0.3, 4.4, 0.36, 0.2, detail ? 7 : 4, 0.25, '#5e4a3a')];
   if (detail) for (const b of blobs.slice(1, 4)) parts.push(branch(new THREE.Vector3(0.15, 3.0, 0), new THREE.Vector3(b.x * 0.75, b.y - 0.6, b.z * 0.75), 0.13, '#5e4a3a'));
-  parts.push(...crown(blobs, detail, centre, rad, '#243d17', '#86a845', 1));
+  parts.push(...crown(blobs, detail, centre, rad, '#243d17', '#86a845', 1, core));
   return mergeGeometries(parts);
 }
 
 /** Birch: slim white trunk with dark marks, a narrow, light and airy crown; about 10 m tall. */
-export function birch(detail) {
+export function birch(detail, core = 1) {
   const R = rng(23), centre = new THREE.Vector3(0, 6.6, 0), rad = new THREE.Vector3(2.1, 3.3, 0);
   const blobs = [{ x: 0, y: 8.2, z: 0, r: 1.3, sy: 1.3 }, ...ring(R, detail ? 5 : 2, 4.8, 7.6, 1.15, 0.95, 1.3, 1.25)];
   const parts = [trunk(-0.3, 8.6, 0.2, 0.07, detail ? 6 : 4, 0.35, detail ? '#e2ded2' : '#b9b5aa', detail ? '#2f2b27' : null)];
-  parts.push(...crown(blobs, detail, centre, rad, '#36551f', '#a2c25a', 2));
+  parts.push(...crown(blobs, detail, centre, rad, '#36551f', '#a2c25a', 2, core));
   return mergeGeometries(parts);
 }
 

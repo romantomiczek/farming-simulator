@@ -555,7 +555,7 @@ function farModel(id) {
       const n = g.attributes.position.count, [hex, rough, metal] = FAR_PLAIN.get(o.material) || ['#' + o.material.color.getHexString(), o.material.roughness ?? 0.8, 0];
       _c.set(hex).convertSRGBToLinear();
       g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(n * 3).map((_, i) => [_c.r, _c.g, _c.b][i % 3]), 3));
-      g.setAttribute('surf', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, i) => (i % 2 ? metal : rough)), 2));
+      g.setAttribute('surf', new THREE.Float32BufferAttribute(new Float32Array(n * 3).map((_, i) => (i % 3 === 0 ? rough : i % 3 === 1 ? metal : 0)), 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, i) => whiteUV[i % 2]), 2));
     }
     geos.push(g);

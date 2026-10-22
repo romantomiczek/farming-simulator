@@ -1,18 +1,26 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { M, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
+import { M, MT, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y, groundMaterial } from './terrain.js';
 import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, circles, addBox, onBridge } from './layout.js';
 import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond } from './layout.js';
 import { roadTextures } from '../render/textures.js';
 import { addSnow } from '../render/snow.js';
+import { buildYard } from './yard.js';
 import { MARKETS } from '../game/markets.js';
 import { buildLandmarks } from './landmarks.js';
 import { WOOD_BUYERS } from './layout.js';
 
-/** House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. */
-export function gable(w, d, h, wall, roof, parent) {
+const GREY_ROOF = new Set(['#5d6268', '#6c777d', '#6b5a52']);
+/**
+ * House-shaped body: walls, triangular gables and a two-sided roof. Ridge runs along x. Colours get
+ * surface textures: plastered walls unless tex.wall says otherwise, tiles on the roof (sheet metal
+ * on grey roofs).
+ */
+export function gable(w, d, h, wall, roof, parent, tex = {}) {
+  if (typeof wall === 'string') wall = MT(wall, tex.wall || 'plaster');
+  if (typeof roof === 'string') roof = MT(roof, tex.roof || (GREY_ROOF.has(roof) ? 'metal' : 'tiles'));
   B(w, h, d, wall, 0, h / 2, 0, parent);
   const rh = d * 0.36;
   const s = new THREE.Shape();
@@ -242,7 +250,7 @@ export function buildFarm(scene) {
   ROADS.forEach((r, k) => road(r, roadParts, k));
   mergeRoads(roadParts, lines);
   buildWater(lines);
-  flatPlane(PAD.x1 - PAD.x0, PAD.z1 - PAD.z0, '#d3cec3', (PAD.x0 + PAD.x1) / 2, 0.03, (PAD.z0 + PAD.z1) / 2, st);
+  flatPlane(PAD.x1 - PAD.x0, PAD.z1 - PAD.z0, '#cfcabf', (PAD.x0 + PAD.x1) / 2, 0.03, (PAD.z0 + PAD.z1) / 2, st, { tex: 'concrete' });
   const rim = mk(new THREE.CircleGeometry(POND.r + 1.5, 28), M('#d8cfa6', { flatShading: false, roughness: 1 }), POND.x, 0.03, POND.z, st, false);
   rim.rotation.x = -Math.PI / 2;
   const water = mk(new THREE.CircleGeometry(POND.r - 0.2, 28), M('#86b8c6', { flatShading: false, roughness: 0.25, metalness: 0.1 }), POND.x, 0.05, POND.z, st, false);
@@ -251,7 +259,7 @@ export function buildFarm(scene) {
 
   // barn
   { const g = new THREE.Group(); g.position.set(-32, 0, -36); st.add(g);
-    gable(14, 10, 6, '#c4614e', '#5d6268', g);
+    gable(14, 10, 6, '#c4614e', '#5d6268', g, { wall: 'wood' });
     B(0.12, 4.4, 4.2, '#f2ebdf', 7.06, 2.2, 0, g);
     for (const sg of [1, -1]) { const br = B(0.14, 0.22, 5.6, '#f2ebdf', 7.1, 2.2, 0, g); br.rotation.x = sg * Math.atan2(4.4, 4.2); }
     B(0.12, 0.9, 1.4, '#f2ebdf', 7.06, 7.0, 0, g);
@@ -261,22 +269,23 @@ export function buildFarm(scene) {
   { const g = new THREE.Group(); g.position.set(-34, 0, -19); st.add(g);
     gable(9, 7, 4.2, '#efe6d6', '#7b5a4e', g);
     for (const x of [-2.8, 0.2, 2.8]) B(1.1, 1.1, 0.1, winMat(), x, 2.6, 3.52, g);
-    B(1.1, 2.1, 0.1, '#8a6a52', -1.4, 1.05, 3.52, g);
-    B(0.8, 2.2, 0.8, '#b9a89a', 2.6, 6.2, -1, g);
+    B(1.1, 2.1, 0.1, MT('#8a6a52', 'wood'), -1.4, 1.05, 3.52, g);
+    B(0.8, 2.2, 0.8, MT('#b9a89a', 'brick'), 2.6, 6.2, -1, g);
     for (let i = 0; i < 9; i++) { const b = mk(new THREE.IcosahedronGeometry(0.55, 0), i % 3 ? '#7fa653' : '#e48a7a', -4 + i * 1.05, 0.45, 4); b.scale.y = 0.8; g.add(b); }
     addBox(-38.6, -29.4, -22.6, -15.4); }
 
   // machine shed, open towards the fields (+z)
-  B(16.4, 5.2, 0.4, '#a7afb0', 12, 2.6, -45, st);
-  B(0.4, 5.2, 10, '#a7afb0', 4, 2.6, -40, st);
-  B(0.4, 5.2, 10, '#a7afb0', 20, 2.6, -40, st);
-  const roof = B(17.4, 0.3, 11.4, '#6c777d', 12, 5.45, -40, st); roof.rotation.x = -0.05;
-  flatPlane(15.4, 10.6, '#c5c0b4', 12, 0.04, -39.6, st);
+  const sheet = MT('#a7afb0', 'metal');
+  B(16.4, 5.2, 0.4, sheet, 12, 2.6, -45, st);
+  B(0.4, 5.2, 10, sheet, 4, 2.6, -40, st);
+  B(0.4, 5.2, 10, sheet, 20, 2.6, -40, st);
+  const roof = B(17.4, 0.3, 11.4, MT('#6c777d', 'metal'), 12, 5.45, -40, st); roof.rotation.x = -0.05;
+  flatPlane(15.4, 10.6, '#c5c0b4', 12, 0.04, -39.6, st, { tex: 'concrete' });
   addBox(3.7, 20.3, -45.3, -44.7); addBox(3.7, 4.3, -45, -35); addBox(19.7, 20.3, -45, -35);
 
   // silos, conveyor and the intake canopy
   for (const [x, z] of [[15, -19], [21.5, -19]]) {
-    CY(3, 3, 13, 18, '#dfe1dc', x, 6.5, z, st);
+    CY(3, 3, 13, 18, MT('#dfe1dc', 'rings'), x, 6.5, z, st);
     for (let k = 1; k < 5; k++) CY(3.05, 3.05, 0.18, 18, '#b9bdb7', x, k * 2.7, z, st);
     mk(new THREE.ConeGeometry(3.2, 2.4, 18), '#c9cdc7', x, 14.2, z, st);
     circles.push({ x, z, r: 3.2 });
@@ -287,7 +296,7 @@ export function buildFarm(scene) {
     CY(0.18, 0.18, 6.8, 8, '#6c777d', x, 3.4, z, st);
     circles.push({ x, z, r: 0.35 });
   }
-  B(10, 0.3, 10, '#5f8d8a', 5, 6.9, -24, st);
+  B(10, 0.3, 10, MT('#5f8d8a', 'metal'), 5, 6.9, -24, st);
   flatPlane(4, 6, '#4a4f52', 5, 0.045, -24, st);
   for (let k = 0; k < 6; k++) flatPlane(3.6, 0.12, '#7b8286', 5, 0.05, -26.5 + k, st);
 
@@ -308,11 +317,13 @@ export function buildFarm(scene) {
 
   // the wash: a blue gantry with a row of nozzles over a concrete pad
   { const { x, z, r } = WASH, blue = '#3f7fa6';
-    flatPlane(2 * r + 1, 2 * r + 1, '#b9bdbb', x, 0.04, z, st);
+    flatPlane(2 * r + 1, 2 * r + 1, '#b9bdbb', x, 0.04, z, st, { tex: 'concrete' });
     for (const sx of [-1, 1]) { B(0.3, 4.6, 0.3, blue, x + sx * (r + 0.3), 2.3, z, st); circles.push({ x: x + sx * (r + 0.3), z, r: 0.3 }); }
     B(2 * r + 0.9, 0.35, 0.4, blue, x, 4.6, z, st);
     for (let k = -3; k <= 3; k++) CY(0.06, 0.09, 0.25, 6, '#d6dde0', x + k * (r / 3.5), 4.3, z, st);
     label(st, 'Myčka', x, 5.4, z, 0); }
+
+  buildYard(st);
 
   // wind turbine towers
   const rotors = [];
@@ -342,14 +353,14 @@ function buildVillage(st) {
   for (const [x, z, w, d, wall, roof, ry] of HOUSES) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; st.add(g);
     gable(w, d, 4.2, wall, roof, g);
-    B(0.7, d * 0.36 + 0.7, 0.7, '#a89a8c', w * 0.28, 4.2 + (d * 0.36 + 0.7) / 2, 0, g); // chimney (smoke: atmosphere.js)
+    B(0.7, d * 0.36 + 0.7, 0.7, MT('#a89a8c', 'brick'), w * 0.28, 4.2 + (d * 0.36 + 0.7) / 2, 0, g); // chimney (smoke: atmosphere.js)
     for (const sx of [-w / 4, w / 4]) B(1.0, 1.0, 0.1, winMat(), sx, 2.5, d / 2 + 0.03, g);
-    B(1.0, 2.0, 0.1, '#8a6a52', 0, 1.0, d / 2 + 0.03, g);
+    B(1.0, 2.0, 0.1, MT('#8a6a52', 'wood'), 0, 1.0, d / 2 + 0.03, g);
     addBox(x - d / 2, x + d / 2, z - w / 2, z + w / 2);
   }
   const g = new THREE.Group(); g.position.set(CHURCH.x + 2, 0, CHURCH.z); st.add(g);
   gable(10, 7, 6, '#f2ebdf', '#7b5a4e', g);
-  B(3.2, 12, 3.2, '#f2ebdf', -6.6, 6, 0, g);
+  B(3.2, 12, 3.2, MT('#f2ebdf', 'plaster'), -6.6, 6, 0, g);
   const spire = mk(new THREE.ConeGeometry(2.6, 5, 4), '#5d6268', -6.6, 14.5, 0, g); spire.rotation.y = Math.PI / 4;
   B(1.0, 1.4, 0.1, winMat(), -6.6, 9, 1.65, g);
   addBox(CHURCH.x - 6.2, CHURCH.x + 7.4, CHURCH.z - 3.6, CHURCH.z + 3.6);
@@ -381,21 +392,21 @@ function buildBuyers(st, scene) {
     const b = new THREE.Group(); b.position.z = 14; g.add(b);
     gable(12, 10, 9, '#efe6d6', '#8a5a44', b);
     for (const x of [-3.5, 0, 3.5]) for (const yy of [3, 6.5]) B(1.1, 1.3, 0.1, winMat(), x, yy, -5.03, b);
-    for (const dz of [-2.5, 2.5]) { CY(1.8, 1.8, 11, 14, '#dfe1dc', 9, 5.5, dz, b); mk(new THREE.ConeGeometry(1.9, 1.6, 14), '#c9cdc7', 9, 11.8, dz, b); circles.push({ x: m.x + 9, z: m.z + 14 + dz, r: 2 }); }
+    for (const dz of [-2.5, 2.5]) { CY(1.8, 1.8, 11, 14, MT('#dfe1dc', 'rings'), 9, 5.5, dz, b); mk(new THREE.ConeGeometry(1.9, 1.6, 14), '#c9cdc7', 9, 11.8, dz, b); circles.push({ x: m.x + 9, z: m.z + 14 + dz, r: 2 }); }
     addBox(m.x - 6, m.x + 6, m.z + 9, m.z + 19);
     label(scene, 'Mlýn', m.x, y + 6, m.z + 8.9, Math.PI); }
   // oil mill: hall and three tanks, south of the ring
   { const [g, m] = place('oil'), y = g.position.y;
-    B(18, 5, 6, '#d9dcd8', 0, 2.5, -15, g);
-    B(18.6, 0.3, 6.6, '#6c777d', 0, 5.15, -15, g);
-    for (const x of [-7, 0, 7]) { CY(2.2, 2.2, 7, 16, '#e8e2c8', x, 3.5, -9.5, g); CY(2.25, 2.25, 0.3, 16, '#c9b13a', x, 7.1, -9.5, g); circles.push({ x: m.x + x, z: m.z - 9.5, r: 2.3 }); }
+    B(18, 5, 6, MT('#d9dcd8', 'metal'), 0, 2.5, -15, g);
+    B(18.6, 0.3, 6.6, MT('#6c777d', 'metal'), 0, 5.15, -15, g);
+    for (const x of [-7, 0, 7]) { CY(2.2, 2.2, 7, 16, MT('#e8e2c8', 'rings'), x, 3.5, -9.5, g); CY(2.25, 2.25, 0.3, 16, '#c9b13a', x, 7.1, -9.5, g); circles.push({ x: m.x + x, z: m.z - 9.5, r: 2.3 }); }
     addBox(m.x - 9, m.x + 9, m.z - 18, m.z - 12);
     label(scene, 'Olejna', m.x, y + 3.6, m.z - 11.92, 0); }
   // sugar factory and biogas: big hall, chimney, two green domes
   { const [g, m] = place('sugar'), y = g.position.y;
     const b = new THREE.Group(); b.position.z = 14; g.add(b);
     gable(16, 10, 7, '#e7dfd2', '#5d6268', b);
-    CY(0.9, 1.3, 22, 12, '#b9a89a', 10, 11, -2, b);
+    CY(0.9, 1.3, 22, 12, MT('#b9a89a', 'brick'), 10, 11, -2, b);
     CY(1.0, 1.0, 1.2, 12, '#c8553f', 10, 21.5, -2, b);
     addBox(m.x - 8, m.x + 8, m.z + 9, m.z + 19); circles.push({ x: m.x + 10, z: m.z + 12, r: 1.5 });
     for (const [dx, dz] of [[-12, -1], [-12, -9]]) { // clear of field 8 to the north

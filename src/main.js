@@ -1,5 +1,6 @@
 import './styles.css';
-import { renderer, scene, camera, canvas, resize, applyRenderQuality, setShadowSize } from './render/core.js';
+import * as THREE from 'three';
+import { renderer, scene, camera, canvas, resize, applyRenderQuality, setShadowSize, sun } from './render/core.js';
 import { quality, settings, saveSettings } from './core/settings.js';
 import { updTerrainLOD, buildTerrain } from './world/terrain.js';
 import { buildFarm, updLabels } from './world/buildings.js';
@@ -47,6 +48,9 @@ import { buildFestival, festivalTick, festivalNow } from './game/festival.js';
 import { updParticles } from './fx/particles.js';
 import { updUI, updSlowUI, togglePrices, cabScreen } from './ui/hud.js';
 import { updCabView } from './render/cabview.js';
+import { setEnvMap, updEnvMap } from './render/envmap.js';
+import { renderPost } from './render/post.js';
+import { skyEnv } from './render/environment.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
@@ -72,6 +76,7 @@ ownershipHooks.push(() => { for (const k of ['cows', 'hens', 'sheep', 'pigs', 'm
 function applyQuality() {
   const q = quality();
   applyRenderQuality();
+  setEnvMap(renderer, q.env !== false);
   vegetation.setDensity(q.trees);
   setCropShadows(q.cropShadows);
   setCropStyle(q.cropCards ?? 3);
@@ -201,6 +206,7 @@ function tick(dt) {
   updLOD(camera.position, quality().machineLod);
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
   const day = updEnv(viewFocus(), G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
+  updEnvMap(renderer, dt);
   updAtmosphere({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, day, wx: WX, season: season().name, wind: DEV.wind ? wind.strength.value : 0 });
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season(), wetness());
   grass.update(grassCentre(), quality().grass ?? 0, terrain.material.color);
@@ -216,7 +222,23 @@ function tick(dt) {
   updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.activeCars(), ...nbMachines], ear });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod, quality().cardDist); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
-  if (shadersReady) { pumpPreviews(dt); updCabView(dt, renderer, scene, G.onFoot ? null : G.active, cam.cabNow, cabScreen); renderer.render(scene, camera); }
+  if (shadersReady) {
+    renderer.info.reset(); // counted over all passes of the frame (mirrors, post-processing)
+    pumpPreviews(dt); updCabView(dt, renderer, scene, G.onFoot ? null : G.active, cam.cabNow, cabScreen);
+    const q = quality();
+    if (q.post) renderPost(renderer, scene, camera, postOpts(q));
+    else renderer.render(scene, camera);
+  }
+}
+
+const post = { sunDir: skyEnv.sunDir, rayCol: new THREE.Color(), hazeCol: new THREE.Color() };
+/** Post-processing for this frame: effects of the preset, rays of the low sun, haze in the colour of the horizon. */
+function postOpts(q) {
+  post.ao = !!q.ao; post.bloom = !!q.bloom; post.fxaa = q.antialias && q.postAA !== 'msaa'; post.samples = q.antialias && !post.fxaa ? 4 : 0;
+  post.rays = q.rays ? skyEnv.dawn * (1 - skyEnv.overcast) * 0.55 : 0;
+  post.rayCol.copy(sun.color).multiplyScalar(skyEnv.day);
+  post.haze = q.haze ?? 0; post.hazeCol.copy(scene.fog.color);
+  return post;
 }
 
 // Compile all shaders in parallel without blocking the page (KHR_parallel_shader_compile); until then

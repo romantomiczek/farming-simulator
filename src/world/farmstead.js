@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { scene } from '../render/core.js';
 import { groundH } from './terrain.js';
-import { M, mk, B, CY, flatPlane, bake } from '../render/materials.js';
+import { M, MT, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { col, rng } from '../core/util.js';
 import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, boxes, circles } from './layout.js';
 
@@ -30,7 +30,7 @@ function fence(g, key, x0, x1, z0, z1) {
 function gableRoof(g, w, d, h, x, z, roofHex) {
   const ang = 0.5, L = d / 2 / Math.cos(ang) + 0.4;
   for (const sg of [1, -1]) {
-    const r = B(w + 0.6, 0.2, L, roofHex, x, h + Math.tan(ang) * d / 4, z + sg * d / 4, g);
+    const r = B(w + 0.6, 0.2, L, MT(roofHex, roofHex === '#9a4f3e' ? 'tiles' : 'metal'), x, h + Math.tan(ang) * d / 4, z + sg * d / 4, g);
     r.rotation.x = sg * ang;
   }
 }
@@ -42,8 +42,8 @@ function buildCows() {
   // open shelter along the west side
   const sx = p.x0 + 4.5, sz = (p.z0 + p.z1) / 2;
   for (const dz of [-9, -3, 3, 9]) for (const dx of [-3.5, 3.5]) CY(0.15, 0.15, 3.6, 6, '#8a6a52', sx + dx, 1.8, sz + dz, g);
-  B(9, 0.25, 21, '#7b5a4e', sx, 3.7, sz, g);
-  B(0.3, 3.6, 21, '#c9a582', p.x0 + 0.5, 1.8, sz, g);
+  B(9, 0.25, 21, MT('#7b5a4e', 'metal'), sx, 3.7, sz, g);
+  B(0.3, 3.6, 21, MT('#c9a582', 'wood'), p.x0 + 0.5, 1.8, sz, g);
   // feed and water troughs at the east fence, next to the feed ring
   B(1.0, 0.6, 8, '#8a6a52', p.x1 - 1.2, 0.3, p.z1 - 6, g);
   B(1.0, 0.5, 3, '#7a9fb4', p.x1 - 1.2, 0.25, p.z0 + 5, g);
@@ -62,8 +62,8 @@ function buildSheep() {
   fence(g, 'sheep', p.x0, p.x1, p.z0, p.z1);
   // low wooden fold along the south side with an open front
   const fx = (p.x0 + p.x1) / 2, fz = p.z0 + 3.2;
-  B(16, 2.4, 0.25, '#8a6a52', fx, 1.2, p.z0 + 0.6, g);
-  for (const dx of [-8, 8]) B(0.25, 2.4, 5, '#8a6a52', fx + dx, 1.2, fz, g);
+  B(16, 2.4, 0.25, MT('#8a6a52', 'wood'), fx, 1.2, p.z0 + 0.6, g);
+  for (const dx of [-8, 8]) B(0.25, 2.4, 5, MT('#8a6a52', 'wood'), fx + dx, 1.2, fz, g);
   gableRoof(g, 16, 5.4, 2.4, fx, fz, '#6b5a52');
   // hay rack by the feed ring
   B(1.4, 1.1, 3.2, '#9a7b5e', p.x1 - 1.4, 0.55, p.z1 - 4, g);
@@ -77,7 +77,7 @@ function buildPigs() {
   fence(g, 'pigs', p.x0, p.x1, p.z0, p.z1);
   // brick sty on the west side, a mud wallow and the trough at the east fence
   const sx = p.x0 + 4.5, sz = (p.z0 + p.z1) / 2;
-  B(8, 2.6, 12, '#c98f6e', sx, 1.3, sz, g);
+  B(8, 2.6, 12, MT('#c98f6e', 'brick'), sx, 1.3, sz, g);
   gableRoof(g, 8, 12, 2.6, sx, sz, '#9a4f3e');
   for (const dz of [-3.5, 0, 3.5]) B(0.1, 1.1, 1.1, '#5a3f30', sx + 4.02, 0.55, sz + dz, g);
   flatPlane(5, 4, '#5e4836', p.x0 + 14, 0.05, p.z0 + 6, g);
@@ -108,7 +108,7 @@ function buildHens() {
   flatPlane(p.x1 - p.x0, p.z1 - p.z0, '#b7a77a', (p.x0 + p.x1) / 2, 0.03, (p.z0 + p.z1) / 2, g);
   fence(g, 'hens', p.x0, p.x1, p.z0, p.z1);
   const hx = (p.x0 + p.x1) / 2, hz = p.z0 + 3;
-  B(7, 2.6, 4, '#e9d7b5', hx, 1.3, hz, g);
+  B(7, 2.6, 4, MT('#e9d7b5', 'plaster'), hx, 1.3, hz, g);
   gableRoof(g, 7, 4, 2.6, hx, hz, '#9a4f3e');
   B(0.9, 1.3, 0.1, '#8a6a52', hx, 0.65, hz + 2.03, g);
   B(0.6, 0.5, 0.1, '#5d7d8c', hx - 2.2, 1.7, hz + 2.03, g);
@@ -217,7 +217,7 @@ function makeHerd(geo, n, pen, colors, speed, seed) {
 /* ---------- sawmill (always there) ---------- */
 function buildSawmill(st) {
   const { x, z } = SAWMILL, g = new THREE.Group(); g.position.set(x, groundH(x, z), z); st.add(g);
-  B(16, 5, 10, '#b9a07c', -16, 2.5, 8, g);
+  B(16, 5, 10, MT('#b9a07c', 'wood'), -16, 2.5, 8, g);
   gableRoof(g, 16, 10, 5, -16, 8, '#6c777d');
   for (let k = 0; k < 3; k++) for (let j = 0; j < 4; j++) {
     const lg = CY(0.35, 0.35, 5, 8, '#a5784f', -22 + j * 0.75, 0.35 + k * 0.62, -4, g);

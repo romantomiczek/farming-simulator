@@ -14,7 +14,7 @@ const c1 = new THREE.Color(), sky = new THREE.Color(), zen = new THREE.Color();
 const dir = new THREE.Vector3(), sunVisual = new THREE.Vector3();
 /** Direction to the visible sun (it really sets), for the rainbow. */
 export const sunDir = sunVisual;
-const skyEnv = { horizon: sky, zenith: zen, sunDir: sunVisual, sunCol: C_GLOW, day: 1, dawn: 0, overcast: 0, rain: 0 };
+export const skyEnv = { horizon: sky, zenith: zen, sunDir: sunVisual, sunCol: C_GLOW, day: 1, dawn: 0, overcast: 0, rain: 0 };
 let lastT = performance.now();
 const PI = Math.PI;
 

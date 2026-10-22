@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { rng, lerp, col, fbm, smooth, hash2 } from '../core/util.js';
-import { broadleaf, birch, spruce, bush } from './treegeo.js';
+import { broadleaf, birch, spruce, bush, broadleafLeaves, birchLeaves } from './treegeo.js';
+import { leafTexture } from '../render/textures.js';
 import { addWind } from '../render/wind.js';
 import { groundH } from './terrain.js';
 import {
@@ -27,7 +28,9 @@ const NEAR = 170;
 export const treeDots = [];
 
 /** Near and far model of each kind of tree (treegeo.js). */
-const GEO = { decid: [broadleaf(1), broadleaf(0)], birch: [birch(1), birch(0)], conif: [spruce(1), spruce(0)] };
+const GEO = { decid: [broadleaf(1), broadleaf(0), broadleaf(1, 0.8)], birch: [birch(1), birch(0), birch(1, 0.8)], conif: [spruce(1), spruce(0)] };
+/** Leaf cards round the near broadleaf and birch crowns (nothing for spruces: their tiers already look feathery). */
+const LEAVES = { decid: broadleafLeaves(), birch: birchLeaves() };
 const bushGeo = bush(1), bushLow = bush(0);
 
 /** Season tint (material colour) on leaves only: trunks keep their own colour. */
@@ -185,6 +188,11 @@ export function buildVegetation(scene) {
   /* ---------- meshes per tile ---------- */
   const decidMat = addSnow(leafOnly(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.9 }), { amp: 0.035, base: 3.2, spatial: 0.05 })));
   const conifMat = addSnow(addWind(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.92 }), { amp: 0.018, base: 2, spatial: 0.05 }));
+  // leaf cards: cut out of the leaf texture, both sides lit as the outside of the crown, swaying a little more than the crown
+  const cardMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.85, map: leafTexture(), alphaTest: 0.5, side: THREE.DoubleSide });
+  cardMat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal *= faceDirection; nonPerturbedNormal = normal;'); };
+  cardMat.customProgramCacheKey = () => 'leafcards';
+  const leafMat = addSnow(leafOnly(addWind(cardMat, { amp: 0.045, base: 3.2, spatial: 0.05 })));
   const tint = [col('#ffffff'), col('#f2ffe6'), col('#e6f2d9'), col('#fff7e0'), col('#dcebd0')];
   const dummy = new THREE.Object3D(), c = new THREE.Color();
   const tiles = new Map();
@@ -205,6 +213,13 @@ export function buildVegetation(scene) {
     });
     m.computeBoundingSphere();
     m.castShadow = false; m.receiveShadow = true; // shadows come from the near casters below
+    if (LEAVES[kind]) { // the cards share the trees' transforms and tints; shown with the near models only
+      const lm = new THREE.InstancedMesh(LEAVES[kind], leafMat, list.length);
+      lm.instanceMatrix = m.instanceMatrix; lm.instanceColor = m.instanceColor; lm.boundingSphere = m.boundingSphere;
+      lm.receiveShadow = true; lm.visible = false;
+      scene.add(lm);
+      m.userData.leaves = lm;
+    }
     m.userData.ranks = list.map(t => t.rank);
     m.userData.solid = list.filter(t => t.rank === 0).length;
     m.userData.base = list.length;
@@ -267,10 +282,13 @@ export function buildVegetation(scene) {
       const near = q.treeNear ?? NEAR, far = q.treeFar ?? Infinity, keep = q.treeFarKeep ?? 1;
       for (const m of meshes) {
         const b = m.userData.box, d = Math.hypot(Math.max(0, b.x0 - x, x - b.x1), Math.max(0, b.z0 - z, z - b.z1));
-        m.geometry = m.userData.geo[d < near ? 0 : 1];
+        const lv = !!q.leaves && d < near && m.userData.geo[2]; // with leaf cards the clusters inside are a little smaller
+        m.geometry = m.userData.geo[d >= near ? 1 : lv ? 2 : 0];
         // thin only tiles made of playable-area trees; mixed and scenery tiles follow setDensity alone
         const thin = d >= far && m.userData.solid === m.userData.ranks.length;
         m.count = thin ? Math.ceil(m.userData.base * keep) : m.userData.base;
+        const lm = m.userData.leaves;
+        if (lm) { lm.visible = !!lv && m.count > 0; lm.count = m.count; }
       }
       hedges.geometry = q.hedgeLow ? bushLow : bushGeo;
     },
