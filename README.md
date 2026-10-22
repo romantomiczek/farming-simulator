@@ -32,11 +32,12 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 | R                  | v kůlně: oprava stroje a připojeného nářadí                                                                                                                                                                    |
 | K                  | kancelář: obchod se stroji, zakázky, farma a pozemky, cíle, finance (čas se zastaví)                                                                                                                           |
 | M                  | velká mapa celého kraje; kliknutím na svůj stroj do něj přesedneš                                                                                                                                              |
+| P                  | ceník výkupů vpravo nahoře (zobrazit / skrýt)                                                                                                                                                                  |
 | H                  | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit                                                                                                                                                |
 | C                  | změnit osivo                                                                                                                                                                                                   |
 | T                  | rychlost času 1× / 5× / 20×                                                                                                                                                                                    |
 | Z / X, tažení myší | otočení kamery                                                                                                                                                                                                 |
-| kolečko            | přiblížení                                                                                                                                                                                                     |
+| kolečko            | přiblížení (od kamery těsně za strojem až po pohled shora)                                                                                                                                                     |
 | Esc                | menu, nastavení grafiky a zvuku, uložení do souboru                                                                                                                                                            |
 | F9                 | vývojářský režim (jen při vývoji, viz níže)                                                                                                                                                                    |
 
@@ -107,7 +108,11 @@ Po silnicích jezdí auta. Když jim stroj stojí v cestě, počkají. Po trati 
 
 Dřevo kupuje pila u polní cesty a dřevosklad v městečku, který platí o 15 % víc.
 
-Ceny každého výkupu kolísají jinak. Ceník vpravo ukazuje pro každou plodinu, kde se teď prodá nejdráž. Vzdálenější výkupy platí víc. Minimapa sleduje stroj, ve kterém sedíš, celý kraj ukáže velká mapa (M).
+Ceny každého výkupu kolísají jinak. Ceník (klávesa P nebo tlačítko Ceny) ukazuje pro každou plodinu, kde se teď prodá nejdráž. Vzdálenější výkupy platí víc. Minimapa vlevo dole sleduje stroj, ve kterém sedíš, celý kraj ukáže velká mapa (M).
+
+**Kamera a HUD jako ve Farming Simulatoru:** kamera stojí nízko asi 10–20 m za strojem (podle jeho velikosti), takže je vidět obzor; kolečkem ji oddálíš až do pohledu shora a každý stroj si svoje přiblížení pamatuje. Stíny se při pohledu k obzoru posunou před stroj. HUD je tmavý a poloprůhledný: vlevo nahoře peníze, čas a další krok, vlevo dole minimapa, vpravo dole budík rychlosti s ukazatelem nafty (modrý) a stavu stroje (zelený), písmenem směru jízdy (D, N, R) a ikonami nářadí (spuštěno / zvednuto, pracuje, naplnění zásobníku, přívěsu nebo lisu, pomocník, málo nafty), nad ním podrobnosti o stroji. Ceník je schovaný a hra si pamatuje, jestli ho chceš vidět.
+
+**Kabina (V):** za volantem je přístrojový štít s otáčkoměrem, rychloměrem, naftou a kontrolkami, na pravém sloupku terminál se stavem nářadí (pracuje, spuštěno, zvednuto), naplněním, polem, stavem a naftou. Zpětná zrcátka ukazují, co je za strojem (kreslí se jen v kabině, každé druhý snímek jedno zrcátko v malém rozlišení). Strop kabiny je světlý. V kabině se panel stroje v HUD schová, ukazuje ho terminál.
 
 **Roční období** trvají tři dny a hra začíná v létě. Na jaře rostou plodiny normálně, v létě rychleji a na podzim pomaleji. V zimě nic neroste a nesije se. Krajina a stromy mění barvu a v zimě během pár herních hodin napadne sníh: bílé jsou louky, pole, střechy, cesty i koruny stromů, místy prosvítá tráva. Když sněží, přibývá ho rychleji, na jaře roztaje. Stroje zůstávají bez sněhu.
 
@@ -284,7 +289,7 @@ src/
   audio/               motory z nahrávek (engines.js, profiles.js), hudba (music.js)
   core/                pomocné funkce, vstup, nastavení grafiky
   render/              renderer, materiály a slučování, kamera, den a noc, obloha (sky.js),
-                       vítr ve vegetaci (wind.js)
+                       vítr ve vegetaci (wind.js), displeje a zrcátka v kabině (cabview.js)
   world/               panáček pěšky (person.js), rozvržení mapy (layout.js, úpravy z editoru v map.json), terén s terasami, řekou a rybníky,
                        budovy a vesnice, městečko, nádraží a pískovna (landmarks.js),
                        vegetace, pole a louky, balíky, kravín, kurník a skleníky

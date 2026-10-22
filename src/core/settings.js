@@ -54,7 +54,7 @@ export const VOL_DEFAULT = { music: 0.45, engines: 0.8, ambient: 0.7, effects: 0
 /** Which music plays: guitar pieces, piano pieces or both. */
 export const MUSIC_STYLES = { both: 'Obojí', guitar: 'Kytara', piano: 'Klavír' };
 
-export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, sound: true, custom: null, vol: { ...VOL_DEFAULT }, musicStyle: 'both' };
+export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, showPrices: false, sound: true, custom: null, vol: { ...VOL_DEFAULT }, musicStyle: 'both' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage unavailable */ }
 if (!PRESETS[settings.preset]) settings.preset = 'medium';
 settings.vol = { ...VOL_DEFAULT, ...settings.vol };

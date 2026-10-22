@@ -27,7 +27,7 @@ import { checkGoals } from './game/goals.js';
 import { initOffice, openOffice, closeOffice, officeOpen } from './ui/office.js';
 import { flushBales, bales, addBale } from './world/bales.js';
 import { bindInput, driveInput, releaseAll, keys } from './core/input.js';
-import { cam, bindCamera, updateCamera, shakeCamera } from './render/camera.js';
+import { cam, bindCamera, updateCamera, shakeCamera, viewFocus } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
 import { updSnow, snapSnow } from './render/snow.js';
 import { WX, updateWeather, season, isWinter } from './game/weather.js';
@@ -44,7 +44,8 @@ import { updNeighbours } from './world/neighbours.js';
 import { showRainbow } from './world/atmosphere.js';
 import { buildFestival, festivalTick, festivalNow } from './game/festival.js';
 import { updParticles } from './fx/particles.js';
-import { updUI, updSlowUI } from './ui/hud.js';
+import { updUI, updSlowUI, togglePrices, cabScreen } from './ui/hud.js';
+import { updCabView } from './render/cabview.js';
 import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
@@ -89,7 +90,7 @@ cam.t.set(player().x, 1, player().z);
 /* ---------- input & menu ---------- */
 /** Big map: clicking one of your machines puts you in it. */
 const openMap = () => toggleBigMap(undefined, v => { seat(v); cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
-const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyQ: toggleHitch, KeyK: () => openOffice(), KeyH: toggleHelper };
+const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyQ: toggleHitch, KeyK: () => openOffice(), KeyH: toggleHelper, KeyP: () => togglePrices() };
 bindInput(code => {
   if (mapEditorOpen()) return; // the map editor handles its own keys
   if (code === 'F9' && devEnabled) { toggleDev(); return; }
@@ -194,9 +195,10 @@ function tick(dt) {
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
   updateCamera(dt, player());
+  document.body.classList.toggle('incab', !!cam.cabNow); // the cab has its own terminal: the machine panel steps aside
   updLOD(camera.position, quality().machineLod);
   setShadowSize(Math.min(150, Math.max(55, cam.dist * 1.5)));
-  const day = updEnv(cam.t, G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
+  const day = updEnv(viewFocus(), G.gameMin, vehicles, G.onFoot ? null : G.active, WX);
   updAtmosphere({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, day, wx: WX, season: season().name, wind: DEV.wind ? wind.strength.value : 0 });
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season(), wetness());
   updRain(dt, cam.t, WX.rain, isWinter());
@@ -211,7 +213,7 @@ function tick(dt) {
   updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.activeCars(), ...nbMachines], ear });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
-  if (shadersReady) { pumpPreviews(dt); renderer.render(scene, camera); }
+  if (shadersReady) { pumpPreviews(dt); updCabView(dt, renderer, scene, G.onFoot ? null : G.active, cam.cabNow, cabScreen); renderer.render(scene, camera); }
 }
 
 // Compile all shaders in parallel without blocking the page (KHR_parallel_shader_compile); until then

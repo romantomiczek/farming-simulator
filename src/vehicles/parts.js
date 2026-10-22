@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, mk, B, CY, lampMat } from '../render/materials.js';
+import { dashMat, DASH_UV, mirrorMat, MIRROR_UV } from '../render/cabview.js';
 
 /**
  * Parts shared by the machine models: surface materials (glossy paint, satin frame, rubber, steel),
@@ -374,14 +375,34 @@ export function beacon(p, x, y, z, mat) {
 }
 
 /* ---------- cab ---------- */
-/** Mirrors on two-part arms, one per side; half = half cab width at the arm, facing forward. */
+const _x = new THREE.Vector3(), _y = new THREE.Vector3(), _n = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), _m = new THREE.Matrix4();
+/**
+ * Flat screen w × h facing direction n (its picture upright, not mirrored, seen from the front),
+ * showing the part u0..u1, v0..v1 of material mat's texture.
+ */
+export function screen(w, h, mat, x, y, z, n, [u0, u1, v0, v1], p) {
+  const geo = new THREE.PlaneGeometry(w, h), uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + (u1 - u0) * uv.getX(i), v0 + (v1 - v0) * uv.getY(i));
+  const m = mk(geo, mat, x, y, z, p, false);
+  _n.set(...n).normalize(); _x.crossVectors(UP, _n).normalize(); _y.crossVectors(_n, _x);
+  m.quaternion.setFromRotationMatrix(_m.makeBasis(_x, _y, _n));
+  return m;
+}
+/**
+ * Mirrors on two-part arms, one per side; half = half cab width at the arm, facing forward. The glass
+ * shows the view behind (render/cabview.js); a marker tells the machine where each mirror is.
+ */
 export function mirrors(p, half, y, z) {
   if (LOD.low) return;
   for (const sx of [-1, 1]) {
     rod([sx * half, y, z], [sx * (half + 0.36), y + 0.06, z + 0.12], 0.022, F(), p);
     rod([sx * (half + 0.36), y + 0.06, z + 0.12], [sx * (half + 0.48), y - 0.02, z + 0.16], 0.022, F(), p);
-    RB(0.07, 0.44, 0.28, 0.03, F('#2a2d2f'), sx * (half + 0.5), y - 0.2, z + 0.17, p);
-    B(0.02, 0.38, 0.22, M('#9fb8c0', { roughness: 0.05, metalness: 0.9, flatShading: false }), sx * (half + 0.5) - sx * 0.035, y - 0.2, z + 0.17, p);
+    // housing and glass turned a little towards the driver
+    const g = new THREE.Group(); g.position.set(sx * (half + 0.5), y - 0.2, z + 0.17); g.rotation.y = -sx * 0.3; g.userData.static = true; p.add(g);
+    RB(0.07, 0.44, 0.28, 0.03, F('#2a2d2f'), 0, 0, 0, g);
+    const [u0, u1] = MIRROR_UV[sx];
+    screen(0.23, 0.39, mirrorMat, -sx * 0.037, 0, 0, [-sx, 0, 0], [u0, u1, 0, 1], g);
+    const mark = new THREE.Object3D(); mark.userData.mirror = sx; mark.position.set(-sx * 0.04, 0, 0); g.add(mark);
   }
 }
 /**
@@ -393,11 +414,14 @@ export function seatMark(p, x, y, z, wheel) {
   s.userData.seat = wheel; s.position.set(x, y, z);
   p.add(s);
 }
-/** Driver's seat with armrest, steering column, dashboard, wheel, joystick console and pedals. y = cab floor. */
-export function cabInside(p, y, z, w = 1.6) {
+/**
+ * Driver's seat with armrest, steering column, dashboard with the instrument cluster, wheel, joystick
+ * console and pedals; terminal = the implement terminal on the right post (machines, not cars). y = cab floor.
+ */
+export function cabInside(p, y, z, w = 1.6, terminal = true) {
   if (LOD.low) return;
   seatMark(p, 0, y + 0.55, z - 0.2, { dy: 0.35, dz: 0.5, r: 0.19, tilt: 0.6 });
-  const seat = F('#2c3033'), trim = F('#45494c');
+  const seat = F('#3a3f43'), trim = F('#5b6165');
   RB(0.54, 0.14, 0.5, 0.06, seat, 0, y + 0.48, z - 0.2, p);
   RB(0.52, 0.66, 0.13, 0.06, seat, 0, y + 0.86, z - 0.47, p).rotation.x = -0.12;
   RB(0.4, 0.15, 0.08, 0.04, seat, 0, y + 1.25, z - 0.52, p); // headrest
@@ -410,7 +434,15 @@ export function cabInside(p, y, z, w = 1.6) {
   // column with the dashboard and a screen
   rod([0, y + 0.05, z + 0.62], [0, y + 0.8, z + 0.38], 0.05, trim, p);
   RB(0.5, 0.2, 0.18, 0.04, trim, 0, y + 0.8, z + 0.46, p).rotation.x = -0.5;
-  B(0.2, 0.12, 0.01, M('#2e5a50', { roughness: 0.2, flatShading: false }), 0.05, y + 0.84, z + 0.4, p).rotation.x = -0.5;
+  // the cluster lies on the top of the dashboard, tilted towards the driver, behind the wheel
+  screen(0.36, 0.17, dashMat, 0, y + 0.893, z + 0.41, [0, 0.878, -0.479], DASH_UV.cluster, p);
+  if (terminal) { // terminal on an arm from the right front post, turned to the driver's eyes
+    const tx = -0.46, ty = y + 1.0, tz = z + 0.38;
+    rod([tx - 0.12, ty - 0.02, tz + 0.12], [tx - 0.02, ty - 0.02, tz + 0.03], 0.018, trim, p);
+    const n = [-tx, y + 1.17 - ty, z - 0.15 - tz];
+    const k = 0.035 / Math.hypot(...n), scr = screen(0.27, 0.17, dashMat, tx + n[0] * k, ty + n[1] * k, tz + n[2] * k, n, DASH_UV.terminal, p);
+    RB(0.3, 0.2, 0.04, 0.02, F('#202426'), tx, ty, tz, p).quaternion.copy(scr.quaternion);
+  }
   mk(new THREE.TorusGeometry(0.19, 0.022, 6, 20), seat, 0, y + 0.9, z + 0.3, p).rotation.x = Math.PI / 2 - 0.6;
   for (const dx of [-0.12, 0.12]) rod([dx, y + 0.08, z + 0.62], [dx, y + 0.3, z + 0.52], 0.012, trim, p);
   for (const dx of [-0.14, 0.14]) B(0.08, 0.02, 0.12, trim, dx, y + 0.3, z + 0.5, p);

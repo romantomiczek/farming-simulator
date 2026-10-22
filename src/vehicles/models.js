@@ -3,7 +3,7 @@ import { M, mk, B, CY, bake, glassMat, beaconMat } from '../render/materials.js'
 import { col } from '../core/util.js';
 import {
   P, F, S, RUBBER, CHROME, RB, rod, ram, hose, profile, fender, decal, sideDecals, sideText, textDecal, wheel,
-  headlamp, tailCluster, workLight, beacon, mirrors, cabInside, seatMark, glassFrame, wiper, steps, ATLAS,
+  headlamp, tailCluster, workLight, beacon, mirrors, cabInside, seatMark, glassFrame, wiper, steps, ATLAS, LOD,
 } from './parts.js';
 
 // Vehicle models. Local +z is forward, +x is the driver's left.
@@ -43,6 +43,7 @@ function cab(g, o) {
   profile([[zb - 0.06, top], [zf + 0.12, top], [zf + 0.18, top + 0.11], [zf + 0.02, top + 0.22], [zb + 0.04, top + 0.22], [zb - 0.1, top + 0.12]], w + 0.18, 0.05, o.roof, 0, g);
   RB(w * 0.62, 0.1, d * 0.5, 0.04, o.roof, 0, top + 0.27, z - d * 0.12, g);
   B(w * 0.82, 0.02, 0.32, M('#26343a', { roughness: 0.3, flatShading: false }), 0, top - 0.09, zf - 0.22, g); // tinted sun visor
+  if (!LOD.low) B(w - 0.14, 0.03, d - 0.14, M('#a7aba6', { roughness: 0.95, flatShading: false, emissive: col('#3c3f3c') }), 0, top - 0.05, z, g); // light headliner inside
   const n = o.lights || 2;
   for (let k = 0; k < n; k++) workLight(g, (k - (n - 1) / 2) * ((w - 0.4) / Math.max(1, n - 1)), top + 0.12, zf + 0.14, 0, 0.25);
   for (const sx of [-1, 1]) if (o.rearLights !== false) workLight(g, sx * (w / 2 - 0.25), top + 0.12, zb - 0.12, Math.PI, 0.25);
@@ -175,7 +176,7 @@ export function buildSUV(o = {}) {
   textDecal(L.brand, 0.12, 0.6, 0, 1.0, -2.168, Math.PI, g, style);
   sideText(L.model, 0.1, 0.6, 0.905, 0.72, 1.55, g, style);
   carMirrors(g, 0.86, 1.3, 0.7, body);
-  cabInside(g, 0.75, 0.0);
+  cabInside(g, 0.75, 0.0, 1.6, false);
   wiper(g, 0.1, 1.17, 1.05, 0.5, 0.9);
   const { wheels, front } = carWheels(g, 0.36, 0.24, '#b9bcbd', 'road', 0.79, 1.33, -1.33);
   const spot = spotAt(g, 1.05, 2.2);
@@ -225,7 +226,7 @@ export function buildPickup(o = {}) {
   decal('plate2', 0.42, 0.21, 0, 0.92, -2.245, Math.PI, g);
   sideText(L.model, 0.12, 0.7, 0.925, 0.82, 1.9, g, style);
   carMirrors(g, 0.9, 1.42, 1.0, body);
-  cabInside(g, 0.95, 0.45);
+  cabInside(g, 0.95, 0.45, 1.6, false);
   wiper(g, 0.1, 1.33, 1.42, 0.55, 0.9);
   const { wheels, front } = carWheels(g, 0.4, 0.27, '#3a3f42', 'lug', 0.82, 1.65, -1.45);
   const spot = spotAt(g, 1.2, 2.6);

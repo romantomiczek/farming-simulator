@@ -14,13 +14,19 @@
   <div class="vignette" aria-hidden="true"></div>
 
   <div id="hud">
+    <div class="hud-lcol">
     <section class="panel hud-tl" aria-label="Peníze a čas">
-      <div class="money" id="moneyBox"><span id="money">150 000</span><small>Kč</small></div>
-      <div class="clock">
-        <b id="day">Den 1</b><span id="time">08:00</span>
-        <button id="speedBtn" class="chipbtn" title="Rychlost času (T)">1×</button>
-        <button id="soundBtn" class="chipbtn" title="Zvuk hry">Zvuk: vyp.</button>
+      <div class="hrow">
+        <div class="money" id="moneyBox"><span id="money">150 000</span><small>Kč</small></div>
+        <div class="clock">
+          <b id="day">Den 1</b><span id="time">08:00</span>
+          <button id="speedBtn" class="chipbtn" title="Rychlost času (T)">1×</button>
+        </div>
+      </div>
+      <div class="hbtns">
+        <button id="pricesBtn" class="chipbtn" title="Ceny ve výkupech (P)" aria-pressed="false">Ceny</button>
         <button id="officeBtn" class="chipbtn" title="Kancelář: obchod, zakázky, farma, cíle, finance (K)">Kancelář</button>
+        <button id="soundBtn" class="chipbtn" title="Zvuk hry">Zvuk: vyp.</button>
         <button id="menuBtn" class="chipbtn" title="Menu (Esc)">Menu</button>
       </div>
       <div class="wx" id="wxLine">Léto · den 1 ze 3 · Jasno</div>
@@ -33,35 +39,54 @@
       <p id="jobLine" class="job" hidden></p>
       <p id="helperLine" class="job helpers" hidden></p>
     </section>
+    </div>
 
     <section class="hud-tr">
       <div class="panel perf" id="perf" hidden></div>
-      <div class="panel mapwrap"><canvas id="minimap" aria-label="Mapa farmy"></canvas></div>
-      <div class="panel prices">
-        <h3>Výkup · Kč/l a Kč/balík</h3>
+      <div class="panel prices" id="pricePanel" hidden>
+        <h3>Výkup · Kč/l a Kč/balík <kbd>P</kbd></h3>
         <ul id="priceList"></ul>
       </div>
     </section>
 
-    <section class="panel vehicle" aria-label="Stroj">
-      <div class="vhead"><span class="vname" id="vName">Kombajn</span><span class="chip" id="vChip">Zvednuto</span></div>
-      <div class="speedrow"><span class="speed" id="vSpeed">0</span><small>km/h</small></div>
-      <dl class="kv" id="vKv"></dl>
-      <div id="vTank" hidden>
-        <div class="kv"><dt id="vTankLabel">Zásobník</dt><dd id="vTankTxt">0 / 9 000 l</dd></div>
-        <div class="bar"><i id="vTankBar"></i></div>
-      </div>
-      <div id="vFuelRow">
-        <div class="kv"><dt>Nafta</dt><dd id="vFuelTxt">250 / 250 l</dd></div>
-        <div class="bar fuel"><i id="vFuelBar"></i></div>
-      </div>
-      <div class="fieldline" id="vField" hidden></div>
+    <section class="hud-bl">
+      <div class="panel mapwrap"><canvas id="minimap" aria-label="Mapa farmy"></canvas></div>
     </section>
 
-    <section class="panel shed" id="shedPanel" hidden aria-label="Kůlna">
-      <span class="eyebrow">Kůlna</span>
-      <ul id="shedList"></ul>
-      <p class="shedNote" id="shedNote"></p>
+    <section class="hud-br" aria-label="Stroj">
+      <div class="panel shed" id="shedPanel" hidden aria-label="Kůlna">
+        <span class="eyebrow">Kůlna</span>
+        <ul id="shedList"></ul>
+        <p class="shedNote" id="shedNote"></p>
+      </div>
+      <div class="panel vinfo">
+        <div class="vhead"><span class="vname" id="vName">Kombajn</span><span class="chip" id="vChip">Zvednuto</span></div>
+        <dl class="kv" id="vKv"></dl>
+        <div id="vTank" hidden>
+          <div class="kv"><dt id="vTankLabel">Zásobník</dt><dd id="vTankTxt">0 / 9 000 l</dd></div>
+          <div class="bar"><i id="vTankBar"></i></div>
+        </div>
+        <div class="fieldline" id="vField" hidden></div>
+      </div>
+      <div class="cluster">
+        <div class="icons" id="vIcons" aria-label="Stav nářadí"></div>
+        <div class="gauge" id="gauge">
+          <svg viewBox="0 0 160 160" aria-hidden="true">
+            <circle class="gface" cx="80" cy="80" r="77"/>
+            <g id="gTicks"></g>
+            <path class="gtrack" id="gSpeedTrack"/>
+            <path class="gval" id="gSpeed"/>
+            <g id="vFuelRow">
+              <path class="gtrack thin" id="gFuelTrack"/><path class="gval thin fuel" id="gFuel"/>
+              <path class="gtrack thin" id="gCondTrack"/><path class="gval thin cond" id="gCond"/>
+              <path class="gico" transform="translate(51.5 124) scale(.46)" d="M5 20V5h8v15M4 20h10M5 10h8M13 8l4 3v6.5a1.5 1.5 0 0 0 3 0V9l-3-3"/>
+              <path class="gico" transform="translate(97.5 124) scale(.46)" d="M14.5 4.5a4.5 4.5 0 0 0-5.3 5.9L3.5 16l3 3 5.6-5.7a4.5 4.5 0 0 0 5.9-5.3l-2.7 2.7-2.6-.6-.6-2.6z"/>
+            </g>
+          </svg>
+          <div class="gnum"><span class="speed" id="vSpeed">0</span><small>km/h</small></div>
+          <div class="gsub"><b id="vGear">N</b></div>
+        </div>
+      </div>
     </section>
 
     <div class="prompt" id="prompt"></div>
@@ -119,6 +144,7 @@
           <div><span class="k"><kbd>R</kbd></span>oprava stroje v kůlně</div>
           <div><span class="k"><kbd>K</kbd></span>kancelář: obchod, zakázky, farma, cíle, finance</div>
           <div><span class="k"><kbd>M</kbd></span>mapa kraje, klikni na svůj stroj</div>
+          <div><span class="k"><kbd>P</kbd></span>ceny ve výkupech</div>
           <div><span class="k"><kbd>H</kbd></span>najmout / propustit pomocníka</div>
           <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
           <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>

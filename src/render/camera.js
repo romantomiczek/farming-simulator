@@ -7,19 +7,24 @@ import { groundH } from '../world/terrain.js';
 
 /**
  * Orbit camera following the active vehicle or the farmer. Mouse drag / Z,X rotate, wheel or pinch zooms.
- * After 2.5 s without manual input it swings back behind the vehicle while driving. In the cab view
- * (V) it sits at the driver's eyes instead.
+ * Like in Farming Simulator it starts low and close behind the machine, so the horizon shows; the wheel
+ * still zooms out to an overview. After 2.5 s without manual input it swings back behind the vehicle
+ * while driving. In the cab view (V) it sits at the driver's eyes instead.
  * manual = -99 means "snap behind the vehicle now" (after switching vehicles).
  */
 /** Lowest camera tilt: almost level, so the player can look at the horizon and the sky. */
 const PITCH_MIN = 0.12;
+/** Default tilt behind a machine and on foot: a few metres above the ground, the horizon in the upper third. */
+export const PITCH_DEFAULT = 0.3;
 /** In the cab the head bends a little down, so the wheel and the bonnet show; the view is wider than outside. */
-export const LOOK_UP = -0.14, CAB_FOV = 72;
-export const cam = { yaw: 0, pitch: 0.66, dist: 52, manual: -99, t: new THREE.Vector3(-10, 1, -4), foot: false, distOther: 12, cab: false, look: 0, lookUp: LOOK_UP, lookT: 0 };
+export const LOOK_UP = -0.14, CAB_FOV = 72, FOV = 52;
+export const cam = { yaw: 0, pitch: PITCH_DEFAULT, dist: 13, manual: -99, t: new THREE.Vector3(-10, 1, -4), foot: false, distOther: 6, cab: false, look: 0, lookUp: LOOK_UP, lookT: 0, v: null };
 /** Cab view on (V): the camera sits at the driver's eyes; the mouse looks around, Z/X turn the head. */
 export const inCab = v => cam.cab && v.type !== 'person' && !!v.seat;
 /** Zoom range: close behind the farmer on foot, further out behind a machine. */
-const zoomMin = () => (cam.foot ? 3.5 : 14), zoomMax = () => (cam.foot ? 40 : 120);
+const zoomMin = () => (cam.foot ? 3.5 : 6), zoomMax = () => (cam.foot ? 40 : 120);
+/** Starting distance behind a machine: a tractor about 11 m, a big combine or beet harvester more. */
+export const camDistFor = v => clamp((v.bodyPart?.hz || 2.5) * 2.2 + 6, 10, 20);
 
 export function bindCamera(canvas) {
   const ptrs = new Map();
@@ -81,19 +86,34 @@ function orbitCamera() {
   // never under a hill behind the vehicle
   camera.position.y = Math.max(camera.position.y, groundH(camera.position.x, camera.position.z) + 2);
   // when the camera is tilted low, aim a little above the vehicle so the horizon comes into view
-  look.copy(cam.t); look.y += Math.max(0, 0.4 - cam.pitch) * 8;
+  look.copy(cam.t); look.y += Math.max(0, 0.5 - cam.pitch) * 6;
   camera.lookAt(look);
+}
+
+const _f = new THREE.Vector3(), focus = new THREE.Vector3();
+/** Where the sun's shadows centre: ahead of the target when the camera looks low towards the horizon. */
+export function viewFocus() {
+  camera.getWorldDirection(_f); _f.y = 0;
+  const n = _f.length(), ahead = cam.cabNow ? 20 : clamp((0.6 - cam.pitch) * 60, 0, 20);
+  focus.copy(cam.t);
+  if (n > 1e-3) focus.addScaledVector(_f, ahead / n);
+  return focus;
 }
 
 export function updateCamera(dt, v) {
   const t = performance.now() / 1000, foot = v.type === 'person', cab = inCab(v);
   // the cab needs a near clipping plane close to the eyes (the wheel), outside it would waste depth precision
   if (cab !== cam.cabNow) {
-    cam.cabNow = cab; camera.near = cab ? 0.08 : 0.5; camera.fov = cab ? CAB_FOV : 40; camera.updateProjectionMatrix();
+    cam.cabNow = cab; camera.near = cab ? 0.08 : 0.5; camera.fov = cab ? CAB_FOV : FOV; camera.updateProjectionMatrix();
     glassMat.opacity = cab ? 0.15 : 0.5; // a windscreen right before the eyes would look milky
   }
   // getting out or in: each has its own zoom
   if (foot !== cam.foot) { const d = cam.dist; cam.dist = cam.distOther; cam.distOther = d; cam.foot = foot; }
+  // each machine keeps its own zoom; the first time you sit in one the camera starts at its size
+  if (!foot && v !== cam.v) {
+    if (cam.v) cam.v.camDist = cam.dist;
+    cam.dist = v.camDist ?? camDistFor(v); cam.v = v;
+  }
   if (!cab && keys.KeyZ) { cam.yaw += 1.7 * dt; cam.manual = t; }
   if (!cab && keys.KeyX) { cam.yaw -= 1.7 * dt; cam.manual = t; }
   if (cam.manual === -99) {

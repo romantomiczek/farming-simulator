@@ -287,6 +287,7 @@ function makeVehicle(type, mid) {
   v.inertia = ((2 * v.bodyPart.hx) ** 2 + (2 * v.bodyPart.hz) ** 2) / 12;
   v.pivotZ = pivotOf(v);
   v.seat = seatOf(v);
+  v.mirrors = mirrorsOf(v);
   // mud (game/dirt.js): the machine and its headers get their own material copies
   v.dirtU = { value: 0 };
   for (const g of [v.group, v.grainHdr, v.cornHdr]) if (g) dirtMaterials(g, v.dirtU);
@@ -303,6 +304,13 @@ function seatOf(v) {
   v.group.updateMatrixWorld(true);
   const p = new THREE.Vector3().setFromMatrixPosition(mark.matrixWorld).applyMatrix4(new THREE.Matrix4().copy(v.group.matrixWorld).invert());
   return { x: p.x, y: p.y, z: p.z, wheel: mark.userData.seat };
+}
+/** Rear-view mirrors in the machine's own frame: [{ sx (+1 left, -1 right), x, y, z }]. */
+function mirrorsOf(v) {
+  const out = [], inv = new THREE.Matrix4(), p = new THREE.Vector3();
+  v.group.updateMatrixWorld(true); inv.copy(v.group.matrixWorld).invert();
+  v.group.traverse(o => { if (o.userData.mirror) { p.setFromMatrixPosition(o.matrixWorld).applyMatrix4(inv); out.push({ sx: o.userData.mirror, x: p.x, y: p.y, z: p.z }); } });
+  return out;
 }
 /** Local z of the axle that does not steer: the machine turns about it (rear axle of a car, front axle of a combine). */
 function pivotOf(v) {

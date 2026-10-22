@@ -24,6 +24,7 @@ import { trees, volume, matureCount, nearestTree, MATURE } from '../world/forest
 import { person, machineInReach } from '../world/person.js';
 import { WASH_PRICE, dirtOf } from '../game/dirt.js';
 import { raceState } from '../game/festival.js';
+import { settings, saveSettings } from '../core/settings.js';
 
 const $ = id => document.getElementById(id);
 const ui = {
@@ -31,13 +32,125 @@ const ui = {
   prices: $('priceList'), vName: $('vName'), vChip: $('vChip'), vSpeed: $('vSpeed'), vKv: $('vKv'), vTank: $('vTank'),
   vTankLabel: $('vTankLabel'), vTankTxt: $('vTankTxt'), vTankBar: $('vTankBar'), vField: $('vField'), prompt: $('prompt'),
   shed: $('shedPanel'), shedList: $('shedList'), shedNote: $('shedNote'), wx: $('wxLine'), helpers: $('helperLine'),
-  vFuelTxt: $('vFuelTxt'), vFuelBar: $('vFuelBar'), vFuelRow: $('vFuelRow'), job: $('jobLine'), goal: $('goalLine'),
+  vFuelRow: $('vFuelRow'), job: $('jobLine'), goal: $('goalLine'), icons: $('vIcons'), gear: $('vGear'),
+  gSpeed: $('gSpeed'), gFuel: $('gFuel'), gCond: $('gCond'), gTicks: $('gTicks'), pricePanel: $('pricePanel'), pricesBtn: $('pricesBtn'),
 };
 
 // Only touch the DOM when a value actually changed: layout work is expensive on weak machines.
 const last = {};
 function setText(el, key, txt) { if (last[key] !== txt) { last[key] = txt; el.textContent = txt; } }
 function setHTML(el, key, html) { if (last[key] !== html) { last[key] = html; el.innerHTML = html; } }
+
+/* ---------- speedometer: speed on the big arc, fuel and wear on the short arcs at the bottom ---------- */
+const R_SPEED = 70, A0 = 135, A1 = 405, FUEL = [127, 97], COND = [53, 83];
+const pt = (r, a) => { const t = (a * Math.PI) / 180; return (80 + r * Math.cos(t)).toFixed(1) + ' ' + (80 + r * Math.sin(t)).toFixed(1); };
+/** SVG arc of radius r from angle a0 to a1 (degrees, clockwise from the right; a1 < a0 goes the other way). */
+function arc(r, a0, a1) {
+  if (Math.abs(a1 - a0) < 0.5) return '';
+  return 'M' + pt(r, a0) + 'A' + r + ' ' + r + ' 0 ' + (Math.abs(a1 - a0) > 180 ? 1 : 0) + ' ' + (a1 > a0 ? 1 : 0) + ' ' + pt(r, a1);
+}
+$('gSpeedTrack').setAttribute('d', arc(R_SPEED, A0, A1));
+$('gFuelTrack').setAttribute('d', arc(R_SPEED, ...FUEL));
+$('gCondTrack').setAttribute('d', arc(R_SPEED, ...COND));
+/** Tick marks and numbers for a scale up to top km/h (redrawn only when the scale changes). */
+function gaugeScale(top) {
+  if (last.scale === top) return;
+  last.scale = top;
+  const major = top > 60 ? 20 : 10, minor = major / 2;
+  let h = '';
+  for (let k = 0; k <= top; k += minor) {
+    const a = A0 + ((A1 - A0) * k) / top, big = k % major === 0, t = (a * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+    const r0 = 61, r1 = big ? 55 : 58;
+    h += '<line class="gtick' + (big ? ' major' : '') + '" x1="' + (80 + r0 * c).toFixed(1) + '" y1="' + (80 + r0 * s).toFixed(1) + '" x2="' + (80 + r1 * c).toFixed(1) + '" y2="' + (80 + r1 * s).toFixed(1) + '"/>';
+    if (big) h += '<text class="glabel" x="' + (80 + 46 * c).toFixed(1) + '" y="' + (80 + 46 * s).toFixed(1) + '">' + k + '</text>';
+  }
+  ui.gTicks.innerHTML = h;
+}
+const setD = (el, key, d) => { if (last[key] !== d) { last[key] = d; el.setAttribute('d', d); } };
+/** speed in km/h on a scale up to top; fuel and cond 0..1, or null to hide those arcs. */
+function gauge(kmh, top, fuel, cond, gear) {
+  gaugeScale(top);
+  const f = Math.min(1, kmh / top);
+  setD(ui.gSpeed, 'gs', arc(R_SPEED, A0, A0 + (A1 - A0) * Math.max(f, 0.004)));
+  const parts = fuel != null;
+  if (last.gparts !== parts) { last.gparts = parts; ui.vFuelRow.toggleAttribute('hidden', !parts); }
+  if (parts) {
+    setD(ui.gFuel, 'gf', arc(R_SPEED, FUEL[0], FUEL[0] + (FUEL[1] - FUEL[0]) * Math.max(0.02, fuel)));
+    setD(ui.gCond, 'gc', arc(R_SPEED, COND[0], COND[0] + (COND[1] - COND[0]) * Math.max(0.02, cond)));
+    ui.gFuel.classList.toggle('low', fuel < 0.15);
+    ui.gCond.classList.toggle('low', cond < 0.3);
+  }
+  setText(ui.gear, 'gear', gear);
+  ui.gear.classList.toggle('rev', gear === 'R');
+}
+
+/* ---------- implement icons next to the speedometer ---------- */
+const ICON = {
+  down: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
+  up: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
+  work: '<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4.5h-4.5"/>',
+  fill: '<path d="M5 8h14l-1.6 12H6.6z"/><path d="M8.5 8V4.5h7V8"/>',
+  bale: '<circle cx="12" cy="12" r="8"/><path d="M12 4v16"/>',
+  helper: '<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/>',
+  fuel: '<path d="M5 20V5h8v15M4 20h10M5 10h8M13 8l4 3v6.5a1.5 1.5 0 0 0 3 0V9l-3-3"/>',
+  trailer: '<path d="M3 6h13v9H3zM16 12h5"/><circle cx="8" cy="17.5" r="2"/>',
+};
+const ico = (name, cls, title) => '<div class="ico ' + cls + '" title="' + title + '"><svg viewBox="0 0 24 24">' + ICON[name] + '</svg></div>';
+/** State of the implement as icons: lowered or raised, working, how full, helper, low fuel. */
+function iconsFor(v, tr, working) {
+  const out = [];
+  const tool = v.harvester || (v.type === 'tractor' && v.tool && !tr) || v.type === 'forest';
+  if (v.fuel < v.fuelCap * 0.15) out.push(ico('fuel', 'bad', 'Dochází nafta'));
+  if (v.helper) out.push(ico('helper', v.helper.wait ? 'warn' : 'on', 'Pracuje pomocník'));
+  // how full: grain tank, trailer, water or milk tank, the baler's chamber, the harvester's logs
+  let fill = -1, txt = '', icon = 'fill';
+  if (v.harvester) fill = v.tank.amount / v.tank.cap;
+  else if (v.type === 'forest') fill = v.logs / v.logCap;
+  else if (tr?.bales) { fill = tr.bales / tr.baleCap; txt = tr.bales + '/' + tr.baleCap; icon = 'bale'; }
+  else if (tr) fill = Math.max(0, loadOf(tr));
+  else if (v.impl === 'baler') { fill = v.baleAcc / BALE_CELLS; icon = 'bale'; }
+  if (fill >= 0) {
+    const p = Math.round(Math.min(1, fill) * 100);
+    out.push('<div class="ico fill" title="Naplnění"><svg viewBox="0 0 24 24">' + ICON[icon] + '</svg>' + (txt || p + ' %') + '<i><s style="width:' + p + '%"></s></i></div>');
+  }
+  if (tr) out.push(ico('trailer', 'on', 'Připojený přívěs'));
+  if (tool) {
+    out.push(ico('work', working ? 'on' : '', working ? 'Pracuje' : 'Nepracuje'));
+    out.push(v.lowered ? ico('down', working ? 'on' : 'warn', 'Nářadí spuštěné') : ico('up', '', 'Nářadí zvednuté'));
+  }
+  return out.join('');
+}
+
+/** State of the machine you sit in, for the screens in its cab (render/cabview.js). */
+export function cabScreen() {
+  const v = G.active, tr = towed(v), m = Math.floor(G.gameMin % 1440);
+  const kmh = Math.abs(v.speed) * 3.6, top = Math.max(20, Math.ceil((v.vmax * 3.6) / 10) * 10), working = v.lowered && Math.abs(v.speed) > 0.3;
+  let fill = null, fillLabel = '';
+  if (v.harvester) { fill = v.tank.amount / v.tank.cap; fillLabel = 'Zásobník · ' + fmt(v.tank.amount) + ' l'; }
+  else if (v.type === 'forest') { fill = v.logs / v.logCap; fillLabel = 'Dřevo · ' + m3(v.logs); }
+  else if (tr?.bales) { fill = tr.bales / tr.baleCap; fillLabel = 'Balíky · ' + tr.bales + ' / ' + tr.baleCap; }
+  else if (tr) { fill = Math.max(0, loadOf(tr)); fillLabel = tr.key === 'watertank' ? (tr.milk ? 'Mléko' : 'Voda') : 'Přívěs · ' + fmt(tr.tank.amount) + ' l'; }
+  else if (v.impl === 'baler') { fill = v.baleAcc / BALE_CELLS; fillLabel = 'Komora lisu'; }
+  const f = fieldAt(v.x, v.z);
+  return {
+    kmh, top, rpm: v.fuel > 0 ? 800 + Math.min(1, kmh / top) * 1250 + (working ? 300 : 0) : 0,
+    fuel: v.fuel / v.fuelCap, fuelL: v.fuel, cond: Math.min(v.cond, v.tool ? v.tool.cond : 1),
+    gear: v.speed < -0.3 ? 'R' : Math.abs(v.speed) > 0.3 ? 'D' : 'N', lowered: !!v.lowered, working,
+    hasTool: !!(v.harvester || v.type === 'forest' || (v.tool && !tr)),
+    tool: v.harvester ? HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m' : v.tool ? implLabel(v.impl, v.tool) : labelOf(v),
+    fill, fillLabel, field: f ? (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.owned ? '' : ' · cizí') : '',
+    clock: String((m / 60) | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'),
+  };
+}
+
+/** P or the "Ceny" button: shows or hides the price list. */
+export function togglePrices(on = !settings.showPrices) {
+  settings.showPrices = on; saveSettings();
+  ui.pricePanel.hidden = !on;
+  ui.pricesBtn.setAttribute('aria-pressed', String(on));
+  if (on) updSlowUI();
+}
+ui.pricesBtn.onclick = () => togglePrices();
 
 const full = tank => tank.amount >= tank.cap - 10;
 const tankText = tank => fmt(tank.amount) + ' / ' + fmt(tank.cap) + ' l' + (tank.crop >= 0 && tank.amount > 0 ? ' · ' + CROPS[tank.crop].name : '');
@@ -146,7 +259,8 @@ const condTxt = v => {
   if (v.tool) t += ' · nářadí ' + pct(v.tool.cond);
   const d = Math.max(dirtOf(v), dirtOf(v.tool));
   if (d > 0.25) t += d > 0.65 ? ' · zablácený' : ' · špinavý';
-  return '<dt>Stav</dt><dd' + (Math.min(v.cond, v.tool ? v.tool.cond : 1) < 0.3 ? ' class="down"' : '') + '>' + t + '</dd>';
+  return '<dt>Stav</dt><dd' + (Math.min(v.cond, v.tool ? v.tool.cond : 1) < 0.3 ? ' class="down"' : '') + '>' + t + '</dd>' +
+    '<dt>Nafta</dt><dd' + (v.fuel < v.fuelCap * 0.15 ? ' class="down"' : '') + '>' + fmt(v.fuel) + ' / ' + fmt(v.fuelCap) + ' l</dd>';
 };
 
 function toolKv(v) {
@@ -186,7 +300,9 @@ function footPanel() {
   setText(ui.vChip, 'chip', sp > 3 ? 'Běží' : person.speed < -0.3 ? 'Couvá' : sp > 0.3 ? 'Jde' : 'Stojí');
   ui.vChip.className = 'chip';
   setText(ui.vSpeed, 'spd', String(Math.round(sp * 3.6)));
-  setHTML(ui.vKv, 'kv', '<div><dt>Naposledy</dt><dd>' + labelOf(a) + ' · ' + fmt(d) + ' m</dd></div>');
+  gauge(sp * 3.6, 30, null, null, person.speed < -0.3 ? 'R' : sp > 0.3 ? 'D' : 'N');
+  setHTML(ui.icons, 'icons', '');
+  setHTML(ui.vKv, 'kv', '<dt>Naposledy</dt><dd>' + labelOf(a) + ' · ' + fmt(d) + ' m</dd>');
   ui.vTank.hidden = true;
   ui.shed.hidden = true;
   const f = fieldAt(person.x, person.z);
@@ -209,7 +325,6 @@ export function updUI() {
   setText(ui.day, 'day', 'Den ' + day);
   setText(ui.time, 'time', String((m / 60) | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
   setText(ui.speed, 'ts', TIME_SCALES[G.tsIdx] + '×');
-  ui.vFuelRow.hidden = G.onFoot;
   if (G.onFoot) { footPanel(); return; }
 
   const v = G.active;
@@ -220,7 +335,11 @@ export function updUI() {
   const chip = v.helper ? ['Pomocník', v.helper.wait ? 'warn' : 'on'] : busy ? ['Vykládá', 'warn'] : working ? ['Pracuje', 'on'] : v.lowered ? ['Spuštěno', 'warn'] : ['Zvednuto', ''];
   setText(ui.vChip, 'chip', v.type === 'jeep' ? '4×4' : withTrailer && !busy ? 'Přívěs' : chip[0]);
   ui.vChip.className = 'chip ' + chip[1];
-  setText(ui.vSpeed, 'spd', String(Math.round(Math.abs(v.speed) * 3.6)));
+  const kmh = Math.abs(v.speed) * 3.6;
+  setText(ui.vSpeed, 'spd', String(Math.round(kmh)));
+  gauge(kmh, Math.max(20, Math.ceil((v.vmax * 3.6) / 10) * 10), v.fuel / v.fuelCap, Math.min(v.cond, v.tool ? v.tool.cond : 1),
+    v.speed < -0.3 ? 'R' : Math.abs(v.speed) > 0.3 ? 'D' : 'N');
+  setHTML(ui.icons, 'icons', iconsFor(v, tr, working));
   setHTML(ui.vKv, 'kv', toolKv(v));
 
   const tank = v.harvester ? v.tank : withTrailer && !tr.bales ? tr.tank : null;
@@ -231,9 +350,6 @@ export function updUI() {
     ui.vTankBar.style.width = ((tank.amount / tank.cap) * 100).toFixed(1) + '%';
   }
 
-  setText(ui.vFuelTxt, 'fuel', fmt(v.fuel) + ' / ' + fmt(v.fuelCap) + ' l');
-  ui.vFuelBar.style.width = ((v.fuel / v.fuelCap) * 100).toFixed(1) + '%';
-  ui.vFuelBar.classList.toggle('low', v.fuel < v.fuelCap * 0.15);
 
   const f = fieldAt(v.x, v.z);
   ui.vField.hidden = !f;
@@ -301,6 +417,7 @@ export function updSlowUI() {
     setHTML(ui.job, 'job', '<b>Zakázka:</b> ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + ' · ' + pct(progress(c)) +
       ' · zbývá ' + (h >= 24 ? Math.floor(h / 24) + ' d ' + (h % 24) + ' h' : h + ' h') + ' · ' + fmt(c.reward) + ' Kč');
   }
+  if (!settings.showPrices) return;
   let h = '';
   CROPS.forEach((c, k) => {
     const { m, p } = bestMarket(k, G.gameMin), d = p - marketPrice(m, k, G.gameMin - 60);
@@ -314,3 +431,6 @@ export function updSlowUI() {
   h += '<li><span>Dřevo m³</span><span>' + fmt(lp) + '</span><span class="where">' + wb.short + '</span><span class="' + (ld >= 0 ? 'up' : 'down') + '">' + (ld >= 0 ? '▲' : '▼') + '</span></li>';
   setHTML(ui.prices, 'prices', h);
 }
+
+ui.pricePanel.hidden = !settings.showPrices;
+ui.pricesBtn.setAttribute('aria-pressed', String(!!settings.showPrices));
