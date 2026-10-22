@@ -51,7 +51,8 @@ import { updCabView } from './render/cabview.js';
 import { setEnvMap, updEnvMap } from './render/envmap.js';
 import { renderPost } from './render/post.js';
 import { skyEnv } from './render/environment.js';
-import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen } from './ui/minimap.js';
+import { sizeMinimap, drawMinimap, toggleBigMap, bigMapOpen, setMapView } from './ui/minimap.js';
+import { VIEWS } from './ui/mapfilters.js';
 import { initMenu, showMenu, hideMenu, menuOpen } from './ui/menu.js';
 import { perfSample } from './ui/perf.js';
 import { pumpPreviews } from './render/previews.js';
@@ -104,6 +105,7 @@ bindInput(code => {
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
   if (code === 'Escape' && bigMapOpen()) { toggleBigMap(false); return; }
+  if (bigMapOpen() && /^Digit[1-5]$/.test(code)) { setMapView(VIEWS[+code.slice(5) - 1].key); return; }
   if (code === 'Escape') { showMenu(); return; }
   if (/^Digit[1-8]$/.test(code)) { pickInShed(+code.slice(5)); return; }
   ACTIONS[code]?.();

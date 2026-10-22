@@ -296,12 +296,28 @@ body.incab .vinfo{display:none;}
 @media (max-width:760px){ .mebody{grid-template-columns:1fr;grid-template-rows:1fr auto;} .meside{max-height:40vh;} }
 
 /* big map (M) */
-.bigmap{position:fixed;inset:16px;z-index:35;display:grid;grid-template-rows:auto 1fr;gap:8px;background:var(--paper-a);border-radius:14px;box-shadow:0 8px 28px rgba(40,50,35,.22);padding:12px 14px;}
+.bigmap{position:fixed;inset:16px;z-index:35;display:grid;grid-template-rows:auto 1fr;gap:8px;background:rgba(16,20,18,.9);color:#eef1ea;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.35);padding:10px 12px;
+  --ink:#eef1ea;--muted:#a4afa6;--line:rgba(255,255,255,.12);}
 .bigmap[hidden]{display:none;}
-.bighead{display:flex;align-items:center;gap:10px;}
+.bighead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .bighead b{font-family:var(--display);font-size:18px;}
-.bighead .muted{flex:1;}
-#bigCanvas{width:100%;height:100%;min-height:0;border-radius:10px;cursor:pointer;display:block;}
+.bighead .muted{flex:1;min-width:160px;}
+.bigmap .chipbtn{background:rgba(255,255,255,.06);border-radius:6px;color:var(--ink);}
+.bigmap .chipbtn[aria-pressed="true"]{background:#9fcf45;color:#151a12;border-color:#9fcf45;}
+.bigmap kbd{background:#eef1ea;color:#161b18;font-size:10.5px;padding:0 5px;}
+.bigviews{display:flex;gap:6px;flex-wrap:wrap;}
+.bigbody{position:relative;min-height:0;}
+#bigCanvas{width:100%;height:100%;min-height:0;border-radius:8px;cursor:pointer;display:block;}
+.biglegend{position:absolute;left:10px;bottom:10px;background:rgba(16,20,18,.86);border-radius:8px;padding:9px 11px;display:grid;gap:4px;font-size:12.5px;min-width:210px;pointer-events:none;}
+.biglegend b{font-family:var(--display);font-size:14px;}
+.biglegend .muted{font-size:11px;margin-top:-3px;}
+.biglegend div{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;}
+.biglegend div.off{opacity:.45;}
+.biglegend i{width:14px;height:14px;border-radius:3px;}
+.biglegend em{font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted);}
+.bigtip{position:absolute;background:rgba(16,20,18,.92);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 10px;display:grid;gap:2px;font-size:12.5px;pointer-events:none;max-width:300px;}
+.bigtip b{font-family:var(--display);font-size:15px;}
+.bigtip .need{color:#f0b43c;font-weight:600;}
 
 /* shop: tabs, cards cheapest first, the chosen model in detail */
 .shopnav{display:flex;flex-wrap:wrap;gap:6px;}

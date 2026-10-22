@@ -9,6 +9,9 @@ import {
 import { treeDots } from '../world/vegetation.js';
 import { MARKETS } from '../game/markets.js';
 import { bales } from '../world/bales.js';
+import { VIEWS, viewOf, paintField, fieldInfo } from './mapfilters.js';
+import { fieldAt } from '../world/fields.js';
+import { fmt, fmt2 } from '../core/util.js';
 
 // North-up maps. World +x is drawn to the left so the maps match the default camera view
 // (looking north, +x on the left). The minimap follows the active vehicle; the big map (M)
@@ -100,7 +103,7 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
     const x = mx(f.x0 + f.w), y = my(f.z0 + f.h);
     if (x > w || y > h || x + f.w * sc < 0 || y + f.h * sc < 0) continue;
     c.setTransform(-sc, 0, 0, -sc, mx(f.x0), my(f.z0));
-    c.drawImage(f.mini, 0, 0);
+    c.drawImage(opts.view && f.vCanvas ? f.vCanvas : f.mini, 0, 0);
   }
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.font = '800 ' + Math.round(opts.font) + 'px "Bricolage Grotesque", sans-serif';
@@ -117,6 +120,12 @@ function drawDynamic(c, sc, ox, oy, w, h, opts) {
     c.setLineDash([]);
     c.fillStyle = 'rgba(36,49,42,.75)'; c.fillText(String(f.id), x + fw / 2 + 0.8, y + fh / 2 + 0.8);
     c.fillStyle = '#fff'; c.fillText(String(f.id), x + fw / 2, y + fh / 2);
+    if (opts.view === 'owner' && !f.owned && fh > opts.font * 3) { // the price under the number of a field for sale
+      c.font = '700 ' + Math.round(opts.font * 0.72) + 'px Figtree, sans-serif';
+      c.fillStyle = 'rgba(20,24,22,.8)'; c.fillText(fmt(f.price / 1000) + ' tis. Kč', x + fw / 2 + 0.6, y + fh / 2 + opts.font * 1.05 + 0.6);
+      c.fillStyle = '#fff'; c.fillText(fmt(f.price / 1000) + ' tis. Kč', x + fw / 2, y + fh / 2 + opts.font * 1.05);
+      c.font = '800 ' + Math.round(opts.font) + 'px "Bricolage Grotesque", sans-serif';
+    }
   }
   c.fillStyle = '#f2dc8c'; c.strokeStyle = 'rgba(36,49,42,.6)'; c.lineWidth = 1;
   for (const b of bales) { c.beginPath(); c.arc(mx(b.x), my(b.z), Math.max(1.5, 0.9 * sc), 0, 7); c.fill(); c.stroke(); }
@@ -172,17 +181,64 @@ export function drawMinimap() {
 }
 
 /* ---------- big map (M) ---------- */
-const big = { open: false, static: null, sc: 1, ox: 0, oy: 0, canvas: null, ctx: null };
+const big = { open: false, static: null, sc: 1, ox: 0, oy: 0, canvas: null, ctx: null, view: 'map', viewT: 0, area: null };
 export const bigMapOpen = () => big.open;
+
+/** Switches the big map's view (Mapa, Plodiny, Růst, Stav půdy, Vlastnictví); 1–5 in the map do the same. */
+export function setMapView(key) {
+  ensureBig();
+  big.view = viewOf(key).key; big.viewT = 0;
+  for (const b of big.wrap.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === big.view));
+  if (big.open) drawBigMap();
+}
+/** Recolours the fields for the current view, at most once a second, and fills in the legend. */
+function updView() {
+  const v = viewOf(big.view);
+  big.legend.hidden = !v.cats;
+  if (!v.cats) return;
+  const now = performance.now();
+  if (now - big.viewT < 1000) return;
+  big.viewT = now;
+  // the area of each colour: on your own fields (all fields in the ownership view)
+  const zero = () => new Array(v.cats.length).fill(0), area = zero(), mine = zero(), ownedOnly = v.key !== 'owner';
+  for (const f of FIELDS) {
+    const a = zero();
+    paintField(f, v, a);
+    a.forEach((n, k) => { area[k] += n; if (f.owned) mine[k] += n; });
+  }
+  const shown = ownedOnly ? mine : area;
+  big.legend.innerHTML = '<b>' + v.name + '</b>' + (ownedOnly ? '<span class="muted">tvoje pole</span>' : '') +
+    v.cats.map((c, k) => '<div' + (shown[k] ? '' : ' class="off"') + '><i style="background:' + c.hex + '"></i><span>' + c.label + '</span><em>' + (shown[k] ? fmt2(shown[k] / 10000) + ' ha' : '–') + '</em></div>').join('');
+}
+/** Field under the mouse: a small card with its size, owner, crop and what it needs. */
+function showTip(e) {
+  const r = big.canvas.getBoundingClientRect(), k = big.canvas.width / r.width;
+  const px = (e.clientX - r.left) * k, py = (e.clientY - r.top) * k;
+  const f = fieldAt(BOUNDS.x1 + PAD_M - (px + big.ox) / big.sc, BOUNDS.z1 + PAD_M - (py + big.oy) / big.sc);
+  big.tip.hidden = !f;
+  if (!f) return;
+  const t = fieldInfo(f);
+  big.tip.innerHTML = '<b>' + t.title + '</b><span>' + t.line + '</span><span>' + t.grow + '</span><span class="need">' + t.need + '</span>';
+  const tw = big.tip.offsetWidth;
+  big.tip.style.left = Math.min(e.clientX - r.left + 14, r.width - tw - 10) + 'px';
+  big.tip.style.top = Math.min(e.clientY - r.top + 14, r.height - big.tip.offsetHeight - 10) + 'px';
+}
 
 function ensureBig() {
   if (big.canvas) return;
   const wrap = document.createElement('div');
   wrap.id = 'bigMap'; wrap.className = 'bigmap'; wrap.hidden = true;
-  wrap.innerHTML = '<div class="bighead"><b>Mapa</b><span class="muted">Klikni na svůj stroj a přesedneš do něj · M zavře</span><button class="chipbtn" id="bigClose">Zavřít</button></div><canvas id="bigCanvas" aria-label="Mapa celého kraje"></canvas>';
+  wrap.innerHTML = '<div class="bighead"><b>Mapa</b><div class="bigviews" role="group" aria-label="Zobrazení mapy">' +
+    VIEWS.map((v, k) => '<button class="chipbtn" data-view="' + v.key + '" aria-pressed="' + (v.key === big.view) + '" title="' + v.name + ' (' + (k + 1) + ')"><kbd>' + (k + 1) + '</kbd> ' + v.name + '</button>').join('') +
+    '</div><span class="muted">Klikni na svůj stroj a přesedneš do něj · M zavře</span><button class="chipbtn" id="bigClose">Zavřít</button></div>' +
+    '<div class="bigbody"><canvas id="bigCanvas" aria-label="Mapa celého kraje"></canvas><div class="biglegend" hidden></div><div class="bigtip" hidden></div></div>';
   document.body.append(wrap);
   big.wrap = wrap; big.canvas = wrap.querySelector('canvas'); big.ctx = big.canvas.getContext('2d');
+  big.legend = wrap.querySelector('.biglegend'); big.tip = wrap.querySelector('.bigtip');
   wrap.querySelector('#bigClose').onclick = () => toggleBigMap(false);
+  for (const b of wrap.querySelectorAll('[data-view]')) b.onclick = () => setMapView(b.dataset.view);
+  big.canvas.addEventListener('mousemove', showTip);
+  big.canvas.addEventListener('mouseleave', () => { big.tip.hidden = true; });
   big.canvas.addEventListener('click', e => {
     const r = big.canvas.getBoundingClientRect(), k = big.canvas.width / r.width;
     const px = (e.clientX - r.left) * k, py = (e.clientY - r.top) * k;
@@ -207,11 +263,13 @@ function drawBigMap() {
     drawStatic(c, big.sc);
     drawLabels(c, big.sc, 12 * dpr);
   }
-  const c = big.ctx;
+  const c = big.ctx, view = big.view !== 'map' ? big.view : null;
+  updView();
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.fillStyle = '#7f9c58'; c.fillRect(0, 0, w, h);
   c.drawImage(big.static, -big.ox, -big.oy);
-  drawDynamic(c, big.sc, big.ox, big.oy, w, h, { font: 13 * dpr, line: dpr, icon: 9 * dpr, names: true });
+  if (view) { c.fillStyle = 'rgba(18,22,20,.5)'; c.fillRect(0, 0, w, h); } // in a field view the land steps back
+  drawDynamic(c, big.sc, big.ox, big.oy, w, h, { font: 13 * dpr, line: dpr, icon: 9 * dpr, names: true, view });
 }
 
 /** onPick(vehicle) is called when the player clicks one of their machines. */
