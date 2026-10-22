@@ -7,7 +7,7 @@ import { flatPlane, glassMat, lampMat, beaconMat, dirtMaterials } from '../rende
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher, buildLivestock, buildManureSpreader, buildSlurryTank, PALLET_MAT } from './models.js';
 import { CROPS } from '../game/crops.js';
 import { MODEL, START_MODEL, modelName } from '../game/catalog.js';
 import { forestColliders } from '../world/forest.js';
@@ -39,8 +39,12 @@ const TOOL_SPEC = {
   sprayer: { build: buildSprayer, name: 'Postřikovač', width: 18, workZ: -2.05, speed: 5.0, park: [23.5, -49], dust: col('#e6efe8') },
   roller: { build: buildRoller, name: 'Válec', width: 6, workZ: -1.7, speed: 4.6, park: [-16.5, -50], dust: col('#a8865f') },
   mulcher: { build: buildMulcher, name: 'Mulčovač', width: 3, workZ: -1.2, speed: 3.6, park: [18.5, -49.5], dust: col('#d9c27a') },
+  // animals and their dung (game/animals.js): parked west of the machine park, by the south road
+  livestock: { build: buildLivestock, name: 'Přívěs na zvířata', width: 0, workZ: 0, speed: 4.2, park: [-2, -72], trailed: true },
+  manure: { build: buildManureSpreader, name: 'Rozmetadlo hnoje', width: 10, workZ: -6.5, speed: 4.0, park: [-2, -83], dust: col('#5a4630'), trailed: true },
+  slurry: { build: buildSlurryTank, name: 'Cisterna na kejdu', width: 12, workZ: -5.6, speed: 4.4, park: [-2, -94], dust: col('#6a5a3a'), trailed: true },
 };
-export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher', 'manure', 'slurry', 'livestock'];
 /** Static facts about an implement kind (name, width) for the UI, also when none is owned. */
 export const toolInfo = key => TOOL_SPEC[key];
 export const isToolKey = key => key in TOOL_SPEC;
@@ -133,6 +137,9 @@ function makeTool(key, mid) {
     Object.assign(im, { originZ: 0, sitLen: L * 0.57, sitWid: 2.3, sitOff: im.centerZ });
   } else if (s.trailed) trailedShape(im);
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
+  if (key === 'trailer') im.pallets = []; // pallets of eggs, wool, tomatoes (game/animals.js)
+  if (key === 'livestock') Object.assign(im, { animals: { kind: null, n: 0, health: 1 }, buyKind: 'cows', animalCap: m.cap || 1 });
+  if (key === 'manure' || key === 'slurry') Object.assign(im, { load: 0, loadCap: m.cap });
   if (s.trailed) Object.assign(im, { trailed: true, x: 0, z: 0, h: 0 });
   else {
     im.foot = footprint(im.group, im.group, im.wings || []); // collision shape while hitched (trailers have their circles; folding wings left out)
@@ -512,7 +519,9 @@ function updateTrailer(t, dt) {
     for (const c of trailerCircles(t, trailerBuf)) pushBales(c.x, c.z, c.r);
   }
   placeTrailed(t);
+  if (t.key === 'manure' && t.load !== undefined) { const f = t.load / t.loadCap; t.loadMesh.visible = f > 0.01; t.loadMesh.scale.y = Math.max(0.02, f * 0.95); }
   if (t.key !== 'trailer') return;
+  t.palletMeshes.forEach((m, i) => { m.visible = i < t.pallets.length; if (m.visible) m.material = PALLET_MAT[t.pallets[i]]; });
   t.tip.rotation.x += ((t.tipping ? -0.6 : 0) - t.tip.rotation.x) * Math.min(1, dt * 1.5);
   const fill = t.tank.amount / t.tank.cap;
   t.grain.visible = fill > 0;

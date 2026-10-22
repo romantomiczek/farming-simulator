@@ -5,6 +5,7 @@ import { has } from './machines.js';
 import { toast } from '../ui/toast.js';
 import { earn } from './goals.js';
 import { COWS, HENS, SHEEP, PIGS, MIXER, HAY_BALE_FEED, GREENHOUSE as GH } from './balance.js';
+import { herd, herdFactor, herdTick } from './animals.js';
 
 /**
  * Animals and greenhouses. Storage lives in G.farm; production runs on game time
@@ -13,10 +14,10 @@ import { COWS, HENS, SHEEP, PIGS, MIXER, HAY_BALE_FEED, GREENHOUSE as GH } from 
  * round bales of hay from the trailer (F at the same ring).
  */
 export const BUILDINGS = {
-  cows: { name: 'Kravín', store: 'cowFeed', cap: COWS.feedStore, eats: [1, 3, 5], hay: true, use: COWS.feedPerHour, out: 'milk', make: COWS.milkPerHour, unit: 'l mléka', price: COWS.milkPrice, ring: 'zeleného kruhu u kravína' },
-  hens: { name: 'Kurník', store: 'henFeed', cap: HENS.feedStore, eats: [0, 1], use: HENS.feedPerHour, out: 'eggs', make: HENS.eggsPerHour, unit: 'vajec', price: HENS.eggPrice, ring: 'žlutého kruhu u kurníku' },
-  sheep: { name: 'Ovčín', store: 'sheepFeed', cap: SHEEP.feedStore, eats: [], hay: true, use: SHEEP.feedPerHour, out: 'wool', make: SHEEP.woolPerHour, unit: 'kg vlny', price: SHEEP.woolPrice, ring: 'světlého kruhu u ovčína' },
-  pigs: { name: 'Vepřín', store: 'pigFeed', cap: PIGS.feedStore, eats: [3, 1], use: PIGS.feedPerHour, out: 'pork', make: PIGS.meatPerHour, unit: 'kg vepřového', price: PIGS.meatPrice, ring: 'růžového kruhu u vepřína' },
+  cows: { base: 10, name: 'Kravín', store: 'cowFeed', cap: COWS.feedStore, eats: [1, 3, 5], hay: true, use: COWS.feedPerHour, out: 'milk', make: COWS.milkPerHour, unit: 'l mléka', price: COWS.milkPrice, ring: 'zeleného kruhu u kravína' },
+  hens: { base: 40, name: 'Kurník', store: 'henFeed', cap: HENS.feedStore, eats: [0, 1], use: HENS.feedPerHour, out: 'eggs', make: HENS.eggsPerHour, unit: 'vajec', price: HENS.eggPrice, ring: 'žlutého kruhu u kurníku' },
+  sheep: { base: 16, name: 'Ovčín', store: 'sheepFeed', cap: SHEEP.feedStore, eats: [], hay: true, use: SHEEP.feedPerHour, out: 'wool', make: SHEEP.woolPerHour, unit: 'kg vlny', price: SHEEP.woolPrice, ring: 'světlého kruhu u ovčína' },
+  pigs: { base: 12, name: 'Vepřín', store: 'pigFeed', cap: PIGS.feedStore, eats: [3, 1], use: PIGS.feedPerHour, out: 'pork', make: PIGS.meatPerHour, unit: 'kg vepřového', price: PIGS.meatPrice, ring: 'růžového kruhu u vepřína' },
 };
 const ACC = ['pšenici', 'ječmen', 'řepku', 'kukuřici', 'slunečnici', 'cukrovku'];
 /** What building key eats, for the office ("ječmen, kukuřice, balíky sena"); acc = in the accusative for hints. */
@@ -26,6 +27,7 @@ export const GREENHOUSE = { use: GH.waterPerHour, make: GH.kgPerHour, price: GH.
 export const emptyFarm = () => ({
   cowFeed: 0, henFeed: 0, sheepFeed: 0, pigFeed: 0, water: 0, milk: 0, eggs: 0, wool: 0, pork: 0, tomatoes: 0, hungry: {},
   mix: { grain: 0, hay: 0, beet: 0 }, // what the cows' feed is made of, in litres
+  herd: {}, slurry: 0, manure: 0, // herds and what they leave (animals.js)
 });
 export const greenhouses = () => (has('greenhouse1') ? 1 : 0) + (has('greenhouse2') ? 1 : 0);
 export const waterCap = () => greenhouses() * GREENHOUSE.capPer;
@@ -56,16 +58,19 @@ export function feedHay(key, bales) {
   return n;
 }
 
-/** Production for dh game hours. Starving animals produce nothing. */
+/** Production for dh game hours. Starving animals produce nothing; the herd's size and health scale it (animals.js). */
 export function farmTick(dh) {
   if (dh <= 0) return;
   const F = G.farm;
   for (const key in BUILDINGS) {
     if (!has(key)) continue;
-    const b = BUILDINGS[key], need = b.use * dh, before = F[b.store];
-    const make = b.make * (key === 'cows' && mixOk() ? 1 + MIXER.bonus : 1);
-    if (before >= need) { F[b.store] -= need; F[b.out] += make * dh; F.hungry[key] = false; }
+    const b = BUILDINGS[key], h = herd(key), need = b.use * dh * (h.n / Math.max(1, b.base)), before = F[b.store];
+    const make = b.make * herdFactor(key) * (key === 'cows' && mixOk() ? 1 + MIXER.bonus : 1);
+    const fed = before >= need;
+    if (!h.n) F.hungry[key] = false;
+    else if (fed) { F[b.store] -= need; F[b.out] += make * dh; F.hungry[key] = false; }
     else { F[b.store] = 0; F.hungry[key] = true; }
+    herdTick(key, dh, fed);
     if (key === 'cows') { const k = before > 0 ? F.cowFeed / before : 0; for (const p in F.mix) F.mix[p] *= k; }
   }
   const n = greenhouses();
@@ -100,6 +105,6 @@ export function sellProducts() {
 /** Daily need and how long the stock lasts, for the office and hints. */
 export function daysLeft(key) {
   if (key === 'water') { const n = greenhouses(); return n ? G.farm.water / (GREENHOUSE.use * n * 24) : Infinity; }
-  const b = BUILDINGS[key];
-  return G.farm[b.store] / (b.use * 24);
+  const b = BUILDINGS[key], n = herd(key).n;
+  return n ? G.farm[b.store] / (b.use * (n / b.base) * 24) : Infinity;
 }

@@ -5,6 +5,7 @@ import { G } from '../game/state.js';
 import {
   BOUNDS, ROADS, PAD, PARK, POND, HOUSES, CHURCH, baleZone, fuelZone, WASH, FOREST_PLOTS, SAWMILL, COW_PEN, HEN_RUN, GREENHOUSES,
   RIVER, RIVER_HALF, PONDS, PIT, RAIL, MEADOW_AREAS, BRIDGES, CHAPEL, WOOD_BUYERS, SHEEP_PEN, PIG_PEN, DAIRY, BUYER_AT, SILO_LOAD,
+  LIVESTOCK, MARKET_HALL, SLURRY_PIT, MANURE_HEAP,
 } from '../world/layout.js';
 import { treeDots } from '../world/vegetation.js';
 import { MARKETS } from '../game/markets.js';
@@ -64,7 +65,9 @@ function drawStatic(c, sc) {
   c.fillStyle = '#dfe1dc';
   for (const x of [15, 21.5]) { c.beginPath(); c.arc(bx(x), by(-19), 3 * sc, 0, 7); c.fill(); }
   MARKETS.forEach(m => ring(m, m.color));
-  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); ring(WASH, '#3f7fa6'); ring(SILO_LOAD, '#f2f2ee'); WOOD_BUYERS.forEach(w => ring(w, '#8a6a4a')); ring(DAIRY, '#f2efe6');
+  ring(baleZone, '#b07a4a'); ring(fuelZone, '#c8553f'); ring(WASH, '#3f7fa6'); ring(SILO_LOAD, '#f2f2ee'); ring(LIVESTOCK, '#a5784f'); ring(MARKET_HALL, '#c8553f'); ring(SLURRY_PIT.fill, '#8a6a3a'); ring(MANURE_HEAP.fill, '#5a4630');
+  c.fillStyle = '#b9b7ad'; c.beginPath(); c.arc(bx(SLURRY_PIT.x), by(SLURRY_PIT.z), SLURRY_PIT.r * sc, 0, 7); c.fill(); rect(MANURE_HEAP.x - 5, MANURE_HEAP.x + 5, MANURE_HEAP.z - 3.5, MANURE_HEAP.z + 3.5, '#8a7a5e');
+  WOOD_BUYERS.forEach(w => ring(w, '#8a6a4a')); ring(DAIRY, '#f2efe6');
 }
 /** Town buildings for the maps (filled in by the town builder). */
 export const townBlocks = [];
@@ -77,6 +80,8 @@ function drawLabels(c, sc, fontPx) {
   for (const m of MARKETS) c.fillText(m.short, bx(m.x), by(m.z) - m.r * sc - fontPx * 0.4);
   for (const w of WOOD_BUYERS) c.fillText(w.short, bx(w.x), by(w.z) - w.r * sc - fontPx * 0.4);
   c.fillText('Mlékárna', bx(DAIRY.x), by(DAIRY.z) - DAIRY.r * sc - fontPx * 0.4);
+  c.fillText('Dobytčí trh', bx(LIVESTOCK.x), by(LIVESTOCK.z) - LIVESTOCK.r * sc - fontPx * 0.4);
+  c.fillText('Tržnice', bx(MARKET_HALL.x), by(MARKET_HALL.z) - MARKET_HALL.r * sc - fontPx * 0.4);
 }
 
 parkHooks.push(() => { if (W) sizeMinimap(); }); // the machine park grew or shrank

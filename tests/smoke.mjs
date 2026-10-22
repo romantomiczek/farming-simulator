@@ -109,6 +109,51 @@ try {
     const paid = G.money - m1, sold = loaded - tr.tank.amount;
     return { stored, unpaid, loaded, left, took, paid: Math.round(paid), sold: Math.round(sold), premium: Math.round(paid - sold * price), done: G.stats.deliveries, active: G.deliveries.active.length };
   });
+  // animals and fields: fed cows breed and leave slurry; the tanker fills at the pit and fertilises
+  // a field; the livestock trailer sells cows at the dealer and brings new ones; egg pallets go to the hall
+  const loop = await page.evaluate(async () => {
+    const { G, vehicles, fields, attach } = window.__zl, M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js');
+    const L = await import('/src/world/layout.js'), A = await import('/src/game/animals.js'), FA = await import('/src/game/farm.js'), C = await import('/src/game/crops.js');
+    G.money = 5e7;
+    for (const k of ['cows', 'hens']) if (!M.has(k)) M.buy(k);
+    for (const [kind, id] of [['slurry', 'kejda-10'], ['livestock', 'dobytek-6'], ['trailer', 'privez-14']]) if (!window.__zl.tools.some(x => x.key === kind)) M.buy(id);
+    const h = A.herd('cows'), n0 = h.n;
+    G.farm.cowFeed = 30000; G.farm.slurry = 0; h.breed = 0; h.health = 1;
+    FA.farmTick(30);
+    const born = h.n - n0, slurry = Math.round(G.farm.slurry);
+    const t = vehicles.find(v => v.type === 'tractor' && !v.helper);
+    const put = (key, x, z, hd = Math.PI / 2) => {
+      attach(key, t); G.active = t; const tr = t.tool;
+      Object.assign(t, { x, z, h: hd, speed: 0, prev: null }); tr.x = 1e4; V.attachTool(t, tr);
+      const tc = V.trailerCenter(tr); t.x += x - tc.x; t.z += z - tc.z; tr.x += x - tc.x; tr.z += z - tc.z;
+      window.__zl.step(2); return tr;
+    };
+    // slurry: fill at the pit, spread on field 2
+    G.farm.slurry = 20000;
+    const tank = put('slurry', L.SLURRY_PIT.fill.x, L.SLURRY_PIT.fill.z, Math.PI);
+    window.__zl.act('KeyF'); const filled = Math.round(tank.load);
+    const f = fields.find(x => x.id === 2);
+    for (let i = 0; i < f.n; i++) if (f.state[i] !== C.S_NONE) { f.bonus[i] &= ~C.B_FERT; }
+    const fert0 = [...f.bonus].filter(b => b & C.B_FERT).length;
+    put('slurry', f.x0 + 14, f.z0 + 14, 0); window.__zl.act('Space'); window.__zl.hold('KeyW', 240); window.__zl.act('Space');
+    const fert = [...f.bonus].filter(b => b & C.B_FERT).length - fert0, used = Math.round(filled - tank.load);
+    // livestock: load at the cow ring, sell at the dealer, buy pigs? (no pig house) → buy cows, unload
+    const lt = put('livestock', L.COW_PEN.feed.x, L.COW_PEN.feed.z);
+    const cows0 = h.n; window.__zl.act('KeyF'); const loaded = lt.animals.n;
+    put('livestock', L.LIVESTOCK.x, L.LIVESTOCK.z); const m0 = G.money; window.__zl.act('KeyF'); const sold = Math.round(G.money - m0);
+    const m1 = G.money; window.__zl.act('KeyF'); const bought = lt.animals.n, paid = Math.round(m1 - G.money);
+    put('livestock', L.COW_PEN.feed.x, L.COW_PEN.feed.z); window.__zl.act('KeyF'); const back = h.n;
+    // eggs on pallets: load at the hen ring, sell at the market hall
+    G.farm.eggs = 3000;
+    const tr = put('trailer', L.HEN_RUN.feed.x, L.HEN_RUN.feed.z); Object.assign(tr.tank, { crop: -1, amount: 0 }); tr.bales = 0; tr.pallets.length = 0;
+    window.__zl.act('KeyF'); const pallets = tr.pallets.length;
+    put('trailer', L.MARKET_HALL.x, L.MARKET_HALL.z); const m2 = G.money; window.__zl.act('KeyF'); const hall = Math.round(G.money - m2);
+    return { born, slurry, filled, fert, used, loaded, cows0, sold, bought, paid, back, pallets, hall };
+  });
+  check('zvířata a pole: stádo, kejda, dobytčí trh, palety', loop.born > 0 && loop.slurry > 0 && loop.filled > 9000 && loop.fert > 50 && loop.used > 0 && loop.loaded === 6 &&
+    loop.sold > 0 && loop.bought === 6 && loop.paid > 0 && loop.back === loop.cows0 && loop.pallets === 5 && loop.hall > 0,
+    'za 30 h narozeno ' + loop.born + ' telat, kejdy ' + loop.slurry + ' l · cisterna ' + loop.filled + ' l, pohnojeno ' + loop.fert + ' m² (' + loop.used + ' l) · přívěs ' + loop.loaded + ' krav, trh zaplatil ' + loop.sold +
+    ' Kč, koupeno ' + loop.bought + ' za ' + loop.paid + ' Kč, stádo zpět na ' + loop.back + ' · palet vajec ' + loop.pallets + ', tržnice ' + loop.hall + ' Kč');
   check('silo a dodávka', silo.stored === 6000 && silo.unpaid && silo.loaded > 3000 && silo.left === 6000 - silo.loaded && silo.took && silo.sold > 0 && silo.premium > 0 && silo.done >= 1 && silo.active === 0,
     'uskladněno ' + silo.stored + ' l · naloženo ' + silo.loaded + ' l (v silu ' + silo.left + ') · prodáno ve mlýně ' + silo.sold + ' l za ' + silo.paid + ' Kč, příplatek ' + silo.premium + ' Kč · dodávka ' + (silo.active ? 'běží' : 'splněna'));
 
@@ -568,7 +613,7 @@ try {
       if (!M.buy(m.id)) { bad.push(m.id + ' nejde koupit'); continue; }
       const p = [...V.vehicles, ...V.tools].filter(x => x.model === m.id).pop();
       if (m.width && Math.abs(p.width - m.width) > 1e-6) bad.push(m.id + ' záběr ' + p.width);
-      if (m.cap && (p.tank?.cap ?? p.waterCap) !== m.cap) bad.push(m.id + ' objem');
+      if (m.cap && (p.tank?.cap ?? p.waterCap ?? p.loadCap ?? p.animalCap) !== m.cap) bad.push(m.id + ' objem');
       if (m.header && p.toolW !== m.header) bad.push(m.id + ' lišta');
       if (m.tank && p.tank.cap !== m.tank) bad.push(m.id + ' zásobník');
       if (m.kmh && Math.round(p.vmax * 3.6) !== m.kmh) bad.push(m.id + ' rychlost');

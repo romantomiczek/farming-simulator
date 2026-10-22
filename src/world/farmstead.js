@@ -3,8 +3,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { scene } from '../render/core.js';
 import { groundH } from './terrain.js';
 import { M, MT, mk, B, CY, flatPlane, bake } from '../render/materials.js';
+import { F } from '../vehicles/parts.js';
 import { col, rng } from '../core/util.js';
-import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, boxes, circles } from './layout.js';
+import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, SLURRY_PIT, MANURE_HEAP, boxes, circles } from './layout.js';
+import { HERD, DUNG, PALLET } from '../game/balance.js';
+import { G } from '../game/state.js';
+import { herd, palletsReady, PALLETS } from '../game/animals.js';
+import { PALLET_MAT } from '../vehicles/models.js';
 
 /**
  * Buildings you can buy (cow shed, hen house, sheep fold, pigsty, feed mixer, greenhouses) and the sawmill. Each building is a
@@ -193,8 +198,10 @@ function makeHerd(geo, n, pen, colors, speed, seed) {
   const dummy = new THREE.Object3D();
   return {
     mesh,
-    update(dt) {
-      for (let i = 0; i < n; i++) {
+    /** Moves the first `count` animals (the herd's head count, up to the building's size). */
+    update(dt, count = n) {
+      mesh.count = Math.min(n, count);
+      for (let i = 0; i < mesh.count; i++) {
         const an = a[i];
         if (an.wait > 0) an.wait -= dt;
         else {
@@ -210,6 +217,64 @@ function makeHerd(geo, n, pen, colors, speed, seed) {
         mesh.setMatrixAt(i, dummy.matrix);
       }
       mesh.instanceMatrix.needsUpdate = true;
+    },
+  };
+}
+
+/* ---------- slurry pit and manure heap (always there; animals fill them) ---------- */
+function buildDung(markers) {
+  const g = new THREE.Group(), concrete = MT('#b9b7ad', 'concrete'), { x, z, r } = SLURRY_PIT;
+  // round concrete pit with a rim and a ladder, the slurry surface rises with the level
+  CY(r, r, 2.2, 28, concrete, x, 1.1, z, g);
+  CY(r + 0.15, r + 0.15, 0.2, 28, MT('#a8a69c', 'concrete'), x, 2.25, z, g);
+  for (let k = 0; k < 6; k++) B(0.05, 0.05, 0.4, F(), x + r + 0.12, 0.3 + k * 0.38, z, g);
+  B(1.2, 0.2, 2.4, F(), x + r + 0.6, 0.1, z, g); // pump stand by the filling ring
+  CY(0.12, 0.12, 2.6, 8, F(), x + r + 0.5, 1.3, z + 0.7, g);
+  circles.push({ x, z, r: r + 0.2 });
+  const surf = mk(new THREE.CircleGeometry(r - 0.1, 28), M('#5a4a2e', { roughness: 0.3, flatShading: false }), x, 0.2, z, null, false);
+  surf.rotation.x = -Math.PI / 2; surf.userData.noBake = true;
+  // manure heap: a concrete pad with walls on three sides, the heap grows with the amount
+  const m = MANURE_HEAP;
+  B(10, 0.2, 7, concrete, m.x, 0.1, m.z, g);
+  B(10, 1.4, 0.3, concrete, m.x, 0.8, m.z + 3.35, g);
+  for (const sx of [-1, 1]) B(0.3, 1.4, 7, concrete, m.x + sx * 4.85, 0.8, m.z, g);
+  boxes.push({ x0: m.x - 5, x1: m.x + 5, z0: m.z + 3.1, z1: m.z + 3.6 }, { x0: m.x - 5, x1: m.x - 4.6, z0: m.z - 3.5, z1: m.z + 3.5 }, { x0: m.x + 4.6, x1: m.x + 5, z0: m.z - 3.5, z1: m.z + 3.5 });
+  const heap = mk(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), M('#4a3a26', { roughness: 1 }), m.x, 0.2, m.z + 0.6, null);
+  heap.userData.noBake = true; heap.scale.set(4.2, 0.01, 2.8);
+  scene.add(bake(g), surf, heap);
+  ring(SLURRY_PIT.fill, '#8a6a3a', markers); ring(MANURE_HEAP.fill, '#5a4630', markers);
+  return {
+    update() {
+      const s = G.farm.slurry / DUNG.slurryCap, h = G.farm.manure / DUNG.manureCap;
+      surf.position.y = 0.25 + s * 1.85;
+      heap.visible = h > 0.005; heap.scale.y = 0.2 + h * 2.2; heap.scale.x = 2.6 + h * 1.8; heap.scale.z = 1.8 + h * 1.2;
+    },
+  };
+}
+
+/** Pallets of eggs, wool and tomatoes waiting by the hen house, the sheep fold and the greenhouses (shown by count). */
+function buildPalletStacks() {
+  const geo = new THREE.BoxGeometry(1.05, 1.0, 1.15).translate(0, 0.5, 0), stacks = [];
+  for (const p of Object.keys(PALLETS)) {
+    const meshes = [];
+    for (let k = 0; k < PALLET.maxStack; k++) {
+      const m = mk(geo, PALLET_MAT[p], 0, 0, 0, null);
+      m.visible = false; scene.add(m); meshes.push(m);
+    }
+    stacks.push({ p, meshes });
+  }
+  return {
+    update() {
+      for (const { p, meshes } of stacks) {
+        const at = PALLETS[p].at(), n = at ? Math.min(PALLET.maxStack, palletsReady(p)) : 0;
+        meshes.forEach((m, k) => {
+          m.visible = k < n;
+          if (!m.visible) return;
+          // in a row beside the ring, two high
+          const x = at.x + at.r + 1.0 + Math.floor(k / 2) * 1.2, z = at.z - 0.6, y = groundH(x, z) + (k % 2) * 1.0;
+          m.position.set(x, y, z);
+        });
+      }
     },
   };
 }
@@ -251,13 +316,15 @@ export function buildFarmstead() {
     water: ring(GREENHOUSE_WATER, '#6fb0c8', markers), milk: ring(MILK_LOAD, '#f2efe6', markers),
     sheep: ring(SHEEP_PEN.feed, '#d9d4c4', markers), pigs: ring(PIG_PEN.feed, '#e7a3a0', markers),
   };
-  const cows = makeHerd(cowGeo(), 10, COW_PEN, ['#f2efe6', '#5b4636', '#8a5a3c', '#2f2f2f'], 0.35, 11);
-  const hens = makeHerd(henGeo(), 40, HEN_RUN, ['#f4f1ea', '#b9733e', '#8a5a3c'], 0.8, 23);
-  const sheep = makeHerd(sheepGeo(), 16, SHEEP_PEN, ['#ece6d8', '#e4dccb', '#f2eee4', '#3a3330'], 0.3, 37);
-  const pigs = makeHerd(pigGeo(), 12, PIG_PEN, ['#e8b4a8', '#e2a99c', '#d99a8e', '#c48a7a'], 0.3, 41);
+  const cows = makeHerd(cowGeo(), HERD.cows.cap, COW_PEN, ['#f2efe6', '#5b4636', '#8a5a3c', '#2f2f2f'], 0.35, 11);
+  const hens = makeHerd(henGeo(), HERD.hens.cap, HEN_RUN, ['#f4f1ea', '#b9733e', '#8a5a3c'], 0.8, 23);
+  const sheep = makeHerd(sheepGeo(), HERD.sheep.cap, SHEEP_PEN, ['#ece6d8', '#e4dccb', '#f2eee4', '#3a3330'], 0.3, 37);
+  const pigs = makeHerd(pigGeo(), HERD.pigs.cap, PIG_PEN, ['#e8b4a8', '#e2a99c', '#d99a8e', '#c48a7a'], 0.3, 41);
   scene.add(cows.mesh, hens.mesh, sheep.mesh, pigs.mesh);
   const herds = { cows, hens, sheep, pigs };
   for (const k in herds) herds[k].mesh.position.y = yOf(lift[k]);
+  const dung = buildDung(markers), stacks = buildPalletStacks();
+  let slowT = 0;
 
   return {
     /** Shows a building and turns its collisions on or off. */
@@ -270,7 +337,11 @@ export function buildFarmstead() {
       rings.water.visible = !!(owned.greenhouse1 || owned.greenhouse2);
     },
     update(dt) {
-      for (const k in herds) if (owned[k]) herds[k].update(dt);
+      for (const k in herds) if (owned[k]) herds[k].update(dt, herd(k).n);
+      if ((slowT -= dt) > 0) return;
+      slowT = 0.5;
+      dung.update();
+      stacks.update();
     },
   };
 }

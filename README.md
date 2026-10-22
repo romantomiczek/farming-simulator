@@ -159,7 +159,7 @@ Postřikovač má rameno, které se na cestu sklopí podél traktoru, válec zve
 
 ## Zvířata, skleníky a les
 
-Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce, vlna, vepřové a rajčata se odvážejí a platí o půlnoci.
+Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v záložce **Farma**. Mléko, vejce, vlna, vepřové a rajčata se odvážejí a platí o půlnoci; mléko, vejce, vlnu a rajčata můžeš odvézt sám a dostaneš víc.
 
 | Budova                 | Kde                     | Co potřebuje (denně)                           | Co dává (denně)                         |
 | ---------------------- | ----------------------- | ---------------------------------------------- | --------------------------------------- |
@@ -175,6 +175,10 @@ Všechno se kupuje v Kanceláři (K) → Obchod. Přehled zásob a produkce je v
 - **Krmná směs:** s míchacím vozem dávají krávy o 25 % víc mléka, když je v krmelci zrno (ječmen nebo kukuřice), seno i cukrovka, každé aspoň 15 %. Složení ukazuje Kancelář → Farma.
 - **Mlékárna:** cisterna veze vodu nebo mléko. Prázdnou cisternu naplníš mlékem klávesou F v bílém kruhu u chladicí nádrže kravína a mléko prodáš v mlékárně v městečku za 12 Kč/l. Co neodvezeš, koupí o půlnoci odvoz za 9 Kč/l. Mléčnou cisternu nejde naplnit vodou, dokud ji neprodáš.
 - **Voda:** cisternou (kůlna, klávesa 7) naber vodu klávesou F u rybníka a vylij ji v modrém kruhu u skleníků.
+- **Stádo** (`src/game/animals.js`): každá budova má stádo s počtem zvířat a zdravím. Nakrmená zvířata se uzdravují a při zdraví nad 75 % přibývají mláďata až do velikosti budovy (kravín 20, vepřín 30, ovčín 32, kurník 90). Hladová zvířata chřadnou a pod 20 % zdraví začnou hynout. Produkce i spotřeba krmiva se řídí počtem a zdravím zvířat. Stav ukazuje Kancelář → Farma.
+- **Dobytčí trh a přívěs na zvířata:** přívěs (6 krav, 12 prasat nebo ovcí, 60 slepic) naložíš klávesou F v kruhu u budovy a na dobytčím trhu v městečku (jižně od hlavní silnice) zvířata prodáš podle jejich zdraví. S prázdným přívěsem tam zvířata koupíš (C vybere druh, jen pro budovy, které máš) a doma je vyložíš F v kruhu budovy.
+- **Hnůj a kejda:** krávy a prasata dávají kejdu do jímky u kravína, krávy, ovce a slepice hnůj na hnojiště u vepřína. Cisternu na kejdu nebo rozmetadlo hnoje naplníš klávesou F v kruhu u jímky nebo před hnojištěm a na poli je rozmetáš mezerníkem: hnojí jako hnojivo (první i druhá dávka) a nic nestojí. Hladina v jímce a hromada na hnojišti ukazují, kolik je k vyvezení.
+- **Palety:** vejce, vlna a rajčata se u kurníku, ovčína a skleníků skládají na palety (600 vajec, 120 kg vlny, 300 kg rajčat). Prázdným přívěsem je naložíš klávesou F v kruhu u budovy a v tržnici v městečku prodáš o 40 % dráž. Co zůstane, odvezou o půlnoci za základní cenu.
 - **Les:** na severu je smrková plantáž. Harvestor kácí stromy, které dorostly aspoň na 85 % (F u stromu), a pojme 24 m³ dřeva. Dřevo prodáš na pile na konci polní cesty (F, kolem 1 500 Kč/m³) nebo v dřevoskladu v městečku. Místo pokáceného stromu vyroste asi za tři dny nový, v zimě roste pomaleji.
 
 Budovy se nedají pronajmout, jen koupit. Dřívější vylepšení nahradily modely: uložená hra s nimi dostane odpovídající stroj (silnější motor → Case IH Puma 185, větší zásobník → Case IH Axial-Flow 7250, široký kultivátor → Horsch Terrano 6 FX, nástavba → Fliegl TMK 22).
@@ -327,7 +331,7 @@ src/
   vehicles/            modely a jízda strojů, kolizní tvary a nárazy (body.js), nářadí, přívěs
   game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
-                       zvířata a skleníky (farm.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
+                       zvířata a skleníky (farm.js), stáda, hnůj a palety (animals.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
   fx/                  částice (prach, plevy, kouř), déšť a sníh, stopy kol (tracks.js)
   ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky, vývojářský panel (devpanel.js),
                        editor mapy (mapeditor.js)

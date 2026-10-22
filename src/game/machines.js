@@ -9,7 +9,7 @@ import { trailerBales } from '../vehicles/models.js';
 /** Shop groups of the machine kinds, in shop order. */
 const GROUP = {
   tractor: 'Traktory', combine: 'Sklízecí stroje', beet: 'Sklízecí stroje', cultivator: 'Nářadí', plough: 'Nářadí', seeder: 'Nářadí', spreader: 'Nářadí',
-  baler: 'Nářadí', mower: 'Nářadí', sprayer: 'Nářadí', roller: 'Nářadí', mulcher: 'Nářadí', trailer: 'Nářadí', watertank: 'Nářadí', jeep: 'Osobní auta', forest: 'Lesnictví',
+  baler: 'Nářadí', mower: 'Nářadí', sprayer: 'Nářadí', roller: 'Nářadí', mulcher: 'Nářadí', manure: 'Nářadí', slurry: 'Nářadí', livestock: 'Nářadí', trailer: 'Nářadí', watertank: 'Nářadí', jeep: 'Osobní auta', forest: 'Lesnictví',
 };
 const n = x => x.toLocaleString('cs-CZ');
 const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh + ' km/h, nádrž ' + m.fuel + ' l.'
@@ -19,6 +19,8 @@ const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh +
   : m.kind === 'jeep' ? ' Až ' + m.kmh + ' km/h, mimo cesty ' + Math.round(m.kmh * m.offroad) + ' km/h.'
   : m.kind === 'trailer' ? ' ' + n(m.cap) + ' l zrna nebo ' + trailerBales(m.look.len || 5.6) + ' balíků, potřebuje ' + m.hp + ' koní.'
   : m.kind === 'watertank' ? ' ' + n(m.cap) + ' l, potřebuje ' + m.hp + ' koní.'
+  : m.kind === 'manure' || m.kind === 'slurry' ? ' ' + n(m.cap) + ' l, záběr ' + m.width + ' m, potřebuje ' + m.hp + ' koní.'
+  : m.kind === 'livestock' ? ' Potřebuje ' + m.hp + ' koní.'
   : m.hp ? ' Záběr ' + String(m.width).replace('.', ',') + ' m, potřebuje ' + m.hp + ' koní.' : '');
 const modelRows = kinds => MODELS.filter(m => kinds.includes(m.kind)).map(m => ({ key: m.id, name: modelName(m), kind: GROUP[m.kind], price: m.price, desc: m.desc + specs(m), machine: m.kind }));
 
@@ -31,7 +33,7 @@ const modelRows = kinds => MODELS.filter(m => kinds.includes(m.kind)).map(m => (
 export const CATALOG = [
   ...modelRows(['tractor', 'combine', 'beet']),
   { key: 'cornHeader', name: 'Řádkový adaptér', kind: 'Adaptéry kombajnu', price: 320000, desc: 'Na kukuřici a slunečnici. Nasazuje se v kůlně.' },
-  ...modelRows(['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'baler', 'mower', 'trailer', 'watertank', 'jeep', 'forest']),
+  ...modelRows(['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'baler', 'mower', 'trailer', 'watertank', 'manure', 'slurry', 'livestock', 'jeep', 'forest']),
   { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: COWS.price, noLease: true, desc: 'Krávy žerou kukuřici, ječmen, cukrovku nebo balíky sena a dávají mléko. Mléko se prodá samo o půlnoci, nebo ho cisternou odvezeš do mlékárny v městečku za ' + COWS.dairyPrice + ' Kč/l místo ' + COWS.milkPrice + '.' },
   { key: 'mixer', name: 'Míchací krmný vůz', kind: 'Budovy', price: MIXER.price, noLease: true, desc: 'Stojí u kravína a míchá krmnou směs. Když je v krmelci zrno, seno i cukrovka (každé aspoň ' + Math.round(MIXER.minShare * 100) + ' %), dávají krávy o ' + Math.round(MIXER.bonus * 100) + ' % víc mléka. Potřebuje kravín.' },
   { key: 'sheep', name: 'Ovčín s 16 ovcemi', kind: 'Budovy', price: SHEEP.price, noLease: true, desc: 'Ovce žerou balíky sena z luk a dávají vlnu. Vlna se prodá o půlnoci.' },

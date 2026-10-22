@@ -4,7 +4,7 @@ import { M, MT, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/ma
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y, groundMaterial } from './terrain.js';
 import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, SILO_LOAD, circles, addBox, onBridge } from './layout.js';
-import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond } from './layout.js';
+import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond, LIVESTOCK, MARKET_HALL } from './layout.js';
 import { roadTextures } from '../render/textures.js';
 import { addSnow } from '../render/snow.js';
 import { buildYard } from './yard.js';
@@ -350,10 +350,35 @@ export function buildFarm(scene) {
 
   buildVillage(village);
   buildBuyers(village, scene);
+  buildLivestockAndHall(village, scene);
   buildLandmarks(scene);
   for (const g of [st, lines, towers, village]) scene.add(bake(flatten(g)));
   addZoneMarkers(scene);
   return { rotors };
+}
+
+/**
+ * The livestock dealer (a shed with a fenced pen behind the ring) and the market hall (an open
+ * stall roof over tables) in the town, south of the main road (game/animals.js).
+ */
+function buildLivestockAndHall(st, scene) {
+  { const { x, z } = LIVESTOCK, y = groundH(x, z), g = new THREE.Group(); g.position.set(x, y, z); st.add(g);
+    gable(10, 7, 4.5, '#c9a582', '#6c777d', g, { wall: 'wood' });
+    g.children.forEach(c => { c.position.z -= 14; });
+    const wood = MT('#8a6a52', 'wood');
+    // the pen beside the shed (x 6…14, z −17…−9 from the ring), clear of the ring
+    for (let k = 0; k <= 4; k++) for (const sz of [-17, -9]) B(0.14, 1.3, 0.14, wood, 6 + k * 2, 0.65, sz, g);
+    for (let k = 1; k < 4; k++) B(0.14, 1.3, 0.14, wood, 14, 0.65, -17 + k * 2, g);
+    for (const yy of [0.5, 1.0]) { for (const sz of [-17, -9]) B(8, 0.1, 0.06, wood, 10, yy, sz, g); B(0.06, 0.1, 8, wood, 14, yy, -13, g); }
+    addBox(x - 5, x + 5, z - 17.5, z - 10.5); addBox(x + 5.9, x + 14.2, z - 17.2, z - 16.8); addBox(x + 5.9, x + 14.2, z - 9.2, z - 8.8); addBox(x + 13.8, x + 14.2, z - 17, z - 9);
+    label(scene, 'Dobytčí trh', x, y + 5.4, z - 10.4, 0); }
+  { const { x, z } = MARKET_HALL, y = groundH(x, z), g = new THREE.Group(); g.position.set(x, y, z); st.add(g);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) CY(0.15, 0.15, 3.4, 8, '#6c777d', sx * 6, 1.7, -13 + sz * 3, g);
+    const roof = B(13.4, 0.2, 7.4, MT('#c8553f', 'metal'), 0, 3.5, -13, g); roof.rotation.x = 0.08;
+    for (const sx of [-4, 0, 4]) { B(3, 0.08, 1.4, MT('#a5784f', 'wood'), sx, 0.95, -13, g); for (const dx of [-1.3, 1.3]) B(0.1, 0.9, 1.2, '#6c777d', sx + dx, 0.45, -13, g); }
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) circles.push({ x: x + sx * 6, z: z - 13 + sz * 3, r: 0.3 });
+    addBox(x - 5.6, x + 5.6, z - 13.8, z - 12.2);
+    label(scene, 'Tržnice', x, y + 4.2, z - 9.2, 0); }
 }
 
 /** Village along the street east of the farm: houses on both sides and a small church. */
@@ -448,6 +473,10 @@ function addZoneMarkers(scene) {
   const washRing = new THREE.Mesh(new THREE.RingGeometry(WASH.r - 0.5, WASH.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#3f7fa6'), transparent: true, opacity: 0.75 }));
   washRing.rotation.x = -Math.PI / 2; washRing.position.set(WASH.x, 0.07, WASH.z); scene.add(washRing);
+  for (const [p, hex] of [[LIVESTOCK, '#a5784f'], [MARKET_HALL, '#c8553f']]) {
+    const rg = new THREE.Mesh(new THREE.RingGeometry(p.r - 0.5, p.r, 40), new THREE.MeshBasicMaterial({ color: col(hex), transparent: true, opacity: 0.75 }));
+    rg.rotation.x = -Math.PI / 2; rg.position.set(p.x, groundH(p.x, p.z) + 0.06, p.z); scene.add(rg);
+  }
   const siloRing = new THREE.Mesh(new THREE.RingGeometry(SILO_LOAD.r - 0.5, SILO_LOAD.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#dfe1dc'), transparent: true, opacity: 0.8 }));
   siloRing.rotation.x = -Math.PI / 2; siloRing.position.set(SILO_LOAD.x, 0.07, SILO_LOAD.z); scene.add(siloRing);

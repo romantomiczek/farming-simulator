@@ -18,7 +18,7 @@ import { thumbURL, setThumbHandler, setViewer } from '../render/previews.js';
 import { PAD, PARK, inRect } from '../world/layout.js';
 import { MARKETS, accepts, marketPrice, bestMarket } from '../game/markets.js';
 import { SILO_CAP, siloTotal, deliveryMarket, deliveryPrice, acceptDelivery, canAcceptDelivery } from '../game/silo.js';
-import { fmt2 } from '../core/util.js';
+import { fmt2, plural } from '../core/util.js';
 import { fieldAt } from '../world/fields.js';
 import { cam } from '../render/camera.js';
 import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName, helperTools, busyHelper } from '../game/helpers.js';
@@ -28,6 +28,8 @@ import { FIELDS } from '../world/fields.js';
 import { S_STUB, S_CULT, S_SOWN, S_RIPE } from '../game/crops.js';
 import { buyField } from '../game/actions.js';
 import { fieldYield, WITHER_H, LIME_DUE } from '../game/agro.js';
+import { herd, herdName, PALLETS, palletsReady } from '../game/animals.js';
+import { HERD, DUNG, PALLET } from '../game/balance.js';
 import { SEASONS, seasonIdx } from '../game/weather.js';
 import { dayOf } from '../game/state.js';
 
@@ -154,14 +156,14 @@ const SHOP = [
   { id: 'tractor', name: 'Traktory', kinds: ['tractor'] },
   { id: 'harvest', name: 'Sklízeče', kinds: ['combine', 'beet'], extra: ['cornHeader'] },
   { id: 'tools', name: 'Nářadí', kinds: ['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'mower', 'baler'] },
-  { id: 'haul', name: 'Přívěsy a cisterny', kinds: ['trailer', 'watertank'] },
+  { id: 'haul', name: 'Přívěsy a cisterny', kinds: ['trailer', 'watertank', 'livestock', 'manure', 'slurry'] },
   { id: 'forest', name: 'Lesnictví', kinds: ['forest'] },
   { id: 'cars', name: 'Auta', kinds: ['jeep'] },
   { id: 'build', name: 'Budovy' },
 ];
 const KIND_TITLE = {
   tractor: 'Traktory', combine: 'Kombajny', beet: 'Sklízeče cukrovky', cultivator: 'Kultivátory', plough: 'Pluhy', seeder: 'Secí stroje',
-  spreader: 'Rozmetadla', sprayer: 'Postřikovače', roller: 'Válce', mulcher: 'Mulčovače', mower: 'Žací lišty', baler: 'Lisy', trailer: 'Přívěsy', watertank: 'Cisterny', forest: 'Harvestory', jeep: 'Auta',
+  spreader: 'Rozmetadla', manure: 'Rozmetadla hnoje', slurry: 'Cisterny na kejdu', livestock: 'Přívěsy na zvířata', sprayer: 'Postřikovače', roller: 'Válce', mulcher: 'Mulčovače', mower: 'Žací lišty', baler: 'Lisy', trailer: 'Přívěsy', watertank: 'Cisterny', forest: 'Harvestory', jeep: 'Auta',
 };
 const n1 = x => String(Math.round(x * 10) / 10).replace('.', ',');
 /** The numbers a card shows for each kind: [label, value, text, more is better]. */
@@ -455,9 +457,18 @@ function farmHTML() {
       extra += '<span class="muted">Krmná směs: zrno ' + p(sh.grain) + ' · seno ' + p(sh.hay) + ' · cukrovka ' + p(sh.beet)
         + (mixOk() ? ' · vyvážená, +' + Math.round(MIXER.bonus * 100) + ' % mléka' : ' · pro víc mléka potřebuje každé aspoň ' + Math.round(MIXER.minShare * 100) + ' %') + '</span>';
     }
+    const h = herd(key), sh = HERD[key];
+    extra += '<span class="muted">Stádo: ' + herdName(key, h.n) + ' z ' + sh.cap + ' · zdraví ' + pct(h.health) +
+      (h.n >= sh.cap ? ' · budova je plná, prodej zvířata na dobytčím trhu' : h.health >= 0.75 && !F.hungry[key] ? ' · přibývají (' + sh.young + ')' : ' · nepřibývají, dokud nejsou zdravá a nakrmená') + '</span>';
+    extra += '<div class="bar"><i style="width:' + (h.health * 100).toFixed(0) + '%"></i></div>';
     out += row(b.name, 'Krmivo ' + fmt(F[b.store]) + ' / ' + fmt(b.cap) + ' l (' + eatsText(key) + ') · vystačí ' + days(daysLeft(key)),
-      F.hungry[key] ? '<span class="chip warn">Hladoví</span>' : '<span class="chip on">V pořádku</span>', extra);
+      F.hungry[key] ? '<span class="chip warn">Hladoví</span>' : h.health < 0.5 ? '<span class="chip warn">Nemocná</span>' : '<span class="chip on">V pořádku</span>', extra);
   }
+  out += row('Jímka na kejdu a hnojiště', 'Kejda ' + fmt(F.slurry) + ' / ' + fmt(DUNG.slurryCap) + ' l · hnůj ' + fmt(F.manure) + ' / ' + fmt(DUNG.manureCap) + ' l',
+    '<span class="chip">' + Math.round(Math.max(F.slurry / DUNG.slurryCap, F.manure / DUNG.manureCap) * 100) + ' %</span>',
+    '<span class="muted">Kejdu dávají krávy a prasata, hnůj krávy, ovce a slepice. Cisternou na kejdu nebo rozmetadlem hnoje ji vyvezeš na pole, kde hnojí jako hnojivo (i druhá dávka), zdarma. Plní se v kruzích vedle jímky a před hnojištěm.</span>');
+  const waiting = Object.keys(PALLETS).filter(p => palletsReady(p) > 0).map(p => plural(palletsReady(p), 'paleta', 'palety', 'palet') + ' ' + PALLETS[p].label);
+  if (waiting.length) out += row('Palety k odvozu', waiting.join(' · '), '<span class="chip warn">Čekají</span>', '<span class="muted">Přívěsem (prázdným, v kruhu u budovy, F) je odvez do tržnice v městečku: zaplatí o ' + Math.round(PALLET.bonus * 100) + ' % víc. Co zůstane, odvezou o půlnoci za základní cenu.</span>');
   const n = greenhouses();
   out += n
     ? row('Skleníky (' + n + ')', 'Voda ' + fmt(F.water) + ' / ' + fmt(waterCap()) + ' l · vystačí ' + days(daysLeft('water')),

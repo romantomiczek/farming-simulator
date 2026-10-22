@@ -25,3 +25,21 @@ export const WOOD = { harvesterPrice: 1600000, pricePerM3: 1500, treeM3: 3.6, lo
 
 /** Hired helper, Kč per game hour of work (and of driving to the field). */
 export const HELPER_WAGE = 1500;
+
+/**
+ * Herds (game/animals.js): head count to start with and the most the building holds, value of a
+ * healthy animal at the livestock dealer, how fast they breed (young per head and game hour when
+ * fed and healthy), and what they leave in litres per head and hour: slurry and manure.
+ */
+export const HERD = {
+  cows: { start: 10, cap: 20, price: 45000, breed: 1 / 240, slurry: 12, manure: 6, perTrailer: 6, one: 'kráva', few: 'krávy', many: 'krav', young: 'tele' },
+  pigs: { start: 12, cap: 30, price: 9000, breed: 1 / 120, slurry: 8, manure: 0, perTrailer: 12, one: 'prase', few: 'prasata', many: 'prasat', young: 'sele' },
+  sheep: { start: 16, cap: 32, price: 6000, breed: 1 / 200, slurry: 0, manure: 4, perTrailer: 12, one: 'ovce', few: 'ovce', many: 'ovcí', young: 'jehně' },
+  hens: { start: 40, cap: 90, price: 300, breed: 1 / 60, slurry: 0, manure: 0.3, perTrailer: 60, one: 'slepice', few: 'slepice', many: 'slepic', young: 'kuře' },
+};
+/** Health 0..1: fed animals get better by healthUp an hour, hungry ones worse by healthDown; below sickBelow some die. */
+export const HEALTH = { up: 0.03, down: 0.05, breedAbove: 0.75, sickBelow: 0.2, deathPerHour: 0.01 };
+/** The farm's slurry pit and manure heap (litres), and how much the spreaders put on a square metre. */
+export const DUNG = { slurryCap: 120000, manureCap: 80000, slurryPerM2: 2, manurePerM2: 1.5 };
+/** Pallets of products, and what the market hall in the town pays on top of the midnight pickup. */
+export const PALLET = { eggs: 600, wool: 120, tomatoes: 300, bonus: 0.4, maxStack: 6 };

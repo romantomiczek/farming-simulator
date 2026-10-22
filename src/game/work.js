@@ -17,10 +17,11 @@ import { pourStream } from '../fx/streams.js';
 import { freshSoil } from '../fx/furrows.js';
 import { groundH } from '../world/terrain.js';
 
-const MIST = col('#e6efe8'), CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
+const SLURRY_C = col('#5a4a2e'), MANURE_C = col('#4a3a26'), MIST = col('#e6efe8'), CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
 import { toast, warn } from '../ui/toast.js';
 import { contractAllows, contractCell } from './contracts.js';
 import { cellYield, sowCell, harvestCell, sowable, sowSeasons, WEED_SPRAYED } from './agro.js';
+import { DUNG } from './balance.js';
 import { season, isWet } from './weather.js';
 
 const inZone = (zone, p) => Math.hypot(p.x - zone.x, p.z - zone.z) < zone.r;
@@ -121,6 +122,14 @@ function applyCell(v, x, z, k, dirBit, res) {
       case 'baler':
         if (f.straw[i]) { f.straw[i] = 0; v.baleAcc++; changed = true; setDir = false; }
         break;
+      case 'manure': case 'slurry': { // dung from the farm's animals: fertiliser, first and second dose, for free
+        const t = v.tool, per = v.impl === 'slurry' ? DUNG.slurryPerM2 : DUNG.manurePerM2;
+        if (s !== S_RIPE && (!(f.bonus[i] & B_FERT) || (s === S_SOWN && f.stage[i] >= 2 && !(f.bonus[i] & B_FERT2)))) {
+          if (t.load < per) { res.blocked = 'empty'; return; }
+          t.load -= per; f.bonus[i] |= f.bonus[i] & B_FERT ? B_FERT2 : B_FERT; changed = true; setDir = false; stat('fert');
+        }
+        break;
+      }
       case 'mower':
         res.noGrass = true;
         break;
@@ -178,6 +187,7 @@ export function work(v, dt) {
     v.lowered = false;
     warn('money', v.impl === 'spreader' ? (v.spreadLime ? 'Došly peníze na vápno. Prodej úrodu.' : 'Došly peníze na hnojivo. Prodej úrodu.') : v.impl === 'sprayer' ? 'Došly peníze na postřik. Prodej úrodu.' : 'Došly peníze na osivo. Prodej úrodu.');
   }
+  if (res.blocked === 'empty') { v.lowered = false; warn('empty', v.impl === 'slurry' ? 'Cisterna je prázdná. Dojeď pro kejdu k jímce u kravína (F).' : 'Rozmetadlo je prázdné. Dojeď pro hnůj k hnojišti (F).'); }
   if (res.blocked === 'full') warn('full', 'Zásobník je plný. Přelož úrodu do přívěsu nebo jeď k silům.');
   if (res.blocked === 'mix') warn('mix', 'V zásobníku je jiná plodina. Nejdřív ji prodej.');
   if (res.blocked === 'header') {
@@ -235,6 +245,10 @@ export function work(v, dt) {
       emit(cx + rx * fan, 0.6 + y, cz + rz * fan, LEAF_C, 0.28, rx * (Math.random() - 0.5) * 3, 1.2 + Math.random(), rz * (Math.random() - 0.5) * 3, 1, 6);
     }
   }
+  if (res.onField && (v.impl === 'manure' || v.impl === 'slurry') && Math.random() < dt * 60) { // a fan of dung thrown out behind
+    const k = (Math.random() - 0.5) * W * 0.8, sl = v.impl === 'slurry';
+    emit(cx + rx * k * 0.3, (sl ? 0.9 : 1.6) + (v.y || 0), cz + rz * k * 0.3, sl ? SLURRY_C : MANURE_C, sl ? 0.22 : 0.3, rx * k * 0.9 - sh * 1.5, sl ? 0.4 : 1.4, rz * k * 0.9 - ch * 1.5, 0.9, sl ? 2 : 8);
+  }
   if (res.onField && v.impl === 'mulcher' && Math.random() < dt * 40) { // chopped straw blown out behind the hood
     const k = (Math.random() - 0.5) * W;
     emit(cx + rx * k, 0.4 + (v.y || 0), cz + rz * k, STRAW_C, 0.25, -sh * 1.2 + (Math.random() - 0.5), 0.8 + Math.random() * 0.6, -ch * 1.2 + (Math.random() - 0.5), 0.9, 5);
@@ -290,7 +304,7 @@ export function trailerInReach(h, t) {
 export const trailerUnder = h => tools.find(t => t.key === 'trailer' && trailerInReach(h, t)) || null;
 
 /** Same crop (or empty), and no bales on board. */
-const trailerAccepts = (t, crop) => t.bales === 0 && (t.tank.amount <= 0 || t.tank.crop === crop);
+const trailerAccepts = (t, crop) => t.bales === 0 && !t.pallets.length && (t.tank.amount <= 0 || t.tank.crop === crop);
 
 /** Hands amt litres of crop to buyer or feed trough m (or to the silos: who.store); returns how much was taken. */
 function deliver(m, crop, amt, who) {
@@ -417,7 +431,7 @@ function trailerLogistics(t, dt, onDone) {
     for (let i = bales.length - 1; i >= 0; i--) {
       const b = bales[i];
       if (Math.hypot(b.x - tc.x, b.z - tc.z) > 3.4) continue;
-      if (t.tank.amount > 0) { warn('baleGrain', 'V přívěsu je zrno. Balíky naložíš až do prázdného přívěsu.'); break; }
+      if (t.tank.amount > 0 || t.pallets.length) { warn('baleGrain', t.pallets.length ? 'V přívěsu jsou palety. Balíky naložíš až do prázdného přívěsu.' : 'V přívěsu je zrno. Balíky naložíš až do prázdného přívěsu.'); break; }
       if (t.bales >= t.baleCap) { warn('baleFull', 'Přívěs je plný balíků. Odvez je ke stodole.'); break; }
       removeBale(i); t.bales++; if (b.hay) t.hay = (t.hay || 0) + 1;
       warn('baleLoad', 'V přívěsu: ' + plural(t.bales, 'balík', 'balíky', 'balíků') + ' z ' + t.baleCap + '.', '');

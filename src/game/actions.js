@@ -7,6 +7,11 @@ import {
 } from './work.js';
 import { inSiloLoad, siloCrop, cycleSiloCrop, siloSpace, SILO_CAP } from './silo.js';
 import { sowable, sowSeasons, LIME_DUE } from './agro.js';
+import {
+  buildingAt, atDealer, atHall, atSlurry, atManure, trailerAtBuilding, loadAnimals, unloadAnimals, dealerAction, sellAnimals, buyAnimals,
+  cycleBuyKind, palletsHere, loadPallets, sellPallets, herdName,
+} from './animals.js';
+import { DUNG } from './balance.js';
 import { FERT_COST, LIME_COST } from './crops.js';
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
@@ -47,6 +52,15 @@ export function fAction() {
     if (i >= 0) return { kind: 'fell', i };
     return null;
   }
+  if (v.type === 'tractor' && v.impl === 'livestock') {
+    const t = v.tool, tc = trailerCenter(t), key = buildingAt(tc);
+    if (key) return trailerAtBuilding(t, key);
+    if (atDealer(tc)) return dealerAction(t);
+  }
+  if (v.type === 'tractor' && (v.impl === 'manure' || v.impl === 'slurry')) {
+    const t = v.tool, tc = trailerCenter(t), slurry = v.impl === 'slurry', stock = slurry ? G.farm.slurry : G.farm.manure;
+    if ((slurry ? atSlurry(tc) : atManure(tc)) && t.load < t.loadCap - 1) return stock >= 1 ? { kind: 'fillDung', t, slurry, l: Math.min(stock, t.loadCap - t.load) } : { kind: 'noDung', slurry };
+  }
   if (v.type === 'tractor' && v.impl === 'watertank') {
     const w = v.tool, near = z => Math.hypot(v.x - z.x, v.z - z.z) < z.r;
     if (w.milk && w.water > 0 && near(DAIRY)) return { kind: 'sellMilk', w };
@@ -63,6 +77,8 @@ export function fAction() {
   } else {
     const t = towed(v), tc = t && trailerCenter(t);
     if (t?.tipping) return { kind: 'stopTip', t };
+    if (t && t.pallets.length && atHall(tc)) return { kind: 'sellPallets', t };
+    if (t && !t.tank.amount && !t.bales && t.pallets.length < t.baleCap) { const p = palletsHere(tc); if (p) return { kind: 'loadPallets', t, p }; }
     if (t?.loading) return { kind: 'stopLoad', t };
     if (t && t.key === 'trailer' && inSiloLoad(tc) && !t.bales && t.tank.amount < t.tank.cap - 1) {
       const crop = siloCrop();
@@ -97,10 +113,11 @@ export function doG() {
   if (siloSpace() < 1) { toast('Sila jsou plná (' + fmt(SILO_CAP) + ' l). Nalož část zásoby do přívěsu u výdeje a prodej ji.', 'bad'); return; }
   if (a.kind === 'store') startUnload(a.h, true); else startTipping(a.t, true);
 }
-/** C: at the silo outlet with a trailer the next stored crop; with the spreader fertiliser or lime; else the seed. */
+/** C: at the silo outlet with a trailer the next stored crop; at the dealer the animals to buy; with the spreader fertiliser or lime; else the seed. */
 export function doC() {
   const v = !G.onFoot && G.active, t = v && towed(v);
   if (t && t.key === 'trailer' && inSiloLoad(trailerCenter(t))) { cycleSiloCrop(); return; }
+  if (v?.impl === 'livestock' && atDealer(trailerCenter(v.tool)) && !v.tool.animals.n) { cycleBuyKind(v.tool); return; }
   if (v?.type === 'tractor' && v.impl === 'spreader') {
     v.spreadLime = !v.spreadLime;
     toast(v.spreadLime ? 'Rozmetadlo sype vápno · ' + LIME_COST + ' Kč/m². Kyselá půda (po ' + LIME_DUE + ' sklizních) bere 15 % výnosu.' : 'Rozmetadlo sype hnojivo · ' + FERT_COST + ' Kč/m². Druhá dávka na vzrostlé plodiny dá dalších +10 %.');
@@ -154,6 +171,10 @@ export function toggleTool() {
   if (v.type === 'tractor' && v.impl === 'trailer') {
     toast('Přívěs nemá co spouštět. Úrodu vysypeš klávesou F ve výkupu, balíky prodáš F u stodoly.');
     return;
+  }
+  if (v.type === 'tractor' && v.impl === 'livestock') { toast('Zvířata naložíš a vyložíš klávesou F v kruhu u jejich budovy, prodáš nebo koupíš je u dobytčího trhu v městečku.'); return; }
+  if (v.type === 'tractor' && (v.impl === 'manure' || v.impl === 'slurry') && !v.lowered && v.tool.load < 1) {
+    toast(v.impl === 'slurry' ? 'Cisterna je prázdná. Naplníš ji klávesou F v kruhu u jímky na kejdu vedle kravína.' : 'Rozmetadlo je prázdné. Naplníš ho klávesou F v kruhu před hnojištěm u vepřína.', 'bad'); return;
   }
   if (v.type === 'tractor' && v.impl === 'watertank') { toast('Cisternu naplníš klávesou F u rybníka a vodu vyleješ F u skleníků. Mléko nabereš F u kravína a prodáš v mlékárně v městečku.'); return; }
   if (v.type === 'forest') { toast('Strom pokácíš klávesou F, když stojíš u vzrostlého stromu.'); return; }
@@ -275,6 +296,20 @@ export function doF() {
     case 'sell': case 'overload': startUnload(a.h); return;
     case 'tip': startTipping(a.t); return;
     case 'loadSilo': startLoading(a.t); return;
+    case 'loadAnimals': loadAnimals(a.t, a.key, a.n); saveLocal(); return;
+    case 'unloadAnimals': unloadAnimals(a.t, a.key, a.n); saveLocal(); return;
+    case 'wrongAnimals': toast('V přívěsu je ' + herdName(a.t.animals.kind, a.t.animals.n) + '. Vylož je v jejich budově, nebo je prodej na dobytčím trhu.', 'bad'); return;
+    case 'herdFull': toast('Budova je plná, víc zvířat se do ní nevejde.', 'bad'); return;
+    case 'sellAnimals': sellAnimals(a.t); saveLocal(); return;
+    case 'buyAnimals': buyAnimals(a.t, a.key, a.n); saveLocal(); return;
+    case 'noBuilding': toast('Zvířata můžeš koupit, až budeš mít jejich budovu (Kancelář → Obchod → Budovy).', 'bad'); return;
+    case 'fillDung': {
+      a.t.load += a.l; if (a.slurry) G.farm.slurry -= a.l; else G.farm.manure -= a.l;
+      toast('Naplněno ' + fmt(a.l) + ' l ' + (a.slurry ? 'kejdy' : 'hnoje') + '. Na poli ho rozmetáš mezerníkem: hnojí jako hnojivo, zdarma.', 'good'); saveLocal(); return;
+    }
+    case 'noDung': toast(a.slurry ? 'Jímka na kejdu je prázdná. Kejdu dávají krávy a prasata.' : 'Hnojiště je prázdné. Hnůj dávají krávy, ovce a slepice.', 'bad'); return;
+    case 'loadPallets': loadPallets(a.t, a.p); saveLocal(); return;
+    case 'sellPallets': sellPallets(a.t); saveLocal(); return;
     case 'stopLoad': stopLoading(a.t, saveLocal); return;
     case 'stopTip': stopTipping(a.t, saveLocal); return;
     case 'sellBales': sellBales(a.t, saveLocal); return;

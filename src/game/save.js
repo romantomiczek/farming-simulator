@@ -11,6 +11,8 @@ import { serializeForest, loadForest } from '../world/forest.js';
 import { MAP_DEFAULTS } from '../world/layout.js';
 import { emptyFarm } from './farm.js';
 import { WITHER_H } from './agro.js';
+import { SPECIES } from './animals.js';
+import { PALLET_MAT } from '../vehicles/models.js';
 import { emptySilo, emptyDeliveries, generateDeliveries, loadSilo, loadDeliveries } from './silo.js';
 import { person, startOnFoot } from '../world/person.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
@@ -80,7 +82,9 @@ export function serialize() {
     tools: tools.map(t => ({
       id: t.id, key: t.key, model: t.model, own: t.own, cond: t.cond, slot: t.slot, dirt: r2(t.dirtU?.value || 0),
       x: r2(t.x), z: r2(t.z), h: t.h, // where it stands (a hitched implement: thrown away on loading, a trailer keeps its angle)
-      ...(t.key === 'trailer' ? { tank: t.tank, bales: t.bales, hay: t.hay || 0 } : {}),
+      ...(t.key === 'trailer' ? { tank: t.tank, bales: t.bales, hay: t.hay || 0, pallets: t.pallets } : {}),
+      ...(t.key === 'livestock' ? { animals: t.animals, buyKind: t.buyKind } : {}),
+      ...(t.key === 'manure' || t.key === 'slurry' ? { load: Math.round(t.load) } : {}),
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
@@ -188,6 +192,11 @@ export function applySave(d) {
   for (const k in farm) if (Number.isFinite(farm[k]) && Number.isFinite(d.farm?.[k])) farm[k] = Math.max(0, d.farm[k]);
   for (const k in farm.mix) if (Number.isFinite(d.farm?.mix?.[k])) farm.mix[k] = Math.max(0, d.farm.mix[k]);
   if (!d.farm?.mix) farm.mix.grain = farm.cowFeed; // older saves: count what is there as grain
+  // herds (older saves: the starting herd of every owned building, set up on first use)
+  for (const k in d.farm?.herd || {}) {
+    const h = d.farm.herd[k];
+    if (h && Number.isFinite(h.n)) farm.herd[k] = { n: Math.max(0, Math.round(h.n)), health: Math.max(0, Math.min(1, +h.health || 0)), breed: +h.breed || 0, sick: +h.sick || 0 };
+  }
   G.farm = farm;
   G.silo = loadSilo(d.silo); G.deliveries = loadDeliveries(d.deliveries);
   if (!G.deliveries.offers.length) generateDeliveries();
@@ -225,7 +234,13 @@ function loadFleet(plan) {
       if (t.tank.amount <= 0) t.tank.crop = -1;
       t.bales = Math.min(t.baleCap, Math.max(0, e.bales | 0));
       t.hay = Math.min(t.bales, Math.max(0, e.hay | 0));
+      t.pallets = (Array.isArray(e.pallets) ? e.pallets : []).filter(p => p in PALLET_MAT).slice(0, t.baleCap - t.bales);
     }
+    if (t.key === 'livestock' && e.animals && SPECIES.includes(e.animals.kind) && e.animals.n > 0) {
+      t.animals = { kind: e.animals.kind, n: Math.round(e.animals.n), health: Math.max(0, Math.min(1, +e.animals.health || 1)) };
+    }
+    if (t.key === 'livestock' && SPECIES.includes(e.buyKind)) t.buyKind = e.buyKind;
+    if ((t.key === 'manure' || t.key === 'slurry') && Number.isFinite(e.load)) t.load = Math.max(0, Math.min(t.loadCap, e.load));
     if (Number.isFinite(e.x) && Number.isFinite(e.z)) { // left standing where it was unhitched
       t.x = e.x; t.z = e.z; t.h = num(e.h, 0);
       if (!t.trailed) standFree(t);

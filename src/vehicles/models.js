@@ -444,6 +444,9 @@ export function buildSeeder(o = {}) {
 /** Bale places of a trailer body len metres long: two layers along it. */
 export const trailerBales = len => Math.max(2, Math.floor((len - 0.4) / 1.3)) * 2;
 
+/** Pallets on a trailer: egg crates, wool sacks, tomato crates. */
+export const PALLET_MAT = { eggs: M('#e9dfc8', { roughness: 0.9 }), wool: M('#d6d0c2', { roughness: 1 }), tomatoes: M('#c8452f', { roughness: 0.8 }) };
+
 /**
  * Grain trailer with a tipping body. o = look: body, rib, trim colours, len (body length), height
  * (walls), axles (1–3), brand. Origin = centre of the axles on the ground; +z points to the
@@ -513,8 +516,15 @@ export function buildTrailer(o = {}) {
       baleMeshes.push(m);
     }
   }
+  // pallets of eggs, wool or tomatoes (game/animals.js): two side by side, one layer; their colour tells what
+  const palletMeshes = [], pg = new THREE.BoxGeometry(1.05, 1.0, 1.15).translate(0, 0.5, 0);
+  for (let j = 0; j < cols; j++) for (const sx of [-0.56, 0.56]) {
+    const m = mk(pg, PALLET_MAT.eggs, sx, 0.12, zc + (j - (cols - 1) / 2) * 1.3, tip);
+    m.userData.noBake = true; m.visible = false;
+    palletMeshes.push(m);
+  }
   bake(g, NO_SNOW);
-  return { group: g, tip, grain, grainMat, wheels, baleMeshes, drawbar: eye, bodyLen: Lb, grainH: Hb * 0.88 };
+  return { group: g, tip, grain, grainMat, wheels, baleMeshes, palletMeshes, drawbar: eye, bodyLen: Lb, grainH: Hb * 0.88 };
 }
 
 /**
@@ -1142,4 +1152,83 @@ export function buildMulcher(o = {}) {
   implHoses(lift, 1, 0.9, -0.55);
   bake(g, NO_SNOW);
   return { group: g, lift, roller: roll, up: 0.45, down: 0 };
+}
+
+/**
+ * Livestock trailer: a single-axle box with slatted sides, a roof and a tail ramp. Origin = the eye on
+ * the tractor's hitch, the body behind it. o = look: body, frame, brand.
+ */
+export function buildLivestock(o = {}) {
+  const L = { body: '#b7bcbf', frame: '#3a3f42', brand: null, ...o };
+  const g = new THREE.Group(), body = P(L.body), frame = F(L.frame), alu = S('#c9cfd2');
+  const z0 = -1.6, len = 4.6, zc = z0 - len / 2, H = 2.0;
+  RB(0.22, 0.22, 1.7, 0.04, frame, 0, 0.6, -0.8, g); // drawbar
+  RB(2.1, 0.16, len, 0.04, frame, 0, 0.62, zc, g); // floor
+  for (const sx of [-1, 1]) {
+    for (let k = 0; k < 6; k++) RB(0.05, 0.16, len, 0.02, body, sx * 1.05, 0.95 + k * 0.28, zc, g); // slats
+    for (let k = 0; k <= 4; k++) RB(0.08, H, 0.08, 0.02, alu, sx * 1.07, 0.62 + H / 2, z0 - (k * len) / 4, g); // posts
+    tailCluster(g, sx * 0.9, 0.7, z0 - len - 0.02);
+    decal('warnR', 0.3, 0.12, sx * 0.7, 0.75, z0 - len - 0.03, Math.PI, g);
+  }
+  RB(2.2, 0.08, len + 0.2, 0.03, body, 0, 0.62 + H, zc, g); // roof
+  B(2.1, H - 0.2, 0.06, body, 0, 0.62 + H / 2, z0, g); // front wall
+  const ramp = B(2.0, H - 0.3, 0.08, body, 0, 0.62 + (H - 0.3) / 2, z0 - len, g); // tail ramp, closed
+  for (let k = 0; k < 5; k++) B(1.9, 0.03, 0.03, frame, 0, 0.8 + k * 0.32, z0 - len - 0.05, g); // ribs on the ramp
+  brandOn(L, 0.2, 1.6, 1.09, 1.9, zc, Math.PI / 2, g);
+  brandOn(L, 0.2, 1.6, -1.09, 1.9, zc, -Math.PI / 2, g);
+  const wheels = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.45, 0.25, '#d7dde2'); w.position.set(sx * 1.2, 0.45, zc); g.add(w); wheels.push(w); fender(g, frame, sx * 1.2, 0.45, zc, 0.56, Math.PI * 0.15, Math.PI * 0.85, 0.3, 0.05); }
+  bake(g, NO_SNOW);
+  return { group: g, wheels, up: 0, down: 0 };
+}
+
+/**
+ * Manure spreader: a box on a tandem axle with a load of manure (scaled by how full it is) and two
+ * upright beaters at the back that spin while it spreads. o = look: body, frame, brand.
+ */
+export function buildManureSpreader(o = {}) {
+  const L = { body: '#c8352b', frame: '#2a2d2f', brand: null, ...o };
+  const g = new THREE.Group(), body = P(L.body), frame = F(L.frame);
+  const z0 = -1.5, len = 4.4, zc = z0 - len / 2, H = 1.0;
+  RB(0.22, 0.22, 1.6, 0.04, frame, 0, 0.75, -0.75, g);
+  RB(2.0, 0.14, len, 0.04, frame, 0, 0.85, zc, g);
+  for (const sx of [-1, 1]) {
+    RB(0.08, H, len, 0.03, body, sx * 1.0, 0.85 + H / 2, zc, g);
+    for (let z = z0 - 0.3; z > z0 - len; z -= 0.8) RB(0.05, H - 0.1, 0.08, 0.02, P('#a52a22'), sx * 1.05, 0.85 + H / 2, z, g);
+    tailCluster(g, sx * 0.95, 1.1, z0 - len - 0.55);
+  }
+  B(2.0, H, 0.08, body, 0, 0.85 + H / 2, z0, g);
+  brandOn(L, 0.22, 2.2, 1.05, 1.4, zc, Math.PI / 2, g);
+  brandOn(L, 0.22, 2.2, -1.05, 1.4, zc, -Math.PI / 2, g);
+  // the load: a dark heap that rises with the fill
+  const loadMat = M('#4a3a26', { roughness: 1 });
+  const load = mk(new THREE.BoxGeometry(1.86, 1, len - 0.2), loadMat, 0, 0.92, zc, g); load.userData.noBake = true;
+  load.geometry.translate(0, 0.5, 0); load.scale.y = 0.02; load.visible = false;
+  // beaters: two upright rotors with spiral tines, turning when the spreader works
+  const roller = new THREE.Group(); roller.position.set(0, 0, z0 - len - 0.25); g.add(roller);
+  const beaters = [];
+  for (const sx of [-0.5, 0.5]) {
+    const b = new THREE.Group(); b.position.set(sx, 1.4, 0); roller.add(b);
+    CY(0.12, 0.12, 1.3, 10, S('#9aa1a5'), 0, 0, 0, b);
+    for (let k = 0; k < 6; k++) { const t = B(0.5, 0.05, 0.08, S(), 0, -0.5 + k * 0.2, 0, b); t.rotation.y = k * 1.05; }
+    beaters.push(b);
+  }
+  RB(2.1, 0.08, 0.6, 0.03, body, 0, 2.1, z0 - len - 0.25, g); // hood over the beaters
+  const wheels = [];
+  for (const sx of [-1, 1]) for (const dz of [-0.55, 0.55]) { const w = wheel(0.5, 0.3, '#d7dde2'); w.position.set(sx * 1.25, 0.5, zc + dz); g.add(w); wheels.push(w); }
+  implHoses(g, 2, 0.9, -0.3);
+  const lift = new THREE.Group(); g.add(lift);
+  bake(g, NO_SNOW);
+  return { group: g, lift, wheels, discs: beaters, loadMesh: load, up: 0, down: 0 };
+}
+
+/** Slurry tanker: the water tank in green with a splash plate at the back. o = look as for buildWaterTank. */
+export function buildSlurryTank(o = {}) {
+  const m = buildWaterTank({ body: '#3f7a3a', dark: '#2f5f2c', len: 4.2, r: 1.0, ...o });
+  const len = o.len || 4.2, back = -0.6 - len - 0.1;
+  const plate = new THREE.Group(); plate.position.set(0, 0.95, back - 0.35); m.lift.add(plate);
+  CY(0.1, 0.1, 0.5, 10, F(), 0, 0.1, 0.2, plate).rotation.x = Math.PI / 2;
+  const p = B(0.7, 0.04, 0.45, S('#c9cfd2'), 0, -0.05, -0.1, plate); p.rotation.x = -0.5;
+  plate.traverse(c => { if (c.isMesh) c.userData.noBake = true; });
+  return m;
 }

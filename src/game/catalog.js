@@ -182,6 +182,12 @@ export const MODELS = [
   { id: 'krampe-bandit-30', kind: 'trailer', brand: 'Krampe', name: 'Bandit 750', price: 420000, cap: 30000, hp: 190, look: { body: '#c8352b', rib: '#a52a22', trim: '#e05a4e', len: 7.4, height: 1.75, axles: 3, brand: 'KRAMPE' }, desc: 'Třínápravový návěs na 30 000 l.' },
   { id: 'annaburger-40', kind: 'trailer', brand: 'Annaburger', name: 'HTS 34', price: 600000, cap: 40000, hp: 260, look: { body: '#3b7f3a', rib: '#306a30', trim: '#5a9a52', len: 8.6, height: 1.9, axles: 3, brand: 'ANNABURGER' }, desc: 'Největší návěs: 40 000 l.' },
 
+  { id: 'dobytek-6', kind: 'livestock', brand: '', name: 'Přívěs na zvířata', price: 90000, cap: 1, hp: 70, look: {}, desc: 'Odveze 6 krav, 12 prasat nebo ovcí, nebo 60 slepic na dobytčí trh v městečku, nebo z něj nová zvířata domů.' },
+  { id: 'hnoj-8', kind: 'manure', brand: '', name: 'Rozmetadlo hnoje', price: 140000, cap: 8000, width: 10, hp: 90, look: {}, desc: 'Naplní se u hnojiště za pastvinami a hnojí pole zdarma: první i druhá dávka jako hnojivo.' },
+  { id: 'joskin-siroko', kind: 'manure', brand: 'Joskin', name: 'Siroko 16 m³', price: 260000, cap: 16000, width: 12, hp: 140, look: { body: '#3b8f3a', brand: 'JOSKIN' }, desc: 'Velké rozmetadlo hnoje na 16 000 l.' },
+  { id: 'kejda-10', kind: 'slurry', brand: '', name: 'Cisterna na kejdu', price: 160000, cap: 10000, width: 12, hp: 110, look: {}, desc: 'Naplní se u jímky na kejdu u kravína a hnojí pole zdarma: první i druhá dávka jako hnojivo.' },
+  { id: 'zunhammer-kejda-18', kind: 'slurry', brand: 'Zunhammer', name: 'SK 18.5 PU', price: 330000, cap: 18500, width: 15, hp: 190, look: { body: '#d9dcd8', dark: '#1f4f9c', len: 5.4, r: 1.1, axles: 2, brand: 'ZUNHAMMER', text: '#1f4f9c', stroke: null }, desc: 'Tandemová cisterna na 18 500 l kejdy.' },
+
   { id: 'cisterna-5', kind: 'watertank', brand: '', name: 'Cisterna 5 000 l', price: 50000, cap: 5000, hp: 60, look: { len: 2.8, r: 0.85 }, desc: 'Malá cisterna na vodu nebo mléko.' },
   { id: 'cisterna-8', kind: 'watertank', brand: '', name: 'Cisterna', price: 70000, cap: 8000, hp: 90, start: true, look: {}, desc: 'Voda z rybníka pro skleníky, nebo mléko z kravína do mlékárny.' },
   { id: 'joskin-modulo-11', kind: 'watertank', brand: 'Joskin', name: 'Modulo2 11000', price: 160000, cap: 11000, hp: 130, look: { body: '#3b8f3a', dark: '#2f7230', len: 4.4, r: 1.0, brand: 'JOSKIN' }, desc: 'Cisterna na 11 000 l.' },

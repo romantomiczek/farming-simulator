@@ -187,6 +187,12 @@ export const MIXER_AT = at('mixer', -84, -57);
 /** Where the tank takes on milk at the cow shed, and the dairy in the town that buys it. */
 export const MILK_LOAD = { x: COW_PEN.x0 + 8, z: COW_PEN.z1 + 5, r: 4.5 };
 export const DAIRY = at('dairy', 500, 28, { r: 7.5 });
+/** Slurry pit and manure heap of the animals (game/animals.js): fill the tanker or the spreader in their rings. */
+export const SLURRY_PIT = { x: -67, z: -57, r: 4.6, fill: { x: -58.5, z: -57, r: 3.2 } };
+export const MANURE_HEAP = { x: -48.5, z: -55.5, fill: { x: -48.5, z: -62.5, r: 3.2 } };
+/** In the town south of the main road: the livestock dealer (buys and sells animals) and the market hall (pallets). */
+export const LIVESTOCK = at('livestock', 575, 2, { r: 7 });
+export const MARKET_HALL = at('hall', 470, 2, { r: 7 });
 /** Grain buyers' rings (their buildings stand relative to them, see markets.js and buildings.js). */
 export const BUYER_AT = {
   mill: at('mill', 138, 58), oil: at('oil', 205, 40), sugar: at('sugar', 240, 58), feed: at('feed', 548, 28),
@@ -202,7 +208,7 @@ export const WOOD_BUYERS = [
  * Everything the editor can move: id, name, the anchor it is placed by and its footprint around
  * the anchor (dx0, dx1, dz0, dz1), which keeps trees away and levels the ground when moved off the flat.
  */
-const anchorOf = { mill: BUYER_AT.mill, oil: BUYER_AT.oil, sugar: BUYER_AT.sugar, feed: BUYER_AT.feed, timber: WOOD_BUYERS[1], dairy: DAIRY, saw: SAWMILL, mixer: MIXER_AT };
+const anchorOf = { livestock: LIVESTOCK, hall: MARKET_HALL, mill: BUYER_AT.mill, oil: BUYER_AT.oil, sugar: BUYER_AT.sugar, feed: BUYER_AT.feed, timber: WOOD_BUYERS[1], dairy: DAIRY, saw: SAWMILL, mixer: MIXER_AT };
 const penFoot = (p, ax, az) => [Math.min(p.x0, p.feed.x - p.feed.r) - ax, Math.max(p.x1, p.feed.x + p.feed.r) - ax, Math.min(p.z0, p.feed.z - p.feed.r) - az, Math.max(p.z1, p.feed.z + p.feed.r) - az];
 export const PLACES = [
   { id: 'mill', name: 'Mlýn', foot: [-9, 13, -8, 21] },
@@ -212,6 +218,8 @@ export const PLACES = [
   { id: 'timber', name: 'Dřevosklad', foot: [-18, 16, -20, 8] },
   { id: 'dairy', name: 'Mlékárna', foot: [-13, 15, -24, 8] },
   { id: 'saw', name: 'Pila', foot: [-25, 8, -9, 14] },
+  { id: 'livestock', name: 'Dobytčí trh', foot: [-12, 12, -24, 8] },
+  { id: 'hall', name: 'Tržnice', foot: [-11, 11, -20, 8] },
   { id: 'cows', name: 'Kravín', pen: COW_PEN, extra: MILK_LOAD },
   { id: 'hens', name: 'Kurník', pen: HEN_RUN },
   { id: 'sheep', name: 'Ovčín', pen: SHEEP_PEN },
