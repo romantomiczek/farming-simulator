@@ -319,6 +319,19 @@ body.incab .vinfo{display:none;}
 .bigtip b{font-family:var(--display);font-size:15px;}
 .bigtip .need{color:#f0b43c;font-weight:600;}
 
+/* office: prices and the silo */
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:8px;}
+.chartcard{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;}
+.chartcard .mdhead b{font-size:14px;} .chartcard .mdhead span{font-size:12.5px;font-weight:700;}
+.pchart{width:100%;height:auto;display:block;}
+.pchart .grid{stroke:rgba(36,49,42,.1);stroke-width:1;}
+.pchart .ax{font:600 9px var(--body);fill:var(--muted);}
+.pchart .mline{fill:none;stroke-width:1.2;opacity:.75;}
+.pchart .best{fill:none;stroke:var(--ink);stroke-width:2;}
+.pchart .avg{stroke:var(--ink);stroke-width:1;stroke-dasharray:4 3;opacity:.45;}
+.pchart .dot{fill:var(--leaf);stroke:#fff;stroke-width:1.5;}
+.sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px 0 6px;vertical-align:-1px;}
+
 /* shop: tabs, cards cheapest first, the chosen model in detail */
 .shopnav{display:flex;flex-wrap:wrap;gap:6px;}
 .shopnav .chipbtn{font-size:13px;padding:6px 12px;}

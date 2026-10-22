@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { M, MT, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y, groundMaterial } from './terrain.js';
-import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, circles, addBox, onBridge } from './layout.js';
+import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, SILO_LOAD, circles, addBox, onBridge } from './layout.js';
 import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond } from './layout.js';
 import { roadTextures } from '../render/textures.js';
 import { addSnow } from '../render/snow.js';
@@ -290,6 +290,14 @@ export function buildFarm(scene) {
     mk(new THREE.ConeGeometry(3.2, 2.4, 18), '#c9cdc7', x, 14.2, z, st);
     circles.push({ x, z, r: 3.2 });
   }
+  // the outlet between the silos: a hopper on a frame and a chute over the loading ring (game/silo.js)
+  { const { x, z } = SILO_LOAD, steel = M('#9aa2a6', { roughness: 0.45, metalness: 0.5 });
+    // the frame stands back between the silos, so a trailer driving across under the chute has room
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { B(0.18, 6.4, 0.18, steel, x + sx * 1.1, 3.2, z - 4.4 + sz * 0.9, st); }
+    B(2.6, 0.2, 2.2, steel, x, 6.4, z - 4.4, st);
+    mk(new THREE.CylinderGeometry(1.1, 0.35, 1.4, 12), MT('#dfe1dc', 'rings'), x, 7.2, z - 4.4, st);
+    const chute = B(0.45, 0.35, 4.8, M('#c9a24a', { roughness: 0.6 }), x, 5.5, z - 2.1, st); chute.rotation.x = 0.36;
+    label(st, 'Výdej ze sila', x, 8.6, z - 4.4 + 1.15, 0); }
   const conv = B(0.7, 0.7, 15.5, '#c9a24a', 9.8, 7.4, -21.5, st);
   conv.lookAt(15, 13.5, -19);
   for (const [x, z] of [[0.6, -28.4], [9.4, -28.4], [0.6, -19.6], [9.4, -19.6]]) {
@@ -440,6 +448,9 @@ function addZoneMarkers(scene) {
   const washRing = new THREE.Mesh(new THREE.RingGeometry(WASH.r - 0.5, WASH.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#3f7fa6'), transparent: true, opacity: 0.75 }));
   washRing.rotation.x = -Math.PI / 2; washRing.position.set(WASH.x, 0.07, WASH.z); scene.add(washRing);
+  const siloRing = new THREE.Mesh(new THREE.RingGeometry(SILO_LOAD.r - 0.5, SILO_LOAD.r, 40),
+    new THREE.MeshBasicMaterial({ color: col('#dfe1dc'), transparent: true, opacity: 0.8 }));
+  siloRing.rotation.x = -Math.PI / 2; siloRing.position.set(SILO_LOAD.x, 0.07, SILO_LOAD.z); scene.add(siloRing);
   const sq = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.0, 4, 1),
     new THREE.MeshBasicMaterial({ color: col('#7fb2a4'), transparent: true, opacity: 0.7 }));
   sq.rotation.x = -Math.PI / 2; sq.rotation.z = Math.PI / 4; sq.position.set(12, 0.06, -34.5); sq.scale.set(1.35, 0.55, 1); scene.add(sq);

@@ -251,6 +251,8 @@ export const FOREST_PLOTS = useEdits('forestPlots', [FOREST, { x0: -262, x1: -20
 export const fuelZone = { x: -4.5, z: -38, r: 4.5 };
 /** The wash: a gantry with nozzles south of the cow barn (game/dirt.js). */
 export const WASH = { x: -32, z: -47, r: 4.5 };
+/** Under the outlet between the farm silos (north side): F loads stored grain into a trailer (game/silo.js). */
+export const SILO_LOAD = { x: 18.25, z: -13.2, r: 3.4 };
 /** In front of the barn door: sell straw bales from the trailer here with F. */
 export const baleZone = { x: -19, z: -36, r: 6 };
 /** Machine shed: swap tractor implements and combine headers here (F or keys 1–6). */

@@ -10,6 +10,7 @@ import { bales, setBales, flushBales } from '../world/bales.js';
 import { serializeForest, loadForest } from '../world/forest.js';
 import { MAP_DEFAULTS } from '../world/layout.js';
 import { emptyFarm } from './farm.js';
+import { emptySilo, emptyDeliveries, generateDeliveries, loadSilo, loadDeliveries } from './silo.js';
 import { person, startOnFoot } from '../world/person.js';
 import { serializeHelper, restoreHelper } from './helpers.js';
 import { emptyStats, loadStats, loadGoals, GOALS, progressOf } from './goals.js';
@@ -49,6 +50,7 @@ export function newGame() {
   G.contracts = { offers: [], active: null };
   G.lastDay = dayOf(G.gameMin);
   G.farm = emptyFarm();
+  G.silo = emptySilo(); G.deliveries = emptyDeliveries();
   G.stats = emptyStats(); G.goals = []; G.fest = emptyFest();
   loadForest(null);
   startFleet();
@@ -57,6 +59,7 @@ export function newGame() {
   applyOwnership();
   afterLoad();
   generateOffers();
+  generateDeliveries();
 }
 
 const r2 = x => Math.round(x * 100) / 100;
@@ -79,7 +82,7 @@ export function serialize() {
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
-    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), fest: G.fest,
+    farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), fest: G.fest, silo: G.silo, deliveries: G.deliveries,
     bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3), hay: b.hay ? 1 : 0 })),
   };
 }
@@ -181,6 +184,8 @@ export function applySave(d) {
   for (const k in farm.mix) if (Number.isFinite(d.farm?.mix?.[k])) farm.mix[k] = Math.max(0, d.farm.mix[k]);
   if (!d.farm?.mix) farm.mix.grain = farm.cowFeed; // older saves: count what is there as grain
   G.farm = farm;
+  G.silo = loadSilo(d.silo); G.deliveries = loadDeliveries(d.deliveries);
+  if (!G.deliveries.offers.length) generateDeliveries();
   loadForest(d.forest);
   G.active = vehicles.find(v => v.id === plan.active) || firstOf('combine') || vehicles[0];
   applyOwnership();

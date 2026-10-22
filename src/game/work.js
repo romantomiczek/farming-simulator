@@ -7,8 +7,9 @@ import {
 } from './crops.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { BALE_CELLS, HARVESTERS, toolLine, tools, towed, trailerCenter, eyeOf } from '../vehicles/vehicles.js';
-import { baleZone } from '../world/layout.js';
-import { marketAt, accepts, marketPrice } from './markets.js';
+import { baleZone, SILO_LOAD } from '../world/layout.js';
+import { store, sale, siloCrop, takeOut, inSiloLoad, LOAD_RATE, SILO_CAP } from './silo.js';
+import { marketAt, accepts } from './markets.js';
 import { BUILDINGS, space, addFeed, partOf } from './farm.js';
 import { bales, addBale, removeBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
@@ -248,20 +249,28 @@ export const trailerUnder = h => tools.find(t => t.key === 'trailer' && trailerI
 /** Same crop (or empty), and no bales on board. */
 const trailerAccepts = (t, crop) => t.bales === 0 && (t.tank.amount <= 0 || t.tank.crop === crop);
 
-/** Hands amt litres of crop to buyer or feed trough m; returns how much was taken. */
+/** Hands amt litres of crop to buyer or feed trough m (or to the silos: who.store); returns how much was taken. */
 function deliver(m, crop, amt, who) {
+  if (who.store) {
+    const take = store(crop, amt);
+    who.stored = (who.stored || 0) + take; who.storedCrop = crop;
+    if (take <= 0) warn('siloFull', 'Sila jsou plná (' + fmt(SILO_CAP) + ' l). Prodej část zásoby.');
+    return take;
+  }
   if (m.feed) {
     const b = BUILDINGS[m.feed], take = Math.min(amt, space(m.feed));
     addFeed(m.feed, take, partOf(crop)); who.fed = (who.fed || 0) + take; who.fedAt = b.name; who.fedCrop = crop;
     if (take <= 0) warn('feedFull', 'Krmelec (' + b.name + ') je plný.');
     return take;
   }
-  const pr = marketPrice(m, crop, G.gameMin);
-  who.soldAt = m.name; who.sold += amt; who.soldMoney += amt * pr; G.money += amt * pr; earn(amt * pr); G.flashT = 0.4;
+  const money = sale(m, crop, amt); // with the premium of a delivery contract, when there is one
+  who.soldAt = m.name; who.sold += amt; who.soldMoney += money; G.money += money; earn(money); G.flashT = 0.4;
   return amt;
 }
 
 function sellToast(who, onDone) {
+  if (who.stored > 0) { toast('Uskladněno ' + fmt(who.stored) + ' l ' + CROPS[who.storedCrop].gen + ' v silu · celkem ' + fmt(G.silo.stock[who.storedCrop]) + ' l', 'good'); onDone?.(); }
+  who.stored = 0; who.store = false;
   if (who.fed > 0) { toast('Vyloženo ' + fmt(who.fed) + ' l ' + CROPS[who.fedCrop].gen + ' do krmelce · ' + who.fedAt, 'good'); onDone?.(); }
   who.fed = 0;
   if (who.sold > 0) {
@@ -278,7 +287,9 @@ export function stopUnload(h, onDone) {
   if (h.tank.amount <= 0) h.tank.crop = -1;
 }
 
-export function startUnload(h) {
+/** store = into the farm silos instead of selling (G at the farm intake). */
+export function startUnload(h, store = false) {
+  h.store = store;
   h.unloading = true; h.fed = 0; h.sold = 0; h.soldMoney = 0; h.soldCrop = h.tank.crop; h.moved = 0; h.movedCrop = h.tank.crop; h.waiting = null;
 }
 
@@ -326,7 +337,25 @@ export function updateLogistics(dt, onDone) {
   for (const t of tools) if (t.key === 'trailer') trailerLogistics(t, dt, onDone);
 }
 
+/** Starts filling trailer t from the silo outlet with the chosen crop. */
+export function startLoading(t) { t.loading = true; t.loaded = 0; t.loadCrop = siloCrop(); }
+export function stopLoading(t, onDone) {
+  if (t.loaded > 0) { toast('Naloženo ze sila ' + fmt(t.loaded) + ' l ' + CROPS[t.loadCrop].gen + ' · v silu zbývá ' + fmt(G.silo.stock[t.loadCrop]) + ' l', 'good'); onDone?.(); }
+  t.loading = false; t.loaded = 0;
+}
+const _spout = { x: SILO_LOAD.x, z: SILO_LOAD.z };
+
 function trailerLogistics(t, dt, onDone) {
+  if (t.loading) {
+    const crop = t.loadCrop, space = t.tank.cap - t.tank.amount;
+    if (!t.on || !inSiloLoad(trailerCenter(t)) || crop < 0 || G.silo.stock[crop] <= 0 || space < 1 || !trailerAccepts(t, crop)) stopLoading(t, onDone);
+    else {
+      const amt = takeOut(crop, Math.min(space, LOAD_RATE * dt));
+      t.tank.crop = crop; t.tank.amount += amt; t.loaded += amt;
+      const c = trailerCenter(t);
+      pour(_spout, c.x, 4.6, c.z, groundH(c.x, c.z) + 1.4, crop, dt, 0.5, 0.35);
+    }
+  }
   if (t.tipping) {
     const m = t.on && sellPoint(trailerCenter(t), t.tank.crop);
     if (!m || t.tank.amount <= 0) stopTipping(t, onDone);
@@ -353,7 +382,8 @@ function trailerLogistics(t, dt, onDone) {
   }
 }
 
-export function startTipping(t) {
+export function startTipping(t, store = false) {
+  t.store = store;
   t.tipping = true; t.fed = 0; t.sold = 0; t.soldMoney = 0; t.soldCrop = t.tank.crop;
 }
 export function stopTipping(t, onDone) {

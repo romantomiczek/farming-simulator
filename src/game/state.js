@@ -20,6 +20,8 @@ export const G = {
   cond: {}, // catalog key → condition 0..1 (1 = new)
   lastDay: 0, // last day the daily costs were charged for
   contracts: { offers: [], active: null },
+  silo: { stock: [0, 0, 0, 0, 0, 0], pick: 0 }, // grain in the farm silos (game/silo.js)
+  deliveries: { offers: [], active: [] }, // delivery contracts (game/silo.js)
   farm: { cowFeed: 0, henFeed: 0, sheepFeed: 0, pigFeed: 0, water: 0, milk: 0, eggs: 0, wool: 0, pork: 0, tomatoes: 0, hungry: {}, mix: { grain: 0, hay: 0, beet: 0 } }, // see farm.js emptyFarm()
   stats: null, // see goals.js emptyStats()
   goals: [], // ids of finished goals

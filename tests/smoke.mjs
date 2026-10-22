@@ -74,6 +74,44 @@ try {
   check('kombajn sklízí', harvest.tank > 0, harvest.tank + ' l');
   check('družstvo vykoupí obilí', harvest.paid > 0 && harvest.left === 0, harvest.paid + ' Kč');
 
+  // the silo: G stores the combine's grain at the farm intake, F loads it into a trailer at the outlet,
+  // and selling it at the buyer of a delivery contract fills the contract and pays the premium
+  const silo = await page.evaluate(async () => {
+    const { G, vehicles, attach } = window.__zl;
+    const { MARKETS, marketPrice } = await import('/src/game/markets.js'), L = await import('/src/world/layout.js');
+    const S = await import('/src/game/silo.js'), V = await import('/src/vehicles/vehicles.js');
+    const coop = MARKETS.find(m => m.id === 'coop'), mill = MARKETS.find(m => m.id === 'mill'), c = vehicles.find(v => v.type === 'combine');
+    G.silo = S.emptySilo(); G.deliveries = S.emptyDeliveries();
+    Object.assign(c.tank, { crop: 0, amount: 6000 }); Object.assign(c, { x: coop.x, z: coop.z, speed: 0, helper: null }); G.active = c;
+    const m0 = G.money;
+    window.__zl.act('KeyG'); window.__zl.step(600);
+    const stored = Math.round(G.silo.stock[0]), unpaid = Math.round(G.money - m0) === 0;
+    // the combine stays at the intake, where the harvest check left it (off the farm road)
+    // a tractor with an empty trailer whose body stands in the outlet ring
+    const t = vehicles.find(v => v.type === 'tractor' && !v.helper); attach('trailer', t); G.active = t;
+    const tr = t.tool; Object.assign(tr.tank, { crop: -1, amount: 0 }); tr.bales = 0;
+    // the rig straight, the trailer's body at (x, z), the tractor heading h
+    const put = (x, z, h) => {
+      Object.assign(t, { x, z, h, speed: 0, prev: null }); tr.x = 1e4; V.attachTool(t, tr);
+      const tc = V.trailerCenter(tr);
+      t.x += x - tc.x; t.z += z - tc.z; tr.x += x - tc.x; tr.z += z - tc.z;
+      window.__zl.step(2);
+    };
+    put(L.SILO_LOAD.x, L.SILO_LOAD.z, Math.PI / 2); // across, under the chute
+    window.__zl.act('KeyF'); window.__zl.step(400);
+    const loaded = Math.round(tr.tank.amount), left = Math.round(G.silo.stock[0]);
+    // a delivery of 4 000 l of wheat to the mill at +20 %
+    G.deliveries.offers = [{ id: 'test', crop: 0, market: 'mill', amount: 4000, bonus: 0.2, days: 2 }];
+    const took = S.acceptDelivery('test');
+    put(mill.x, mill.z, Math.PI / 2);
+    const price = marketPrice(mill, 0, G.gameMin), m1 = G.money;
+    window.__zl.act('KeyF'); window.__zl.step(900);
+    const paid = G.money - m1, sold = loaded - tr.tank.amount;
+    return { stored, unpaid, loaded, left, took, paid: Math.round(paid), sold: Math.round(sold), premium: Math.round(paid - sold * price), done: G.stats.deliveries, active: G.deliveries.active.length };
+  });
+  check('silo a dodávka', silo.stored === 6000 && silo.unpaid && silo.loaded > 3000 && silo.left === 6000 - silo.loaded && silo.took && silo.sold > 0 && silo.premium > 0 && silo.done >= 1 && silo.active === 0,
+    'uskladněno ' + silo.stored + ' l · naloženo ' + silo.loaded + ' l (v silu ' + silo.left + ') · prodáno ve mlýně ' + silo.sold + ' l za ' + silo.paid + ' Kč, příplatek ' + silo.premium + ' Kč · dodávka ' + (silo.active ? 'běží' : 'splněna'));
+
   // the tractor cultivates stubble on field 2
   const cult = await page.evaluate(() => {
     const { G, vehicles, fields, attach } = window.__zl, f = fields.find(x => x.id === 2), t = vehicles.find(v => v.type === 'tractor');

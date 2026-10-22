@@ -13,7 +13,7 @@ import { toast } from '../ui/toast.js';
 export const emptyStats = () => ({
   harvest: CROPS.map(() => 0), // litres harvested for yourself, per crop
   cult: 0, plough: 0, sown: 0, fert: 0, // m² worked (own fields and contracts)
-  bales: 0, hay: 0, mown: 0, trees: 0, wood: 0, contracts: 0,
+  bales: 0, hay: 0, mown: 0, trees: 0, wood: 0, contracts: 0, deliveries: 0,
   earned: 0, // Kč from sales and contracts (not loans, not selling machines)
 });
 

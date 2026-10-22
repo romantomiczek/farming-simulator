@@ -3,8 +3,9 @@ import { fmt } from '../core/util.js';
 import { G, TIME_SCALES } from './state.js';
 import { CROPS, HEADERS } from './crops.js';
 import {
-  sellPoint, inBaleZone, trailerInReach, trailerUnder, startUnload, stopUnload, startTipping, stopTipping, sellBales,
+  sellPoint, inBaleZone, trailerInReach, trailerUnder, startUnload, stopUnload, startTipping, stopTipping, sellBales, startLoading, stopLoading,
 } from './work.js';
+import { inSiloLoad, siloCrop, cycleSiloCrop, siloSpace, SILO_CAP } from './silo.js';
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
 import { inFuel, refuel, repair } from './economy.js';
@@ -60,6 +61,11 @@ export function fAction() {
   } else {
     const t = towed(v), tc = t && trailerCenter(t);
     if (t?.tipping) return { kind: 'stopTip', t };
+    if (t?.loading) return { kind: 'stopLoad', t };
+    if (t && t.key === 'trailer' && inSiloLoad(tc) && !t.bales && t.tank.amount < t.tank.cap - 1) {
+      const crop = siloCrop();
+      if (crop >= 0 && (t.tank.amount <= 0 || t.tank.crop === crop)) return { kind: 'loadSilo', t, crop };
+    }
     if (t && t.tank.amount > 0 && sellPoint(tc, t.tank.crop)) return { kind: 'tip', t, m: sellPoint(tc, t.tank.crop) };
     if (t && t.tank.amount > 0 && marketAt(tc)) return { kind: 'wrongMarket', m: marketAt(tc), crop: t.tank.crop };
     if (t && t.hay > 0 && hayFeederAt(tc)) return { kind: 'feedHay', t, m: hayFeederAt(tc) };
@@ -70,6 +76,30 @@ export function fAction() {
   const s = nearSign(v);
   if (s) return { kind: 'buy', sign: s };
   return null;
+}
+
+/** The farm intake (Družstvo) takes the crop: the coop's ring, where G stores instead of selling. */
+const atIntake = m => m?.id === 'coop';
+/** What G would do: store the harvester's or trailer's grain in the farm silos at the intake, or null. */
+export function gAction() {
+  if (G.onFoot) return null;
+  const v = G.active;
+  if (v.harvester) return !v.unloading && v.tank.amount > 0 && atIntake(sellPoint(v, v.tank.crop)) ? { kind: 'store', h: v } : null;
+  const t = towed(v);
+  return t && !t.tipping && t.tank.amount > 0 && atIntake(sellPoint(trailerCenter(t), t.tank.crop)) ? { kind: 'storeTip', t } : null;
+}
+/** G: store in the silos. */
+export function doG() {
+  const a = gAction();
+  if (!a) { if (!G.onFoot) toast('Úrodu uskladníš klávesou G v kruhu Družstva na statku (u sil).'); return; }
+  if (siloSpace() < 1) { toast('Sila jsou plná (' + fmt(SILO_CAP) + ' l). Nalož část zásoby do přívěsu u výdeje a prodej ji.', 'bad'); return; }
+  if (a.kind === 'store') startUnload(a.h, true); else startTipping(a.t, true);
+}
+/** C: at the silo outlet with a trailer the next stored crop, elsewhere the seed. */
+export function doC() {
+  const t = !G.onFoot && towed(G.active);
+  if (t && t.key === 'trailer' && inSiloLoad(trailerCenter(t))) { cycleSiloCrop(); return; }
+  cycleSeed();
 }
 
 /** On foot, the keys that work a machine only say how to get into one. */
@@ -237,6 +267,8 @@ export function doF() {
     case 'stopUnload': stopUnload(a.h, saveLocal); return;
     case 'sell': case 'overload': startUnload(a.h); return;
     case 'tip': startTipping(a.t); return;
+    case 'loadSilo': startLoading(a.t); return;
+    case 'stopLoad': stopLoading(a.t, saveLocal); return;
     case 'stopTip': stopTipping(a.t, saveLocal); return;
     case 'sellBales': sellBales(a.t, saveLocal); return;
     case 'wrongMarket': toast(a.m.name + ' nebere ' + CROPS[a.crop].gen + '. Vezme ji: ' + buyersOf(a.crop).join(', ') + '.', 'bad'); return;

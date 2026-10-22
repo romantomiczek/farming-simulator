@@ -16,7 +16,9 @@ import { vehicles, tools, IMPL_ORDER, VEHICLE_TYPES, labelOf, powerShare, MIN_PO
 import { MODEL, MODELS, modelName } from '../game/catalog.js';
 import { thumbURL, setThumbHandler, setViewer } from '../render/previews.js';
 import { PAD, PARK, inRect } from '../world/layout.js';
-import { MARKETS } from '../game/markets.js';
+import { MARKETS, accepts, marketPrice, bestMarket } from '../game/markets.js';
+import { SILO_CAP, siloTotal, deliveryMarket, deliveryPrice, acceptDelivery, canAcceptDelivery } from '../game/silo.js';
+import { fmt2 } from '../core/util.js';
 import { fieldAt } from '../world/fields.js';
 import { cam } from '../render/camera.js';
 import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName, helperTools, busyHelper } from '../game/helpers.js';
@@ -107,6 +109,7 @@ function act(a, key) {
       break;
     }
     case 'accept': ok = accept(key); break;
+    case 'dlv': ok = acceptDelivery(key); break;
     case 'cancel': cancelActive(); break;
     case 'loan': takeLoan(); break;
     case 'repay': repayLoan(); break;
@@ -127,7 +130,7 @@ function render() {
   for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   $('officeMoney').textContent = fmt(G.money) + ' Kč';
   const top = body.scrollTop;
-  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'fleet' ? fleetHTML() : tab === 'jobs' ? jobsHTML() : tab === 'farm' ? farmHTML() : tab === 'goals' ? goalsHTML() : finHTML();
+  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'fleet' ? fleetHTML() : tab === 'jobs' ? jobsHTML() : tab === 'market' ? marketHTML() : tab === 'farm' ? farmHTML() : tab === 'goals' ? goalsHTML() : finHTML();
   body.scrollTop = top;
   // the detail of a model in the shop shows it turning
   const view = body.querySelector('canvas.mview');
@@ -365,7 +368,69 @@ function jobsHTML() {
       <div class="rstate"><b>${fmt(o.reward)} Kč</b></div>
       <div class="ract">${btn('accept', o.id, 'Přijmout', !!a || !can)}</div></div>`;
   }
+  return deliveriesHTML() + '<h3 class="grp">Práce na polích sousedů</h3>' + out;
+}
+
+/** Delivery contracts: the active ones with their progress, then the day's offers. */
+function deliveriesHTML() {
+  const D = G.deliveries, left = d => { const m = Math.max(0, d.deadline - G.gameMin), hh = Math.floor(m / 60); return hh >= 24 ? Math.floor(hh / 24) + ' d ' + (hh % 24) + ' h' : hh + ' h ' + Math.floor(m % 60) + ' min'; };
+  let out = '<h3 class="grp">Dodávky do výkupů</h3><p class="lede small">Výkup chce určité množství plodiny do několika dnů a platí za ni příplatek. Každý litr té plodiny prodaný v tom výkupu se počítá. Úrodu můžeš vozit z pole nebo ze sila. Najednou můžeš mít dvě dodávky; nesplněná propadne bez pokuty, jen přijdeš o příplatek.</p>';
+  for (const d of D.active) {
+    const m = deliveryMarket(d), share = d.done / d.amount;
+    out += `<div class="row active"><div class="rmain"><b>${fmt(d.amount)} l ${CROPS[d.crop].gen} · ${m.name}</b>
+      <span>Příplatek +${Math.round(d.bonus * 100)} % · teď ${fmt2(deliveryPrice(d))} Kč/l · v silu ${fmt(G.silo.stock[d.crop])} l</span>
+      <div class="bar"><i style="width:${(share * 100).toFixed(1)}%"></i></div>
+      <span class="muted">Dovezeno ${fmt(d.done)} l (${pct(share)}) · zbývá ${left(d)}</span></div>
+      <div class="rstate"><span class="chip on">Rozpracováno</span></div></div>`;
+  }
+  if (!D.offers.length) out += '<p class="empty">Výkupy dnes nic dalšího nechtějí. Nové nabídky přicházejí každý den.</p>';
+  for (const o of D.offers) {
+    const m = deliveryMarket(o), pr = marketPrice(m, o.crop, G.gameMin) * (1 + o.bonus);
+    out += `<div class="row"><div class="rmain"><b>${fmt(o.amount)} l ${CROPS[o.crop].gen} · ${m.name}</b>
+      <span>Do ${o.days} dnů · příplatek +${Math.round(o.bonus * 100)} % · teď ${fmt2(pr)} Kč/l · v silu ${fmt(G.silo.stock[o.crop])} l</span></div>
+      <div class="rstate"><b>asi ${fmt(o.amount * pr)} Kč</b></div>
+      <div class="ract">${btn('dlv', o.id, 'Přijmout dodávku', !canAcceptDelivery())}</div></div>`;
+  }
   return out;
+}
+
+/**
+ * Price chart of crop k over the last DAYS days, hour by hour: a thin line per buyer that takes it
+ * and the best price in bold, the price now and the 5-day average as a dashed line.
+ */
+const CH_DAYS = 5, CW = 360, CHH = 110;
+function priceChart(k) {
+  const now = G.gameMin, t0 = now - CH_DAYS * 1440, ms = MARKETS.filter(m => accepts(m, k)), N = CH_DAYS * 24;
+  const series = ms.map(m => Array.from({ length: N + 1 }, (_, i) => marketPrice(m, k, t0 + i * 60)));
+  const best = series[0].map((_, i) => Math.max(...series.map(s => s[i])));
+  const all = series.flat(), lo = Math.min(...all) * 0.97, hi = Math.max(...all) * 1.02;
+  const X = i => 30 + (i / N) * (CW - 38), Y = p => 8 + (1 - (p - lo) / (hi - lo)) * (CHH - 26);
+  const path = s => s.map((p, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p).toFixed(1)).join('');
+  const avg = best.reduce((a, b) => a + b, 0) / best.length;
+  let svg = `<svg viewBox="0 0 ${CW} ${CHH}" class="pchart" role="img" aria-label="Vývoj ceny: ${CROPS[k].name}">`;
+  for (let d = 0; d <= CH_DAYS; d++) { const x = X(d * 24); svg += `<line x1="${x}" y1="6" x2="${x}" y2="${CHH - 18}" class="grid"/><text x="${x}" y="${CHH - 5}" class="ax" text-anchor="${d === CH_DAYS ? 'end' : 'middle'}">${d === CH_DAYS ? 'teď' : '−' + (CH_DAYS - d) + ' d'}</text>`; }
+  for (const p of [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1]) svg += `<text x="2" y="${Y(p) + 3}" class="ax">${fmt2(p)}</text>`;
+  series.forEach((s, j) => { svg += `<path d="${path(s)}" class="mline" stroke="${ms[j].color}"/>`; });
+  svg += `<line x1="30" x2="${CW - 8}" y1="${Y(avg)}" y2="${Y(avg)}" class="avg"/>`;
+  svg += `<path d="${path(best)}" class="best"/><circle cx="${X(N)}" cy="${Y(best[N])}" r="3.5" class="dot"/></svg>`;
+  return { svg, avg, now: best[N], ms };
+}
+
+/** Prices and the silo: what is stored, what it is worth, how prices went in the last days. */
+function marketHTML() {
+  const st = siloTotal();
+  let out = `<p class="lede small">Úrodu nemusíš prodat hned. V kruhu Družstva na statku ji klávesou <kbd>G</kbd> uskladníš v silech (každou plodinu zvlášť, dohromady ${fmt(SILO_CAP)} l). Když cena vyskočí, přistav přívěs do bílého kruhu „Výdej ze sila“ na severní straně sil, klávesou <kbd>F</kbd> ho naplníš (<kbd>C</kbd> vybere plodinu) a odvezeš do výkupu, který zrovna platí nejvíc.</p>`;
+  out += `<div class="row"><div class="rmain"><b>Sila na statku</b><span>${fmt(st)} / ${fmt(SILO_CAP)} l</span><div class="bar"><i style="width:${((st / SILO_CAP) * 100).toFixed(1)}%"></i></div></div>
+    <div class="rstate"><b>${fmt(G.silo.stock.reduce((a, l, k) => a + (l > 0 ? l * bestMarket(k, G.gameMin).p : 0), 0))} Kč</b><span class="muted">při dnešních cenách</span></div></div>`;
+  out += '<div class="charts">';
+  CROPS.forEach((c, k) => {
+    const ch = priceChart(k), b = bestMarket(k, G.gameMin), diff = ch.now / ch.avg - 1, l = G.silo.stock[k];
+    out += `<div class="chartcard"><div class="mdhead"><b>${c.name}</b><span class="${diff >= 0 ? 'up' : 'down'}">${fmt2(ch.now)} Kč/l · ${diff >= 0 ? '+' : ''}${Math.round(diff * 100)} % proti průměru</span></div>
+      ${ch.svg}
+      <span class="muted">Nejvíc teď platí ${b.m.name} · ${ch.ms.map(m => `<i class="sw" style="background:${m.color}"></i>${m.short}`).join(' ')}</span>
+      <span class="muted">V silu ${fmt(l)} l${l ? ' · ' + fmt(l * b.p) + ' Kč' : ''}</span></div>`;
+  });
+  return out + '</div>';
 }
 
 const days = d => (d === Infinity ? '—' : d >= 10 ? 'víc než 10 dní' : String(d.toFixed(1)).replace('.', ',') + ' dne');

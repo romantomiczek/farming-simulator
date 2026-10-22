@@ -13,7 +13,8 @@ import { CROPS } from './game/crops.js';
 import { work, updateLogistics, sellPoint } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, cycleSeed, cycleTime, pickInShed, repairHere, toggleHitch, toggleHelper, toggleSeat, toggleCabView } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, doG, doC, cycleTime, pickInShed, repairHere, toggleHitch, toggleHelper, toggleSeat, toggleCabView } from './game/actions.js';
+import { generateDeliveries, checkDeliveries } from './game/silo.js';
 import { person, walk, showPerson, seat } from './world/person.js';
 import { helperTick } from './game/helpers.js';
 import { buildFarmstead } from './world/farmstead.js';
@@ -98,7 +99,7 @@ cam.t.set(player().x, 1, player().z);
 /* ---------- input & menu ---------- */
 /** Big map: clicking one of your machines puts you in it. */
 const openMap = () => toggleBigMap(undefined, v => { seat(v); cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
-const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyC: cycleSeed, KeyT: cycleTime, KeyR: repairHere, KeyQ: toggleHitch, KeyK: () => openOffice(), KeyH: toggleHelper, KeyP: () => togglePrices() };
+const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyG: doG, KeyC: doC, KeyT: cycleTime, KeyR: repairHere, KeyQ: toggleHitch, KeyK: () => openOffice(), KeyH: toggleHelper, KeyP: () => togglePrices() };
 bindInput(code => {
   if (mapEditorOpen()) return; // the map editor handles its own keys
   if (code === 'F9' && devEnabled) { toggleDev(); return; }
@@ -157,7 +158,7 @@ function tick(dt) {
     farmTick(gm / 60);
     forestHours += gm / 60;
     upkeep(dt);
-    if (chargeDays()) { sellProducts(); generateOffers(); saveLocal(); }
+    if (chargeDays()) { sellProducts(); generateOffers(); generateDeliveries(); saveLocal(); }
   }
   const input = G.playing ? driveInput() : null;
   // tyres hold less on wet ground (in the rain and until it dries) and on snow
@@ -222,7 +223,7 @@ function tick(dt) {
     Object.assign(ear, { x: cam.t.x, z: cam.t.z, rx: e[0] / n, rz: e[2] / n });
   }
   updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.activeCars(), ...nbMachines], ear });
-  slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
+  slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkDeliveries()) saveLocal(); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod, quality().cardDist); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) {
     renderer.info.reset(); // counted over all passes of the frame (mirrors, post-processing)
