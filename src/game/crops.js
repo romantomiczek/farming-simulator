@@ -40,6 +40,7 @@ export const HEADERS = {
   grain: { name: 'Žací lišta', short: 'žací lištu' },
   corn: { name: 'Řádkový adaptér', short: 'řádkový adaptér' },
   beet: { name: 'Vyorávací ústrojí', short: 'vyorávací ústrojí' },
+  chop: { name: 'Sběrač a kukuřičný adaptér', short: 'řezačku' },
 };
 
 function shades(hex, n, amt) {
@@ -85,3 +86,13 @@ export const GRASS = {
 GRASS.cols = GRASS.colors.map(col); GRASS.rgb = GRASS.colors.map(hexRgb);
 /** Hay swath left by the mower. */
 export const HAY = { base: '#c2b866', line: '#a09748', rgb: hexRgb('#c2b866') };
+/**
+ * What lies on a mown meadow cell (its straw value): 1 fresh grass in a windrow, 2 tedded and still
+ * wet (spread out), 3 dry hay in a windrow, 4 tedded and dry. A windrow dries into hay in
+ * HAY_DRY.dryH game hours, tedded grass in HAY_DRY.teddedH; balers, the forage wagon and the
+ * chopper pick up windrows only (the windrower turns spread grass back into one).
+ */
+export const SW_FRESH = 1, SW_TEDDED = 2, SW_HAY = 3, SW_TEDDED_DRY = 4;
+const sw = (base, line) => ({ base, line, rgb: hexRgb(base) });
+export const SWATH = [null, sw('#7f9f3e', '#62822c'), sw('#9bb455', '#86a046'), HAY, sw('#d0c676', '#b8ad5e')];
+export const isWindrow = s => s === SW_FRESH || s === SW_HAY;

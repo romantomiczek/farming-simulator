@@ -5,8 +5,8 @@ import { groundH } from './terrain.js';
 import { M, MT, mk, B, CY, flatPlane, bake } from '../render/materials.js';
 import { F } from '../vehicles/parts.js';
 import { col, rng } from '../core/util.js';
-import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, SLURRY_PIT, MANURE_HEAP, boxes, circles } from './layout.js';
-import { HERD, DUNG, PALLET } from '../game/balance.js';
+import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, MIXER_AT, MILK_LOAD, GREENHOUSES, GREENHOUSE_WATER, SAWMILL, SLURRY_PIT, MANURE_HEAP, BUNKER, boxes, circles } from './layout.js';
+import { HERD, DUNG, PALLET, SILAGE } from '../game/balance.js';
 import { G } from '../game/state.js';
 import { herd, palletsReady, PALLETS } from '../game/animals.js';
 import { PALLET_MAT } from '../vehicles/models.js';
@@ -252,6 +252,49 @@ function buildDung(markers) {
   };
 }
 
+/**
+ * The bunker silo north of the cow shed (always there): a concrete floor between two walls, open to
+ * the south. The heap rises with chaff and silage, green while open, under a black sheet weighted
+ * with tyres while it ferments, olive once it is silage.
+ */
+const CHAFF = col('#7d9a3c'), SILAGE_C = col('#8f8a3e');
+function buildBunker(markers) {
+  const g = new THREE.Group(), concrete = MT('#bdbab0', 'concrete'), { x0, x1, z0, z1 } = BUNKER;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, L = z1 - z0, W = x1 - x0, y0 = groundH(cx, cz);
+  g.position.y = y0;
+  B(W + 0.8, 0.2, L, concrete, cx, 0.1, cz, g);
+  for (const x of [x0 - 0.2, x1 + 0.2]) {
+    B(0.4, 2.4, L, concrete, x, 1.2, cz, g);
+    boxes.push({ x0: x - 0.25, x1: x + 0.25, z0, z1 });
+    for (let z = z0 + 2; z < z1; z += 4) B(0.5, 2.5, 0.3, MT('#a9a69c', 'concrete'), x, 1.25, z, g); // wall segments
+  }
+  B(W + 0.8, 2.4, 0.4, concrete, cx, 1.2, z1 + 0.2, g);
+  boxes.push({ x0: x0 - 0.4, x1: x1 + 0.4, z0: z1, z1: z1 + 0.45 });
+  scene.add(bake(g));
+  const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const heapMat = new THREE.MeshStandardMaterial({ color: col('#7d9a3c'), roughness: 1, flatShading: true }), sheetMat = M('#1f2220', { roughness: 0.45, flatShading: false });
+  const heap = mk(geo, heapMat, cx, y0 + 0.2, cz, null); heap.userData.noBake = true; heap.visible = false;
+  const sheet = mk(geo, sheetMat, cx, y0 + 0.2, cz, null); sheet.userData.noBake = true; sheet.visible = false;
+  const tyres = [];
+  for (let k = 0; k < 10; k++) {
+    const t = mk(new THREE.TorusGeometry(0.4, 0.15, 6, 12), M('#2a2a2a', { roughness: 0.9 }), cx + ((k % 2) - 0.5) * W * 0.5, 0, z0 + 2 + Math.floor(k / 2) * (L - 4) / 4, null);
+    t.rotation.x = Math.PI / 2; t.userData.noBake = true; t.visible = false; tyres.push(t);
+  }
+  scene.add(heap, sheet, ...tyres);
+  ring(BUNKER.ring, '#7d9a3c', markers);
+  return {
+    update() {
+      const b = G.farm.bunker, fill = (b.chaff + b.silage) / SILAGE.cap, h = 0.15 + Math.min(1, fill) * 1.1;
+      // the heap fills the bunker from the back wall forwards
+      const len = Math.max(3, Math.min(L - 1, L * Math.sqrt(Math.min(1, fill * 1.6))));
+      heap.visible = fill > 0.002; sheet.visible = b.covered;
+      for (const m of [heap, sheet]) { m.scale.set(W - 0.4, h + (m === sheet ? 0.06 : 0), len); m.position.z = z1 - 0.2 - len / 2; }
+      heapMat.color.copy(b.chaff >= 1 ? CHAFF : SILAGE_C);
+      tyres.forEach((t, k) => { t.visible = b.covered; t.position.y = y0 + 0.2 + h + 0.12; t.position.z = z1 - 1.5 - (Math.floor(k / 2) * (len - 3)) / 4; });
+    },
+  };
+}
+
 /** Pallets of eggs, wool and tomatoes waiting by the hen house, the sheep fold and the greenhouses (shown by count). */
 function buildPalletStacks() {
   const geo = new THREE.BoxGeometry(1.05, 1.0, 1.15).translate(0, 0.5, 0), stacks = [];
@@ -323,7 +366,7 @@ export function buildFarmstead() {
   scene.add(cows.mesh, hens.mesh, sheep.mesh, pigs.mesh);
   const herds = { cows, hens, sheep, pigs };
   for (const k in herds) herds[k].mesh.position.y = yOf(lift[k]);
-  const dung = buildDung(markers), stacks = buildPalletStacks();
+  const dung = buildDung(markers), stacks = buildPalletStacks(), bunker = buildBunker(markers);
   let slowT = 0;
 
   return {
@@ -342,6 +385,7 @@ export function buildFarmstead() {
       slowT = 0.5;
       dung.update();
       stacks.update();
+      bunker.update();
     },
   };
 }

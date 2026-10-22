@@ -29,7 +29,7 @@ import { MODELS, modelName } from '../game/catalog.js';
 import { engineTest, engineInfo } from '../audio/engines.js';
 
 /** Machines with an engine, for the engine sound test. */
-const ENGINE_MODELS = MODELS.filter(m => ['tractor', 'combine', 'beet', 'forest', 'jeep'].includes(m.kind));
+const ENGINE_MODELS = MODELS.filter(m => ['tractor', 'combine', 'beet', 'chopper', 'forest', 'jeep'].includes(m.kind));
 
 /**
  * Developer panel (F9): time, weather, graphics details, world switches, cheats and live info.

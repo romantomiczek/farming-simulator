@@ -190,6 +190,10 @@ export const DAIRY = at('dairy', 500, 28, { r: 7.5 });
 /** Slurry pit and manure heap of the animals (game/animals.js): fill the tanker or the spreader in their rings. */
 export const SLURRY_PIT = { x: -67, z: -57, r: 4.6, fill: { x: -58.5, z: -57, r: 3.2 } };
 export const MANURE_HEAP = { x: -48.5, z: -55.5, fill: { x: -48.5, z: -62.5, r: 3.2 } };
+/** Bunker silo north of the cow shed (game/forage.js): open to the south, tip chaff in its ring, drive over it to pack it. */
+export const BUNKER = { x0: -100, x1: -88, z0: -12, z1: 18, ring: { x: -94, z: -6, r: 4 } };
+/** Where the forage harvester stands, beside the bunker. */
+export const CHOPPER_HOME = [-80, 4];
 /** In the town south of the main road: the livestock dealer (buys and sells animals) and the market hall (pallets). */
 export const LIVESTOCK = at('livestock', 575, 2, { r: 7 });
 export const MARKET_HALL = at('hall', 470, 2, { r: 7 });
@@ -239,6 +243,7 @@ export const NO_TREES = [
   { x0: 0, x1: 350, z0: -100, z1: -56 }, // machine park, room for its parking places up to field 25
   { x0: 230, x1: 304, z0: 12, z1: 42 }, // the harvest festival and its tractor race (game/festival.js)
   { x0: 27, x1: 49, z0: -50, z1: -20 }, // greenhouses
+  { x0: -106, x1: -74, z0: -16, z1: 24 }, // bunker silo and the forage harvester beside it
   ...PLACES.map(p => ({ x0: p.rect.x0 - 5, x1: p.rect.x1 + 5, z0: p.rect.z0 - 5, z1: p.rect.z1 + 5 })),
   { x0: 6, x1: 142, z0: 106, z1: 140 },
   { x0: 395, x1: 720, z0: -40, z1: 175 }, // town and station

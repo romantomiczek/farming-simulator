@@ -3,13 +3,13 @@ import { renderer, scene } from '../render/core.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
 import { hash2, fmt, fmt2 } from '../core/util.js';
-import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, HAY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_ROLL, B_MULCH, B_STONE } from '../game/crops.js';
+import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, SWATH, SW_FRESH, SW_TEDDED, SW_HAY, SW_TEDDED_DRY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_ROLL, B_MULCH, B_STONE } from '../game/crops.js';
 import { WITHER_H, LIME_DUE, weedsGrow, weedLevel, cellYield } from '../game/agro.js';
 import { FIELD_DEFS, ROADS, circles, inPoly, polyDist, roadAt } from './layout.js';
 import { levelOf, groundH } from './terrain.js';
 import { G } from '../game/state.js';
 import { addWind } from '../render/wind.js';
-import { FIELD_PER_HA, MEADOW_PER_HA } from '../game/balance.js';
+import { FIELD_PER_HA, MEADOW_PER_HA, HAY_DRY } from '../game/balance.js';
 import { addSnow } from '../render/snow.js';
 import { soilDetail, cropAtlas, CROP_TILE } from '../render/textures.js';
 
@@ -268,10 +268,12 @@ export function drawCell(f, i) {
   f.texDirty = true;
   if (s === S_NONE) { ctx.clearRect(px, py, CP, CP); return; }
   if (f.meadow) {
-    // grass, or the hay swath the mower left
-    ctx.fillStyle = f.straw[i] ? HAY.base : GRASS.ground[v]; ctx.fillRect(px, py, CP, CP);
-    ctx.fillStyle = f.straw[i] ? HAY.line : GRASS.line[v];
-    if (along) ctx.fillRect(px + 1 + (v & 1), py, 1, CP); else ctx.fillRect(px, py + 1 + (v & 1), CP, 1);
+    // grass, or the swath the mower left: a windrow in a line, tedded grass in loose specks
+    const sw = SWATH[f.straw[i]];
+    ctx.fillStyle = sw ? sw.base : GRASS.ground[v]; ctx.fillRect(px, py, CP, CP);
+    ctx.fillStyle = sw ? sw.line : GRASS.line[v];
+    if (sw && !(f.straw[i] & 1)) { ctx.fillRect(px + (v & 3), py + ((v + 1) & 3), 1, 1); ctx.fillRect(px + ((v + 2) & 3), py + ((v + 3) & 3), 1, 1); }
+    else if (along) ctx.fillRect(px + 1 + (v & 1), py, 1, CP); else ctx.fillRect(px, py + 1 + (v & 1), CP, 1);
     return;
   }
   if (f.straw[i]) {
@@ -360,7 +362,7 @@ export function drawMini(f, i) {
   if (f.kind[i] !== kd) { f.kind[i] = kd; f.kindDirty = true; }
   if (s === S_NONE) { d[o + 3] = 0; return; }
   let rgb;
-  if (f.meadow) rgb = f.straw[i] ? HAY.rgb : GRASS.rgb[s === S_RIPE ? 4 : grassStage(f.growth[i])];
+  if (f.meadow) rgb = f.straw[i] ? SWATH[f.straw[i]].rgb : GRASS.rgb[s === S_RIPE ? 4 : grassStage(f.growth[i])];
   else if (s === S_RIPE) rgb = CROPS[f.crop[i]].rgb[f.stage[i] === 5 ? 5 : 4];
   else if (s === S_SOWN && f.stage[i] > 0) rgb = CROPS[f.crop[i]].rgb[f.stage[i]];
   else if (f.straw[i]) rgb = STRAW.rgb;
@@ -412,10 +414,11 @@ function paintAll(f) {
     if (s === S_NONE) continue; // stays transparent
     const px = (i % f.w) * CP, py = ((i / f.w) | 0) * CP, j = f.jit[i], v = Math.floor(j * 3.999), along = f.dir[i] === 0;
     if (f.meadow) {
-      const hay = f.straw[i];
-      fill(px, py, rgb(hay ? HAY.base : GRASS.ground[v]));
-      const ln = rgb(hay ? HAY.line : GRASS.line[v]);
-      if (along) col(px + 1 + (v & 1), py, ln); else row(px, py + 1 + (v & 1), ln);
+      const sw = SWATH[f.straw[i]];
+      fill(px, py, rgb(sw ? sw.base : GRASS.ground[v]));
+      const ln = rgb(sw ? sw.line : GRASS.line[v]);
+      if (sw && !(f.straw[i] & 1)) { px1(px + (v & 3), py + ((v + 1) & 3), ln); px1(px + ((v + 2) & 3), py + ((v + 3) & 3), ln); }
+      else if (along) col(px + 1 + (v & 1), py, ln); else row(px, py + 1 + (v & 1), ln);
       continue;
     }
     if (f.straw[i]) {
@@ -489,12 +492,21 @@ export function growFields(dh) {
 
 const HOURS = CROPS.map(c => c.hours), IS_BEET = CROPS.map(c => c.header === 'beet');
 /** Recounts cell states, growth progress, straw, fertiliser and ripe beet of one field. */
-/** Mowed grass grows back (not under a hay swath that still lies there). */
+/**
+ * Mowed grass grows back (not under a swath that still lies there); the swath dries meanwhile, its
+ * growth hours counting the drying: a windrow turns into hay slowly, tedded grass fast.
+ */
 function growMeadow(f, dh) {
   if (!f.cnt[S_STUB] && f.counted) return;
   const st = f.state, gr = f.growth;
   for (let i = 0; i < f.n; i++) {
-    if (st[i] !== S_STUB || f.straw[i]) continue;
+    if (st[i] !== S_STUB) continue;
+    const sw = f.straw[i];
+    if (sw === SW_FRESH || sw === SW_TEDDED) {
+      if ((gr[i] += dh) >= (sw === SW_FRESH ? HAY_DRY.dryH : HAY_DRY.teddedH)) { f.straw[i] = sw === SW_FRESH ? SW_HAY : SW_TEDDED_DRY; drawCell(f, i); drawMini(f, i); }
+      continue;
+    }
+    if (sw) continue;
     const before = grassStage(gr[i]);
     gr[i] += dh;
     if (gr[i] >= GRASS.hours) { st[i] = S_RIPE; f.stage[i] = 4; updCrop(f, i); drawMini(f, i); }
@@ -504,6 +516,7 @@ function growMeadow(f, dh) {
 
 export function countField(f) {
   const c = [0, 0, 0, 0], st = f.state, cr = f.crop;
+  const swath = [0, 0, 0, 0, 0];
   let pg = 0, straw = 0, fert = 0, ripeBeet = 0, weedy = 0, limeDue = 0, stones = 0, withered = 0, ySum = 0, yN = 0, yAll = 0;
   for (let i = 0; i < f.n; i++) {
     const s = st[i];
@@ -511,7 +524,7 @@ export function countField(f) {
     c[s]++;
     if (s === S_SOWN) { pg += f.growth[i] / HOURS[cr[i]]; if (f.weed[i] & 3) weedy++; }
     else if (s === S_RIPE) { if (IS_BEET[cr[i]]) ripeBeet++; if (f.stage[i] === 5) withered++; }
-    straw += f.straw[i];
+    if (f.straw[i]) { straw++; swath[f.straw[i]]++; }
     fert += f.bonus[i] & B_FERT;
     if (f.lime[i] >= LIME_DUE) limeDue++;
     if (f.bonus[i] & B_STONE) stones++;
@@ -519,7 +532,7 @@ export function countField(f) {
     yAll += y; if (s === S_SOWN || s === S_RIPE) { ySum += y; yN++; }
   }
   f.cnt = c; f.prog = c[2] ? pg / c[2] : 0; f.counted = true;
-  f.strawCnt = straw; f.fertShare = fert / f.area; f.ripeBeet = ripeBeet;
+  f.strawCnt = straw; f.swath = swath; f.fertShare = fert / f.area; f.ripeBeet = ripeBeet;
   // what the finer field work is waiting for (game/agro.js), as shares of the field
   // expected yield multiplier (agro.js) of the growing crop, or of the next one on a bare field
   f.yieldAvg = yN > f.area * 0.2 ? ySum / yN : yAll / Math.max(1, f.area);

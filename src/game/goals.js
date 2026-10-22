@@ -15,6 +15,7 @@ export const emptyStats = () => ({
   cult: 0, plough: 0, sown: 0, fert: 0, // m² worked (own fields and contracts)
   bales: 0, hay: 0, mown: 0, trees: 0, wood: 0, contracts: 0, deliveries: 0,
   sprayed: 0, rolled: 0, mulched: 0, limed: 0, // m² of the finer field work (agro.js)
+  tedded: 0, windrowed: 0, chaff: 0, grassBales: 0, wrapped: 0, // hay and silage (forage.js): m², litres of chaff, bales
   earned: 0, // Kč from sales and contracts (not loans, not selling machines)
 });
 
@@ -45,6 +46,7 @@ export const GOALS = [
   { id: 'animals', title: 'Hospodář', desc: 'Kup kravín nebo kurník.', target: 1, cur: () => (has('cows') || has('hens') ? 1 : 0), fmt: fmt, reward: 40000 },
   { id: 'fert', title: 'Výživa', desc: 'Pohnoj 0,6 ha.', target: 6000, cur: () => G.stats.fert, fmt: ha, reward: 25000 },
   { id: 'crops', title: 'Pestrý osevní postup', desc: 'Skliď čtyři různé plodiny.', target: 4, cur: cropsHarvested, fmt: fmt, reward: 80000 },
+  { id: 'silage', title: 'Siláž', desc: 'Nasekej 40 000 l řezanky řezačkou nebo samosběracím vozem a uskladni ji v silážním žlabu.', target: 40000, cur: () => G.stats.chaff, fmt: l, reward: 70000 },
   { id: 'trees', title: 'Dřevař', desc: 'Pokácej 10 stromů harvestorem.', target: 10, cur: () => G.stats.trees, fmt: fmt, reward: 60000 },
   { id: 'contracts5', title: 'Spolehlivý', desc: 'Dokonči 5 zakázek.', target: 5, cur: () => G.stats.contracts, fmt: fmt, reward: 100000 },
   { id: 'fields5', title: 'Velkostatek', desc: 'Vlastni 5 polí.', target: 5, cur: owned, fmt: fmt, reward: 150000 },

@@ -154,6 +154,95 @@ try {
     loop.sold > 0 && loop.bought === 6 && loop.paid > 0 && loop.back === loop.cows0 && loop.pallets === 5 && loop.hall > 0,
     'za 30 h narozeno ' + loop.born + ' telat, kejdy ' + loop.slurry + ' l · cisterna ' + loop.filled + ' l, pohnojeno ' + loop.fert + ' m² (' + loop.used + ' l) · přívěs ' + loop.loaded + ' krav, trh zaplatil ' + loop.sold +
     ' Kč, koupeno ' + loop.bought + ' za ' + loop.paid + ' Kč, stádo zpět na ' + loop.back + ' · palet vajec ' + loop.pallets + ', tržnice ' + loop.hall + ' Kč');
+  // hay and silage: mow, ted, dry, rake and bale hay on a meadow; a fresh grass bale wrapped into
+  // silage; the forage wagon picks up a windrow; the chopper cuts maize and blows it into a trailer;
+  // chaff into the bunker, packed, covered, fermented; silage loaded, fed to the cows, chaff to the biogas plant
+  const forage = await page.evaluate(async () => {
+    const { G, vehicles, tools, fields } = window.__zl, M = await import('/src/game/machines.js'), V = await import('/src/vehicles/vehicles.js');
+    const L = await import('/src/world/layout.js'), F = await import('/src/world/fields.js'), FO = await import('/src/game/forage.js'), B = await import('/src/world/bales.js');
+    const W = await import('/src/game/work.js'), S = await import('/src/game/save.js');
+    G.money = 5e7;
+    for (const id of ['zaci-3', 'obracec-76', 'shrnovac-68', 'lis', 'ovijec', 'pottinger-jumbo', 'silaz-700']) if (!tools.some(x => x.model === id) && !vehicles.some(x => x.model === id)) M.buy(id);
+    if (!M.has('cows')) M.buy('cows');
+    const t = vehicles.find(v => v.type === 'tractor' && !v.helper), m = fields.find(x => x.meadow);
+    m.owned = true;
+    const piece = id => tools.find(x => x.model === id);
+    // the tractor with implement id, the tractor (mounted) or the implement's body (trailed) at x, z heading h
+    const put = (id, x, z, h = 0) => {
+      const im = piece(id); G.active = t;
+      Object.assign(t, { x, z, h, speed: 0, prev: null, lowered: false }); V.attachTool(t, im);
+      if (im.trailed) { im.x = 1e4; V.attachTool(t, im); const c = V.trailerCenter(im); t.x += x - c.x; t.z += z - c.z; im.x += x - c.x; im.z += z - c.z; }
+      window.__zl.step(2); return im;
+    };
+    const pass = (id, x, frames = 330) => { put(id, x, m.z0 + 8); window.__zl.act('Space'); window.__zl.hold('KeyW', frames); window.__zl.act('Space'); t.speed = 0; };
+    const count = k => { F.countField(m); return m.swath[k]; };
+    const lane = m.x0 + 12;
+    pass('zaci-3', lane); const fresh = count(1);
+    pass('obracec-76', lane); const tedded = count(2);
+    F.growFields(2); const dry = count(4);
+    pass('shrnovac-68', lane); const raked = count(3);
+    const hay0 = G.stats.hay; pass('lis', lane, 420); const hayBales = G.stats.hay - hay0;
+    // a second lane baled fresh: grass bales, then wrapped
+    const lane2 = m.x0 + 30;
+    pass('zaci-3', lane2); const g0 = G.stats.grassBales; pass('lis', lane2, 420); const grassBales = G.stats.grassBales - g0;
+    const gb = B.bales.find(b => b.kind === 'grass'), wr = put('ovijec', gb ? gb.x : 0, gb ? gb.z : 0, 0), m0 = G.money;
+    window.__zl.act('Space'); window.__zl.step(90); window.__zl.act('Space');
+    const wrapped = gb?.kind === 'silage', wrapPaid = Math.round(m0 - G.money);
+    // a third lane picked up by the forage wagon
+    const lane3 = m.x0 + 48;
+    pass('zaci-3', lane3); const wagon = piece('pottinger-jumbo'); wagon.forage = null; wagon.tank.amount = 0; wagon.bales = 0;
+    pass('pottinger-jumbo', lane3, 420); const picked = Math.round(FO.forageIn(wagon));
+    // the chopper on ripe maize, a trailer beside it under the spout
+    const ch = vehicles.find(v => v.type === 'chopper'), f2 = fields.find(x => x.id === 2);
+    const keep = ['state', 'crop', 'stage', 'growth', 'straw', 'bonus'].map(k => [k, f2[k].slice()]);
+    for (let i = 0; i < f2.n; i++) if (f2.state[i] !== 255) { f2.state[i] = 3; f2.crop[i] = 3; f2.stage[i] = 4; f2.growth[i] = 9; }
+    F.refreshField(f2);
+    vehicles.forEach(v => { if (v !== ch && v !== t) Object.assign(v, { x: -400, z: -400 }); });
+    Object.assign(ch, { x: f2.x0 + 6, z: f2.z0 + 4, h: 0, speed: 0, prev: null }); G.active = ch; ch.tank.amount = 0;
+    window.__zl.act('Space'); window.__zl.hold('KeyW', 150); window.__zl.act('Space'); ch.speed = 0;
+    const chopped = Math.round(ch.tank.amount);
+    window.__zl.step(60); // the spout swings out
+    const tr = put('privez-14', 0, 0, ch.h); Object.assign(tr.tank, { crop: -1, amount: 0 }); tr.bales = 0; tr.forage = null; tr.pallets.length = 0;
+    const pe = W.pipeEnd(ch), c0 = V.trailerCenter(tr); t.x += pe.x - c0.x; t.z += pe.z - c0.z; tr.x += pe.x - c0.x; tr.z += pe.z - c0.z;
+    G.active = ch; window.__zl.step(200);
+    const blown = Math.round(FO.forageIn(tr)), chopLeft = Math.round(ch.tank.amount);
+    for (const [k, a] of keep) f2[k].set(a); // field 2 as it was, for the checks after this one
+    F.refreshField(f2); Object.assign(ch, { x: -400, z: -460, speed: 0 }); ch.tank.amount = 0;
+    // the bunker: tip, pack, cover, ferment, load silage
+    const bk = G.farm.bunker; Object.assign(bk, { chaff: 0, packed: 0, covered: false, ferment: 0, silage: 0 });
+    tr.forage = { kind: 'chaff', l: 12000 };
+    put('privez-14', L.BUNKER.ring.x, L.BUNKER.ring.z, 0);
+    const tipA = (await import('/src/game/actions.js')).fAction()?.kind; window.__zl.act('KeyF'); window.__zl.step(300);
+    const tipped = Math.round(bk.chaff), trLeft = Math.round(FO.forageIn(tr));
+    bk.chaff += 20000;
+    const before = (await import('/src/game/actions.js')).fAction()?.kind;
+    for (let k = 0; k < 600 && bk.packed < 0.9; k++) FO.packTick(0.5, [{ x: L.BUNKER.ring.x, z: L.BUNKER.ring.z + 6, speed: 3, type: 'tractor', hp: 140 }]);
+    const packed = bk.packed;
+    window.__zl.act('KeyF'); const covered = bk.covered;
+    FO.forageTick(25); const silage = Math.round(bk.silage);
+    window.__zl.act('KeyF'); const loaded = tr.forage?.kind === 'silage' ? Math.round(tr.forage.l) : 0;
+    // silage to the cows, chaff to the biogas plant
+    G.farm.cowFeed = 0; G.farm.mix.hay = 0;
+    put('privez-14', L.COW_PEN.feed.x, L.COW_PEN.feed.z, Math.PI / 2); window.__zl.act('KeyF'); window.__zl.step(300);
+    const fed = Math.round(G.farm.mix.hay);
+    tr.forage = { kind: 'chaff', l: 5000 }; tr.tipping = false;
+    put('privez-14', L.BUYER_AT.sugar.x, L.BUYER_AT.sugar.z, Math.PI / 2); const mb = G.money; window.__zl.act('KeyF'); window.__zl.step(300);
+    const biogas = Math.round(G.money - mb);
+    // saved and loaded: the bunker, bale kinds and the trailer's forage come back
+    tr.forage = { kind: 'silage', l: 4321 }; bk.chaff = 777;
+    const ok = S.applySave(JSON.parse(JSON.stringify(S.serialize())));
+    const tr2 = window.__zl.tools.find(x => x.id === tr.id);
+    const back = ok && G.farm.bunker.chaff === 777 && tr2?.forage?.l === 4321 && B.bales.some(b => b.kind === 'silage');
+    tr2.forage = null; B.setBales([]); B.flushBales(); window.__zl.seat(vehicles.find(v => v.type === 'combine')); G.playing = true;
+    return { fresh, tedded, dry, raked, hayBales, grassBales, wrapped, wrapPaid, picked, chopped, blown, chopLeft, tipA, tipped, trLeft, before, packed, covered, silage, loaded, fed, biogas, back };
+  });
+  check('seno a siláž', forage.fresh > 50 && forage.tedded > 50 && forage.dry === forage.tedded && forage.raked === forage.dry && forage.hayBales >= 1 && forage.grassBales >= 1 &&
+    forage.wrapped && forage.wrapPaid === 60 && forage.picked > 0 && forage.chopped > 0 && forage.blown > 0 && forage.chopLeft < forage.chopped && forage.tipA === 'tipBunker' &&
+    forage.tipped === 12000 && forage.trLeft === 0 && forage.before === 'packMore' && forage.packed >= 0.9 && forage.covered && forage.silage === 32000 && forage.loaded > 0 &&
+    forage.fed > 0 && forage.biogas === 3000 && forage.back,
+    'posečeno ' + forage.fresh + ' m², obráceno ' + forage.tedded + ', uschlo ' + forage.dry + ', shrnuto ' + forage.raked + ' · balíky sena ' + forage.hayBales + ', trávy ' + forage.grassBales +
+    (forage.wrapped ? ', ovinuto za ' + forage.wrapPaid + ' Kč' : ', neovinuto') + ' · vůz sebral ' + forage.picked + ' l · řezačka ' + forage.chopped + ' l, do přívěsu ' + forage.blown + ' l · žlab ' + forage.tipA + ' ' + forage.tipped +
+    ' l, ' + forage.before + ', udusáno ' + Math.round(forage.packed * 100) + ' %, ' + (forage.covered ? 'zakryto' : 'nezakryto') + ', siláže ' + forage.silage + ' l, naloženo ' + forage.loaded + ' · kravám ' + forage.fed + ' l · bioplynka ' + forage.biogas + ' Kč · uložení ' + (forage.back ? 'ok' : 'CHYBA'));
   check('silo a dodávka', silo.stored === 6000 && silo.unpaid && silo.loaded > 3000 && silo.left === 6000 - silo.loaded && silo.took && silo.sold > 0 && silo.premium > 0 && silo.done >= 1 && silo.active === 0,
     'uskladněno ' + silo.stored + ' l · naloženo ' + silo.loaded + ' l (v silu ' + silo.left + ') · prodáno ve mlýně ' + silo.sold + ' l za ' + silo.paid + ' Kč, příplatek ' + silo.premium + ' Kč · dodávka ' + (silo.active ? 'běží' : 'splněna'));
 

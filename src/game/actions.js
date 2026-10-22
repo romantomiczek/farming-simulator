@@ -11,7 +11,8 @@ import {
   buildingAt, atDealer, atHall, atSlurry, atManure, trailerAtBuilding, loadAnimals, unloadAnimals, dealerAction, sellAnimals, buyAnimals,
   cycleBuyKind, palletsHere, loadPallets, sellPallets, herdName,
 } from './animals.js';
-import { DUNG } from './balance.js';
+import { DUNG, SILAGE } from './balance.js';
+import { atBunkerRing, bunkerAction, forageIn, forageTarget, atCows, cover, loadSilage } from './forage.js';
 import { FERT_COST, LIME_COST } from './crops.js';
 import { saveLocal } from './save.js';
 import { has } from './machines.js';
@@ -39,7 +40,10 @@ export const otherHeader = v => (v.header === 'grain' ? (has('cornHeader') ? 'co
 
 /** What F would do right now for the active vehicle (on foot: buying the field at a sign), or null. Shared by doF() and the HUD prompts. */
 export function fAction() {
-  if (G.onFoot) { const s = nearSign(person); return festAction(person, false) || (s ? { kind: 'buy', sign: s } : null); }
+  if (G.onFoot) {
+    const s = nearSign(person), bunker = atBunkerRing(person) ? bunkerAction(null) : null;
+    return festAction(person, false) || bunker || (s ? { kind: 'buy', sign: s } : null);
+  }
   const v = G.active;
   const fest = festAction(v, v.type === 'tractor' && !v.helper);
   if (fest) return fest;
@@ -68,7 +72,10 @@ export function fAction() {
     if (!w.milk && near(POND_FILL) && w.water < w.waterCap - 1) return { kind: 'fillWater', w };
     if (!w.milk && near(GREENHOUSE_WATER) && w.water > 0 && greenhouses() && G.farm.water < waterCap() - 1) return { kind: 'giveWater', w };
   }
-  if (v.harvester) {
+  if (v.type === 'chopper') {
+    const a = atBunkerRing(v) ? bunkerAction(null) : null; // the chopper packs the heap too, and its driver may cover it
+    if (a) return a;
+  } else if (v.harvester) {
     if (v.unloading) return { kind: 'stopUnload', h: v };
     if (v.tank.amount > 0 && sellPoint(v, v.tank.crop)) return { kind: 'sell', h: v, m: sellPoint(v, v.tank.crop) };
     if (v.tank.amount > 0 && marketAt(v)) return { kind: 'wrongMarket', m: marketAt(v), crop: v.tank.crop };
@@ -77,16 +84,23 @@ export function fAction() {
   } else {
     const t = towed(v), tc = t && trailerCenter(t);
     if (t?.tipping) return { kind: 'stopTip', t };
+    // silage: chaff into the bunker, silage out of it, to the cows or the biogas plant
+    if (atBunkerRing(tc || v)) { const a = bunkerAction(t); if (a) return a; }
+    if (forageIn(t)) {
+      const target = forageTarget(tc, t.forage.kind);
+      if (target) return { kind: 'tipForage', t, target };
+      if (t.forage.kind === 'chaff' && atCows(tc)) return { kind: 'chaffCows' };
+    }
     if (t && t.pallets.length && atHall(tc)) return { kind: 'sellPallets', t };
-    if (t && !t.tank.amount && !t.bales && t.pallets.length < t.baleCap) { const p = palletsHere(tc); if (p) return { kind: 'loadPallets', t, p }; }
+    if (t && !t.tank.amount && !t.bales && !forageIn(t) && t.pallets.length < t.baleCap) { const p = palletsHere(tc); if (p) return { kind: 'loadPallets', t, p }; }
     if (t?.loading) return { kind: 'stopLoad', t };
-    if (t && t.key === 'trailer' && inSiloLoad(tc) && !t.bales && t.tank.amount < t.tank.cap - 1) {
+    if (t && t.key === 'trailer' && inSiloLoad(tc) && !t.bales && !forageIn(t) && t.tank.amount < t.tank.cap - 1) {
       const crop = siloCrop();
       if (crop >= 0 && (t.tank.amount <= 0 || t.tank.crop === crop)) return { kind: 'loadSilo', t, crop };
     }
     if (t && t.tank.amount > 0 && sellPoint(tc, t.tank.crop)) return { kind: 'tip', t, m: sellPoint(tc, t.tank.crop) };
     if (t && t.tank.amount > 0 && marketAt(tc)) return { kind: 'wrongMarket', m: marketAt(tc), crop: t.tank.crop };
-    if (t && t.hay > 0 && hayFeederAt(tc)) return { kind: 'feedHay', t, m: hayFeederAt(tc) };
+    { const m = t && hayFeederAt(tc); if (m && (t.hay > 0 || (m.feed === 'cows' && t.silage > 0))) return { kind: 'feedHay', t, m }; }
     if (t && t.bales > 0 && inBaleZone(tc)) return { kind: 'sellBales', t };
     if (t) for (const h of HARVESTERS) if (h.unloading && trailerInReach(h, t)) return { kind: 'stopUnload', h };
     if (t) for (const h of HARVESTERS) if (h.tank.amount > 0 && trailerInReach(h, t)) return { kind: 'overload', h };
@@ -102,6 +116,7 @@ const atIntake = m => m?.id === 'coop';
 export function gAction() {
   if (G.onFoot) return null;
   const v = G.active;
+  if (v.type === 'chopper') return null;
   if (v.harvester) return !v.unloading && v.tank.amount > 0 && atIntake(sellPoint(v, v.tank.crop)) ? { kind: 'store', h: v } : null;
   const t = towed(v);
   return t && !t.tipping && t.tank.amount > 0 && atIntake(sellPoint(trailerCenter(t), t.tank.crop)) ? { kind: 'storeTip', t } : null;
@@ -168,7 +183,7 @@ export function toggleTool() {
   const v = G.active;
   if (v.helper) { toast('Tenhle stroj řídí pomocník. Klávesou H ho propustíš.'); return; }
   if (v.type === 'tractor' && !v.tool) { toast('Traktor nemá nářadí. Zacouvej k nějakému a připoj ho klávesou Q.'); return; }
-  if (v.type === 'tractor' && v.impl === 'trailer') {
+  if (v.type === 'tractor' && v.impl === 'trailer' && !v.tool.pickup) {
     toast('Přívěs nemá co spouštět. Úrodu vysypeš klávesou F ve výkupu, balíky prodáš F u stodoly.');
     return;
   }
@@ -286,12 +301,19 @@ export function doF() {
       w.water = 0; w.milk = false; G.money += money; earn(money); G.flashT = 0.4;
       toast('Mlékárna koupila ' + fmt(l) + ' l mléka za ' + fmt(money) + ' Kč', 'good'); saveLocal(); return;
     }
-    case 'feedHay': {
-      const n = feedHay(a.m.feed, a.t.hay);
+    case 'feedHay': { // hay bales; the cows also take wrapped silage bales
+      const t = a.t, sil = a.m.feed === 'cows' ? t.silage || 0 : 0, n = feedHay(a.m.feed, t.hay + sil);
       if (!n) { toast('Krmelec (' + BUILDINGS[a.m.feed].name + ') je plný.', 'bad'); return; }
-      a.t.hay -= n; a.t.bales -= n;
-      toast('Vyloženo ' + n + (n === 1 ? ' balík' : n < 5 ? ' balíky' : ' balíků') + ' sena do krmelce · ' + a.m.short, 'good'); saveLocal(); return;
+      const hay = Math.min(t.hay, n), s = n - hay;
+      t.hay -= hay; t.silage = (t.silage || 0) - s; t.bales -= n;
+      toast('Vyloženo ' + n + (n === 1 ? ' balík' : n < 5 ? ' balíky' : ' balíků') + (s ? (hay ? ' sena a senáže' : ' senáže') : ' sena') + ' do krmelce · ' + a.m.short, 'good'); saveLocal(); return;
     }
+    case 'tipBunker': case 'tipForage': startTipping(a.t); return;
+    case 'loadSilage': loadSilage(a.t, a.l); saveLocal(); return;
+    case 'cover': cover(); saveLocal(); return;
+    case 'packMore': toast('Řezanka ve žlabu je udusaná jen na ' + Math.round(a.p * 100) + ' %. Jezdi po ní traktorem tam a zpátky, zakrýt jde od ' + Math.round(SILAGE.packNeed * 100) + ' %.', 'bad'); return;
+    case 'bunkerShut': toast('Žlab je zakrytý a kvasí. Řezanku teď prodáš v bioplynce u cukrovaru.', 'bad'); return;
+    case 'chaffCows': toast('Krávy dostávají siláž, ne čerstvou řezanku. Vysyp ji do silážního žlabu, udusej, zakryj a nech zkvasit.', 'bad'); return;
     case 'stopUnload': stopUnload(a.h, saveLocal); return;
     case 'sell': case 'overload': startUnload(a.h); return;
     case 'tip': startTipping(a.t); return;

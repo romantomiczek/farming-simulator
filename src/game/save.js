@@ -77,19 +77,19 @@ export function serialize() {
     })),
     fleet: vehicles.map(v => ({
       id: v.id, type: v.type, model: v.model, own: v.own, cond: v.cond, slot: v.slot, x: r2(v.x), z: r2(v.z), h: v.h, fuel: v.fuel, tool: v.tool?.id ?? null,
-      tank: v.harvester ? v.tank : undefined, seedCrop: v.seedCrop, baleAcc: v.baleAcc, hayAcc: v.hayAcc || 0, header: v.header, logs: v.logs, helper: serializeHelper(v), dirt: r2(v.dirtU?.value || 0),
+      tank: v.harvester ? v.tank : undefined, seedCrop: v.seedCrop, baleAcc: v.baleAcc, hayAcc: v.hayAcc || 0, grassAcc: v.grassAcc || 0, header: v.header, logs: v.logs, helper: serializeHelper(v), dirt: r2(v.dirtU?.value || 0),
     })),
     tools: tools.map(t => ({
       id: t.id, key: t.key, model: t.model, own: t.own, cond: t.cond, slot: t.slot, dirt: r2(t.dirtU?.value || 0),
       x: r2(t.x), z: r2(t.z), h: t.h, // where it stands (a hitched implement: thrown away on loading, a trailer keeps its angle)
-      ...(t.key === 'trailer' ? { tank: t.tank, bales: t.bales, hay: t.hay || 0, pallets: t.pallets } : {}),
+      ...(t.key === 'trailer' ? { tank: t.tank, bales: t.bales, hay: t.hay || 0, grass: t.grass || 0, silage: t.silage || 0, pallets: t.pallets, forage: t.forage } : {}),
       ...(t.key === 'livestock' ? { animals: t.animals, buyKind: t.buyKind } : {}),
       ...(t.key === 'manure' || t.key === 'slurry' ? { load: Math.round(t.load) } : {}),
       ...(t.key === 'watertank' ? { water: t.water, milk: !!t.milk } : {}),
     })),
     loan: G.loan, machines: G.machines, cond: G.cond, contracts: G.contracts, lastDay: G.lastDay,
     farm: G.farm, stats: G.stats, goals: G.goals, forest: serializeForest(), fest: G.fest, silo: G.silo, deliveries: G.deliveries,
-    bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3), hay: b.hay ? 1 : 0 })),
+    bales: bales.map(b => ({ x: +b.x.toFixed(2), z: +b.z.toFixed(2), h: +b.h.toFixed(3), hay: b.hay ? 1 : 0, kind: b.kind })),
   };
 }
 
@@ -197,6 +197,8 @@ export function applySave(d) {
     const h = d.farm.herd[k];
     if (h && Number.isFinite(h.n)) farm.herd[k] = { n: Math.max(0, Math.round(h.n)), health: Math.max(0, Math.min(1, +h.health || 0)), breed: +h.breed || 0, sick: +h.sick || 0 };
   }
+  const bk = d.farm?.bunker; // the silage bunker (forage.js); older saves: empty
+  if (bk) Object.assign(farm.bunker, { chaff: Math.max(0, +bk.chaff || 0), packed: Math.max(0, Math.min(1, +bk.packed || 0)), covered: !!bk.covered && bk.chaff > 0, ferment: Math.max(0, +bk.ferment || 0), silage: Math.max(0, +bk.silage || 0) });
   G.farm = farm;
   G.silo = loadSilo(d.silo); G.deliveries = loadDeliveries(d.deliveries);
   if (!G.deliveries.offers.length) generateDeliveries();
@@ -234,6 +236,10 @@ function loadFleet(plan) {
       if (t.tank.amount <= 0) t.tank.crop = -1;
       t.bales = Math.min(t.baleCap, Math.max(0, e.bales | 0));
       t.hay = Math.min(t.bales, Math.max(0, e.hay | 0));
+      t.grass = Math.min(t.bales - t.hay, Math.max(0, e.grass | 0));
+      t.silage = Math.min(t.bales - t.hay - t.grass, Math.max(0, e.silage | 0));
+      const fg = e.forage; // chaff or silage (forage.js); never together with grain or bales
+      t.forage = fg && (fg.kind === 'chaff' || fg.kind === 'silage') && fg.l > 0 && !t.tank.amount && !t.bales ? { kind: fg.kind, l: Math.min(t.tank.cap, +fg.l) } : null;
       t.pallets = (Array.isArray(e.pallets) ? e.pallets : []).filter(p => p in PALLET_MAT).slice(0, t.baleCap - t.bales);
     }
     if (t.key === 'livestock' && e.animals && SPECIES.includes(e.animals.kind) && e.animals.n > 0) {
@@ -251,9 +257,9 @@ function loadFleet(plan) {
     const v = addVehicle(e.type, { id: e.id, model: e.model, own: e.own, cond: clamp01(e.cond), slot: Number.isInteger(e.slot) ? e.slot : undefined });
     v.dirtU.value = Number.isFinite(e.dirt) ? clamp01(e.dirt) : 0;
     if (e.fresh) continue; // missing in an old save: starts at home
-    Object.assign(v, { x: num(+e.x, v.x), z: num(+e.z, v.z), h: num(+e.h, 0), seedCrop: (e.seedCrop | 0) % CROPS.length, baleAcc: e.baleAcc | 0, hayAcc: e.hayAcc | 0 });
+    Object.assign(v, { x: num(+e.x, v.x), z: num(+e.z, v.z), h: num(+e.h, 0), seedCrop: (e.seedCrop | 0) % CROPS.length, baleAcc: e.baleAcc | 0, hayAcc: e.hayAcc | 0, grassAcc: e.grassAcc | 0 });
     v.fuel = Number.isFinite(e.fuel) ? Math.max(0, Math.min(v.fuelCap, e.fuel)) : v.fuelCap;
-    if (e.tank && v.harvester) v.tank = { crop: e.tank.crop | 0, amount: Math.max(0, +e.tank.amount || 0), cap: v.tank.cap };
+    if (e.tank && v.harvester) v.tank = { crop: v.type === 'chopper' ? -1 : e.tank.crop | 0, amount: Math.min(v.tank.cap * 1.5, Math.max(0, +e.tank.amount || 0)), cap: v.tank.cap };
     if (v.type === 'forest') v.logs = Math.max(0, Math.min(v.logCap, +e.logs || 0));
     if (v.type === 'combine') setHeader(v, e.header === 'corn' ? 'corn' : 'grain');
     const t = e.tool && tools.find(x => x.id === e.tool && !x.on);

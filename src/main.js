@@ -22,6 +22,7 @@ import { buildWildlife } from './world/wildlife.js';
 import { buildTraffic } from './world/traffic.js';
 import { growForest, trees as forestTrees } from './world/forest.js';
 import { farmTick, sellProducts } from './game/farm.js';
+import { packTick, forageTick } from './game/forage.js';
 import { forestryTick } from './game/forestry.js';
 import { has, ownershipHooks } from './game/machines.js';
 import { upkeep, chargeDays } from './game/economy.js';
@@ -156,6 +157,7 @@ function tick(dt) {
     updateWeather(dt);
     growHours += (gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1);
     farmTick(gm / 60);
+    forageTick(gm / 60);
     forestHours += gm / 60;
     upkeep(dt);
     if (chargeDays()) { sellProducts(); generateOffers(); generateDeliveries(); saveLocal(); }
@@ -183,6 +185,7 @@ function tick(dt) {
   for (const v of vehicles) v.hit = 0;
   if (DEV.tracks) updTracks(dt, vehicles, WX.rain < 0.2 && !isWinter() && G.gameMin > WX.wetUntil);
   updateLogistics(dt, saveLocal);
+  if (G.playing) packTick(dt, vehicles);
   flushFields();
   flushBales();
   forestryTick(dt);

@@ -109,6 +109,22 @@ export const MODELS = [
     desc: 'Devět řádků najednou a bunkr 35 000 l.',
   },
 
+  /* ---------- forage harvesters: header = width (m), tank = chaff buffer (l), unload (l/s) into the trailer beside it ---------- */
+  {
+    id: 'silaz-700', kind: 'chopper', brand: 'Siláž', name: '700', title: 'Řezačka Siláž 700', price: 3900000, header: 4.5, tank: 4000, unload: 900, fuel: 700, start: true, look: {},
+    desc: 'Samojízdná sklízecí řezačka: kukuřici na siláž a řádky posečené trávy. Řezanku metá do přívěsu, který jede vedle ní.',
+  },
+  {
+    id: 'claas-jaguar-960', kind: 'chopper', brand: 'Claas', name: 'Jaguar 960', price: 6400000, header: 6.0, tank: 5000, unload: 1300, fuel: 900, work: 1.15,
+    look: { body: '#a9bf2b', dark: '#8fa323', light: '#f1f1ec', rim: '#d9dcd8', scale: 1.1, header: 6.0, brand: 'CLAAS', model: 'JAGUAR 960', stroke: '#3d4a10' },
+    desc: 'Široký adaptér 6 m a o 15 % rychlejší sklizeň.',
+  },
+  {
+    id: 'krone-bigx-1180', kind: 'chopper', brand: 'Krone', name: 'BiG X 1180', price: 8200000, header: 7.5, tank: 6000, unload: 1700, fuel: 1100, work: 1.25,
+    look: { body: '#1f7a3a', dark: '#17602d', light: '#e9e9e2', rim: '#c4262e', scale: 1.18, header: 7.5, brand: 'KRONE', model: 'BIG X 1180', stroke: '#0f3a1c' },
+    desc: 'Největší řezačka: adaptér 7,5 m. Potřebuje dva přívěsy, aby nestála.',
+  },
+
   /* ---------- forestry harvesters: logs = load (m³), cut = felling speed factor ---------- */
   {
     id: 'les-6', kind: 'forest', brand: 'Les', name: '6', title: 'Harvestor Les 6', price: 1100000, logs: 16, cut: 0.8, fuel: 220,
@@ -180,6 +196,11 @@ export const MODELS = [
   { id: 'privez-14', kind: 'trailer', brand: '', name: 'Sklápěcí přívěs', price: 150000, cap: 14000, hp: 110, start: true, look: {}, desc: 'Dvounápravový sklápěcí přívěs.' },
   { id: 'fliegl-22', kind: 'trailer', brand: 'Fliegl', name: 'TMK 22', price: 260000, cap: 22000, hp: 150, look: { body: '#2f6f5a', rib: '#265c4a', trim: '#4f8f78', len: 6.4, height: 1.6, brand: 'FLIEGL' }, desc: 'Velký tandem s vyššími bočnicemi.' },
   { id: 'krampe-bandit-30', kind: 'trailer', brand: 'Krampe', name: 'Bandit 750', price: 420000, cap: 30000, hp: 190, look: { body: '#c8352b', rib: '#a52a22', trim: '#e05a4e', len: 7.4, height: 1.75, axles: 3, brand: 'KRAMPE' }, desc: 'Třínápravový návěs na 30 000 l.' },
+  {
+    id: 'pottinger-jumbo', kind: 'trailer', brand: 'Pöttinger', name: 'Jumbo 6010', price: 520000, cap: 30000, hp: 170, width: 2.0, workZ: -2.0,
+    look: { body: '#2f8f3a', rib: '#26762f', trim: '#e8e4da', len: 7.0, height: 2.1, axles: 2, pickup: true, brand: 'PÖTTINGER' },
+    desc: 'Samosběrací vůz: spustíš ho mezerníkem a sbírá řádky posečené trávy rovnou jako řezanku na siláž. Jezdí i vedle řezačky.',
+  },
   { id: 'annaburger-40', kind: 'trailer', brand: 'Annaburger', name: 'HTS 34', price: 600000, cap: 40000, hp: 260, look: { body: '#3b7f3a', rib: '#306a30', trim: '#5a9a52', len: 8.6, height: 1.9, axles: 3, brand: 'ANNABURGER' }, desc: 'Největší návěs: 40 000 l.' },
 
   { id: 'dobytek-6', kind: 'livestock', brand: '', name: 'Přívěs na zvířata', price: 90000, cap: 1, hp: 70, look: {}, desc: 'Odveze 6 krav, 12 prasat nebo ovcí, nebo 60 slepic na dobytčí trh v městečku, nebo z něj nová zvířata domů.' },
@@ -188,6 +209,11 @@ export const MODELS = [
   { id: 'kejda-10', kind: 'slurry', brand: '', name: 'Cisterna na kejdu', price: 160000, cap: 10000, width: 12, hp: 110, look: {}, desc: 'Naplní se u jímky na kejdu u kravína a hnojí pole zdarma: první i druhá dávka jako hnojivo.' },
   { id: 'zunhammer-kejda-18', kind: 'slurry', brand: 'Zunhammer', name: 'SK 18.5 PU', price: 330000, cap: 18500, width: 15, hp: 190, look: { body: '#d9dcd8', dark: '#1f4f9c', len: 5.4, r: 1.1, axles: 2, brand: 'ZUNHAMMER', text: '#1f4f9c', stroke: null }, desc: 'Tandemová cisterna na 18 500 l kejdy.' },
 
+  { id: 'obracec-76', kind: 'tedder', brand: '', name: 'Obraceč 7,6 m', price: 110000, width: 7.6, hp: 60, start: true, look: {}, desc: 'Rozhodí posečenou trávu, takže seno uschne za 1,5 h místo 6 h. Pak ho shrň do řádku.' },
+  { id: 'krone-vendro-1120', kind: 'tedder', brand: 'Krone', name: 'Vendro 1120', price: 240000, width: 11.2, hp: 90, look: { color: '#1f7a3a', width: 11.2, brand: 'KRONE' }, desc: 'Obraceč se záběrem 11,2 m.' },
+  { id: 'shrnovac-68', kind: 'windrower', brand: '', name: 'Shrnovač 6,8 m', price: 140000, width: 6.8, hp: 70, start: true, look: {}, desc: 'Shrne rozhozenou trávu nebo seno zpátky do řádku, aby ho sebral lis, samosběrací vůz nebo řezačka.' },
+  { id: 'claas-liner-2900', kind: 'windrower', brand: 'Claas', name: 'Liner 2900', price: 290000, width: 9.0, hp: 100, look: { color: '#a9bf2b', width: 9.0, brand: 'CLAAS' }, desc: 'Dvourotorový shrnovač se záběrem 9 m.' },
+  { id: 'ovijec', kind: 'wrapper', brand: '', name: 'Ovíječ balíků', price: 160000, hp: 60, start: true, look: {}, desc: 'Zabalí balík čerstvé trávy do fólie (60 Kč): z balíku za 600 Kč je senáž za 2 200 Kč, kterou žerou i krávy.' },
   { id: 'cisterna-5', kind: 'watertank', brand: '', name: 'Cisterna 5 000 l', price: 50000, cap: 5000, hp: 60, look: { len: 2.8, r: 0.85 }, desc: 'Malá cisterna na vodu nebo mléko.' },
   { id: 'cisterna-8', kind: 'watertank', brand: '', name: 'Cisterna', price: 70000, cap: 8000, hp: 90, start: true, look: {}, desc: 'Voda z rybníka pro skleníky, nebo mléko z kravína do mlékárny.' },
   { id: 'joskin-modulo-11', kind: 'watertank', brand: 'Joskin', name: 'Modulo2 11000', price: 160000, cap: 11000, hp: 130, look: { body: '#3b8f3a', dark: '#2f7230', len: 4.4, r: 1.0, brand: 'JOSKIN' }, desc: 'Cisterna na 11 000 l.' },

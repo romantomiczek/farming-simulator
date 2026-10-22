@@ -43,3 +43,13 @@ export const HEALTH = { up: 0.03, down: 0.05, breedAbove: 0.75, sickBelow: 0.2, 
 export const DUNG = { slurryCap: 120000, manureCap: 80000, slurryPerM2: 2, manurePerM2: 1.5 };
 /** Pallets of products, and what the market hall in the town pays on top of the midnight pickup. */
 export const PALLET = { eggs: 600, wool: 120, tomatoes: 300, bonus: 0.4, maxStack: 6 };
+
+/**
+ * Silage (game/forage.js): the bunker holds cap litres of chaff; it has to be packed (driven over)
+ * before it is covered, then ferments for fermentH game hours. Chaff per square metre: maize from
+ * the chopper, grass from the forage wagon or the chopper's pickup. What the biogas plant pays per
+ * litre, and bale prices at the barn (grass unwrapped, wrapped silage).
+ */
+export const SILAGE = { cap: 300000, packNeed: 0.9, fermentH: 24, coverMin: 20000, cornPerM2: 30, grassPerM2: 12, chaffPrice: 0.6, silagePrice: 1.8, grassBale: 600, silageBale: 2200, wrapCost: 60, baleFeed: 1200 };
+/** A mown windrow dries into hay by itself in dryH game hours; tedded grass in teddedH. */
+export const HAY_DRY = { dryH: 6, teddedH: 1.5 };

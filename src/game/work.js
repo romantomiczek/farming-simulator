@@ -4,20 +4,23 @@ import { lerp, fmt, plural, col } from '../core/util.js';
 import { G } from './state.js';
 import {
   CROPS, HEADERS, S_STUB, S_CULT, S_SOWN, S_RIPE, B_FERT, B_PLOW, B_FERT2, B_ROLL, B_MULCH, B_STONE, FERT_COST, HERB_COST, LIME_COST, balePrice, hayPrice, S_NONE,
+  SW_FRESH, SW_TEDDED, SW_HAY, SW_TEDDED_DRY, isWindrow,
 } from './crops.js';
+import { SILAGE } from './balance.js';
+import { forageIn, takesChaff, addChaff, forageTarget, deliverForage, forageToast } from './forage.js';
 import { fieldAt, drawCell, updCrop, drawMini } from '../world/fields.js';
 import { BALE_CELLS, HARVESTERS, toolLine, tools, towed, trailerCenter, eyeOf } from '../vehicles/vehicles.js';
 import { baleZone, SILO_LOAD } from '../world/layout.js';
 import { store, sale, siloCrop, takeOut, inSiloLoad, LOAD_RATE, SILO_CAP } from './silo.js';
 import { marketAt, accepts } from './markets.js';
 import { BUILDINGS, space, addFeed, partOf } from './farm.js';
-import { bales, addBale, removeBale } from '../world/bales.js';
+import { bales, addBale, removeBale, wrapBale } from '../world/bales.js';
 import { emit } from '../fx/particles.js';
 import { pourStream } from '../fx/streams.js';
 import { freshSoil } from '../fx/furrows.js';
 import { groundH } from '../world/terrain.js';
 
-const SLURRY_C = col('#5a4a2e'), MANURE_C = col('#4a3a26'), MIST = col('#e6efe8'), CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
+const CHAFF_C = col('#7d9a3c'), SILAGE_C = col('#8f8a3e'), SLURRY_C = col('#5a4a2e'), MANURE_C = col('#4a3a26'), MIST = col('#e6efe8'), CLOD = col('#5a3d2a'), CLOD_LIGHT = col('#7a5638'), STRAW_C = col('#e3c46a'), HAY_C = col('#b8c46a'), LEAF_C = col('#6f9a45');
 import { toast, warn } from '../ui/toast.js';
 import { contractAllows, contractCell } from './contracts.js';
 import { cellYield, sowCell, harvestCell, sowable, sowSeasons, WEED_SPRAYED } from './agro.js';
@@ -25,6 +28,22 @@ import { DUNG } from './balance.js';
 import { season, isWet } from './weather.js';
 
 const inZone = (zone, p) => Math.hypot(p.x - zone.x, p.z - zone.z) < zone.r;
+/** Maize: the chopper cuts it green (from the last growth stage) or ripe. */
+const CORN = CROPS.findIndex(c => c.tile === 'corn');
+/** Implements that do something on a meadow (anything else only gets the meadow warning). */
+const MEADOW_TOOLS = ['mower', 'tedder', 'windrower', 'baler', 'wrapper', 'trailer'];
+
+/** Chaff of amt litres into the chopper's buffer or the forage wagon v tows; false (and why in res) when it does not fit. */
+function takeForage(v, amt, res) {
+  if (v.type === 'chopper') {
+    if (v.tank.amount + amt > v.tank.cap) { res.blocked = 'chopFull'; return false; }
+    v.tank.amount += amt; return true;
+  }
+  const t = v.tool;
+  if (!takesChaff(t)) { res.blocked = 'wagonMix'; return false; }
+  if (forageIn(t) + amt > t.tank.cap) { res.blocked = 'wagonFull'; return false; }
+  addChaff(t, amt); return true;
+}
 /** The buyer at point p if it takes crop, else null. */
 export const sellPoint = (p, crop) => { const m = marketAt(p); return m && accepts(m, crop) ? m : null; };
 export const inBaleZone = p => inZone(baleZone, p);
@@ -43,15 +62,30 @@ function applyCell(v, x, z, k, dirBit, res) {
   if (s === S_NONE) return; // grass outside a shaped field
   let changed = false, setDir = true;
   if (f.meadow) {
-    // meadows: only the mower and the baler do anything here
-    const tool = v.type === 'tractor' ? v.impl : null;
+    // meadows: mow, ted, rake into a windrow, then bale it (hay when dry, grass for silage when
+    // fresh) or pick it up with the forage wagon or the chopper as chaff for the bunker silo
+    const tool = v.type === 'tractor' ? v.impl : v.type === 'chopper' ? 'chopper' : null, sw = f.straw[i];
+    const pickup = tool === 'chopper' || (tool === 'trailer' && v.tool.pickup);
     if (tool === 'mower' && s === S_RIPE) {
       f.state[i] = S_STUB; f.growth[i] = 0; f.stage[i] = 0;
-      f.straw[i] = Math.abs(k) < 0.9 ? 1 : 0; // the swath lies in the middle of the cut
+      f.straw[i] = Math.abs(k) < 0.9 ? SW_FRESH : 0; // the swath lies in the middle of the cut
       changed = true; stat('mown');
-    } else if (tool === 'baler' && f.straw[i]) {
-      f.straw[i] = 0; v.baleAcc++; v.hayAcc = (v.hayAcc || 0) + 1; changed = true; setDir = false;
-    } else if (tool !== 'mower' && tool !== 'baler') { res.meadow = f; return; }
+    } else if (tool === 'tedder' && isWindrow(sw)) { // spread out to dry: hay in a quarter of the time
+      f.straw[i] = sw === SW_FRESH ? SW_TEDDED : SW_TEDDED_DRY; changed = true; setDir = false; stat('tedded');
+    } else if (tool === 'windrower' && sw && !isWindrow(sw)) { // raked back into a windrow the baler can pick up
+      f.straw[i] = sw === SW_TEDDED ? SW_FRESH : SW_HAY; changed = true; stat('windrowed');
+    } else if ((tool === 'baler' || pickup) && sw) {
+      if (!isWindrow(sw)) { res.spread = true; return; }
+      if (pickup) {
+        if (!takeForage(v, SILAGE.grassPerM2, res)) return;
+        stat('chaff', SILAGE.grassPerM2); v.harvestT = 0.35;
+      } else {
+        v.baleAcc++;
+        if (sw === SW_HAY) v.hayAcc = (v.hayAcc || 0) + 1; else v.grassAcc = (v.grassAcc || 0) + 1;
+      }
+      f.straw[i] = 0; f.growth[i] = 0; changed = true; setDir = false;
+    } else if (tool === 'chopper' && s === S_RIPE) { res.chopGrass = true; return; }
+    else if (!MEADOW_TOOLS.includes(tool) && tool !== 'chopper') { res.meadow = f; return; }
     if (changed) {
       if (setDir) f.dir[i] = dirBit;
       drawCell(f, i); updCrop(f, i); drawMini(f, i);
@@ -130,10 +164,28 @@ function applyCell(v, x, z, k, dirBit, res) {
         }
         break;
       }
-      case 'mower':
+      case 'mower': case 'tedder': case 'windrower':
+        res.noGrass = true;
+        break;
+      case 'trailer': // the forage wagon's pickup: grass windrows only (the combine's straw goes to the baler)
         res.noGrass = true;
         break;
     }
+  } else if (v.type === 'chopper') {
+    // maize for silage: cut green from the last growth stage, or ripe; everything goes into the buffer
+    const c = f.crop[i];
+    if (s !== S_RIPE && !(s === S_SOWN && f.stage[i] >= 3)) return;
+    if (c !== CORN) { res.blocked = 'chopCrop'; res.needHeader = CROPS[c].header; return; }
+    if (!job) {
+      const y = SILAGE.cornPerM2 * cellYield(f, i) * f.q * (s === S_RIPE ? 1 : 0.9);
+      if (!takeForage(v, y, res)) return;
+      stat('chaff', y);
+    }
+    if (f.bonus[i] & B_STONE) { v.cond = Math.max(0, v.cond - 0.0004); res.stones = true; }
+    harvestCell(f, i);
+    f.state[i] = S_STUB; f.stage[i] = 0; f.bonus[i] = 0; f.growth[i] = 0; f.straw[i] = 0;
+    v.harvestT = 0.35;
+    changed = true;
   } else if (s === S_RIPE) {
     const c = f.crop[i], cr = CROPS[c], tk = v.tank;
     if (cr.header !== v.header) { res.blocked = 'header'; res.needHeader = cr.header; return; }
@@ -189,6 +241,12 @@ export function work(v, dt) {
   }
   if (res.blocked === 'empty') { v.lowered = false; warn('empty', v.impl === 'slurry' ? 'Cisterna je prázdná. Dojeď pro kejdu k jímce u kravína (F).' : 'Rozmetadlo je prázdné. Dojeď pro hnůj k hnojišti (F).'); }
   if (res.blocked === 'full') warn('full', 'Zásobník je plný. Přelož úrodu do přívěsu nebo jeď k silům.');
+  if (res.blocked === 'chopFull') warn('chopFull', 'Řezačka nemá kam metat. Přívěs musí jet vedle ní vlevo, pod výmetným komínem.');
+  if (res.blocked === 'wagonFull') { v.lowered = false; warn('wagonFull', 'Samosběrací vůz je plný. Řezanku vysyp v silážním žlabu u kravína (F).'); }
+  if (res.blocked === 'wagonMix') { v.lowered = false; warn('wagonMix', 'Ve voze je něco jiného než řezanka. Nejdřív ho vyprázdni.'); }
+  if (res.blocked === 'chopCrop') warn('chopCrop', 'Řezačka seká jen kukuřici na siláž a řádky trávy na loukách. Na tohle pole potřebuješ ' + (res.needHeader === 'beet' ? 'sklízeč cukrovky.' : 'kombajn.'));
+  if (res.spread && !res.changed) warn('spread', 'Tráva je rozhozená obračečem. Nejdřív ji shrň shrnovačem do řádku, pak ji sebereš.');
+  if (res.chopGrass && !res.changed) warn('chopGrass', 'Řezačka sbírá jen posečenou trávu v řádku. Louku nejdřív poseč žací lištou.');
   if (res.blocked === 'mix') warn('mix', 'V zásobníku je jiná plodina. Nejdřív ji prodej.');
   if (res.blocked === 'header') {
     warn('header', res.needHeader === 'beet' ? 'Cukrovku sklidí jen sklízeč cukrovky. Přesedni do něj klávesou Tab.'
@@ -201,20 +259,21 @@ export function work(v, dt) {
   if (res.stones) warn('stones', 'Kameny na poli poškozují lištu. Po orbě pole uválcuj, válec je zatlačí do země.');
   if (res.stub && !res.changed) warn('stub', 'Secí stroj potřebuje zkultivovanou nebo zoranou půdu.', '');
   if (res.meadow && !res.changed) warn('meadow', 'Louka ' + res.meadow.id + ': tady se jen seče žací lištou a lisuje seno. Polní nářadí ani kombajn tu nic neudělají.');
-  if (res.noGrass && !res.changed) warn('noGrass', 'Žací lišta seče jen louky (u řeky a u rybníků).');
+  if (res.noGrass && !res.changed) warn('noGrass', v.impl === 'mower' ? 'Žací lišta seče jen louky (u řeky a u rybníků).' : v.impl === 'trailer' ? 'Sběrač vozu sbírá jen řádky posečené trávy na loukách.' : 'Obraceč a shrnovač pracují jen s posečenou trávou na loukách.');
 
   // baler: drop a bale behind the chamber every BALE_CELLS of straw
   if (v.type === 'tractor' && v.impl === 'baler') {
     while (v.baleAcc >= BALE_CELLS) {
       v.baleAcc -= BALE_CELLS;
       const bz = -4.2, bx = (e ? e.x : v.x + sh * v.hitchZ) + sh * bz, bzz = (e ? e.z : v.z + ch * v.hitchZ) + ch * bz;
-      // a bale is hay when most of what went in came from a meadow
-      const hay = (v.hayAcc || 0) >= BALE_CELLS / 2;
-      v.hayAcc = Math.max(0, (v.hayAcc || 0) - BALE_CELLS);
-      if (addBale(bx, bzz, h, hay)) {
-        stat(hay ? 'hay' : 'bales'); warn('bale', hay ? 'Lis vyhodil balík sena.' : 'Lis vyhodil balík slámy.', '');
+      // a bale is hay or grass (for wrapping) when most of what went in came from a meadow
+      const hay = (v.hayAcc || 0) >= BALE_CELLS / 2, grass = !hay && (v.grassAcc || 0) >= BALE_CELLS / 2;
+      v.hayAcc = Math.max(0, (v.hayAcc || 0) - BALE_CELLS); v.grassAcc = Math.max(0, (v.grassAcc || 0) - BALE_CELLS);
+      if (addBale(bx, bzz, h, hay ? 'hay' : grass ? 'grass' : 'straw')) {
+        stat(hay ? 'hay' : grass ? 'grassBales' : 'bales');
+        warn('bale', hay ? 'Lis vyhodil balík sena.' : grass ? 'Lis vyhodil balík travní senáže. Ovíječem ho zabal do fólie, jinak má malou cenu.' : 'Lis vyhodil balík slámy.', '');
         // a puff of loose straw as the bale drops out
-        for (let i = 0; i < 14; i++) emit(bx + (Math.random() - 0.5) * 1.4, 0.9 + (v.y || 0), bzz + (Math.random() - 0.5) * 1.4, hay ? HAY_C : STRAW_C, 0.3 + Math.random() * 0.25,
+        for (let i = 0; i < 14; i++) emit(bx + (Math.random() - 0.5) * 1.4, 0.9 + (v.y || 0), bzz + (Math.random() - 0.5) * 1.4, hay ? HAY_C : grass ? CHAFF_C : STRAW_C, 0.3 + Math.random() * 0.25,
           (Math.random() - 0.5) * 2, 0.8 + Math.random(), (Math.random() - 0.5) * 2, 1.1, 4);
       }
     }
@@ -224,13 +283,21 @@ export function work(v, dt) {
     const k = (Math.random() - 0.5) * W;
     emit(cx + rx * k, 0.7 + (v.y || 0), cz + rz * k, MIST, 0.22, (Math.random() - 0.5) * 0.3, -0.4, (Math.random() - 0.5) * 0.3, 0.6, 1);
   }
-  if (res.onField && v.tool && v.impl !== 'sprayer' && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
+  if (res.onField && (v.impl === 'tedder' || v.impl === 'windrower') && Math.random() < dt * 50) { // the rotors toss the grass about
+    const k = (Math.random() - 0.5) * W;
+    emit(cx + rx * k, 0.5 + (v.y || 0), cz + rz * k, Math.random() < 0.5 ? HAY_C : CHAFF_C, 0.22, (Math.random() - 0.5) * 2.4, 1.1 + Math.random() * 1.2, (Math.random() - 0.5) * 2.4, 0.9, 5);
+  }
+  if (res.onField && v.tool && !['sprayer', 'tedder', 'windrower', 'trailer'].includes(v.impl) && Math.random() < dt * (v.impl === 'spreader' ? 70 : 45)) {
     const k = (Math.random() - 0.5) * W, im = v.tool;
     const up = v.impl === 'spreader' ? 0.4 : 0.6 + Math.random() * 0.6;
     emit(cx + rx * k, (v.impl === 'spreader' ? 0.6 : 0.3) + (v.y || 0), cz + rz * k, im.dust, v.impl === 'spreader' ? 0.25 : 0.9 + Math.random() * 0.6,
       (Math.random() - 0.5) * 0.6 - sh * 0.6, up, (Math.random() - 0.5) * 0.6 - ch * 0.6, v.impl === 'spreader' ? 0.7 : 1.4 + Math.random() * 0.6, v.impl === 'spreader' ? 2 : 0);
   }
-  if (v.harvester && v.harvestT > 0) {
+  if (v.type === 'chopper' && v.harvestT > 0 && Math.random() < dt * 40) { // chopped leaves under the header
+    const k = (Math.random() - 0.5) * W;
+    emit(cx + rx * k, 0.8 + (v.y || 0), cz + rz * k, LEAF_C, 0.2, (Math.random() - 0.5), 0.8 + Math.random(), (Math.random() - 0.5), 0.7, 5);
+  }
+  if (v.harvester && v.type !== 'chopper' && v.harvestT > 0) {
     const p = v.bodyPart, back = p.cz - p.hz, bx = v.x + sh * back, bz = v.z + ch * back, y = v.y || 0;
     if (v.type === 'combine' && Math.random() < dt * 75) {
       // the chopper spreads straw and chaff in a fan behind the combine
@@ -303,8 +370,8 @@ export function trailerInReach(h, t) {
 /** The hitched trailer under harvester h's pipe, or null. */
 export const trailerUnder = h => tools.find(t => t.key === 'trailer' && trailerInReach(h, t)) || null;
 
-/** Same crop (or empty), and no bales on board. */
-const trailerAccepts = (t, crop) => t.bales === 0 && !t.pallets.length && (t.tank.amount <= 0 || t.tank.crop === crop);
+/** Same crop (or empty), and no bales, pallets or forage on board. */
+const trailerAccepts = (t, crop) => t.bales === 0 && !t.pallets.length && !forageIn(t) && (t.tank.amount <= 0 || t.tank.crop === crop);
 
 /** Hands amt litres of crop to buyer or feed trough m (or to the silos: who.store); returns how much was taken. */
 function deliver(m, crop, amt, who) {
@@ -357,7 +424,25 @@ function pour(owner, x, y, z, y1, crop, dt, spread = 0.4, width = 0.18) {
 }
 
 /** One harvester's unloading: sells at the intake or fills the trailer under its pipe, else waits. */
+/**
+ * The chopper blows its chaff into whatever trailer runs beside it under the spout, all the time
+ * (it has only a small buffer): a team job, someone has to drive the trailer.
+ */
+function chopperUnload(h, dt) {
+  const t = h.tank.amount > 0 ? trailerUnder(h) : null;
+  h.waiting = h.tank.amount > h.tank.cap * 0.5 && !t ? 'reach' : null;
+  if (!t || h.pipe.rotation.y > -1.3) return;
+  if (!takesChaff(t)) { h.waiting = 'mix'; warn('mixT', 'V přívěsu je něco jiného než řezanka. Na siláž potřebuješ prázdný přívěs.'); return; }
+  const amt = addChaff(t, Math.min(h.tank.amount, (h.pipeRate || PIPE_RATE) * dt));
+  if (amt <= 0) { h.waiting = 'full'; warn('fullT', 'Přívěs je plný řezanky. Odvez ho k silážnímu žlabu u kravína.'); return; }
+  h.tank.amount -= amt;
+  _v.copy(h.pipeTip); h.pipe.localToWorld(_v);
+  pourStream(h, _v.x, _v.y, _v.z, groundH(_v.x, _v.z) + 1.4, CHAFF_C, 0.22);
+  if (Math.random() < dt * 30) emit(_v.x, _v.y - 0.3, _v.z, CHAFF_C, 0.25, (Math.random() - 0.5) * 1.5, 0.3, (Math.random() - 0.5) * 1.5, 0.6, 4);
+}
+
 function unloadHarvester(h, dt, onDone) {
+  if (h.type === 'chopper') { chopperUnload(h, dt); return; }
   if (!h.unloading) return;
   const m = sellPoint(h, h.tank.crop), t = m ? null : trailerUnder(h);
   if (h.tank.amount <= 0) stopUnload(h, onDone);
@@ -392,6 +477,31 @@ function unloadHarvester(h, dt, onDone) {
 export function updateLogistics(dt, onDone) {
   for (const h of HARVESTERS) unloadHarvester(h, dt, onDone);
   for (const t of tools) if (t.key === 'trailer') trailerLogistics(t, dt, onDone);
+  for (const t of tools) if (t.key === 'wrapper') wrapperTick(t, dt);
+}
+
+/**
+ * Bale wrapper (lowered, behind a tractor): a grass bale lying within reach of its turntable is
+ * wrapped in film, WRAP_S seconds a bale, and turns into a silage bale worth a lot more.
+ */
+const WRAP_S = 1.6;
+function wrapperTick(t, dt) {
+  const v = t.on;
+  if (!v?.lowered) { t.wrapping = null; return; }
+  if (t.wrapping && !bales.includes(t.wrapping)) t.wrapping = null;
+  const c = trailerCenter(t);
+  if (!t.wrapping) {
+    t.wrapping = bales.find(b => b.kind === 'grass' && Math.hypot(b.x - c.x, b.z - c.z) < 2.6) || null;
+    t.wrapT = 0;
+    if (!t.wrapping) return;
+  }
+  if (G.money < SILAGE.wrapCost) { v.lowered = false; warn('money', 'Došly peníze na fólii. Prodej něco.'); return; }
+  t.wrapT += dt;
+  if (t.discs) t.discs.forEach(d => (d.rotation.y += dt * 6));
+  if (t.wrapT < WRAP_S) return;
+  G.money -= SILAGE.wrapCost; wrapBale(t.wrapping); stat('wrapped');
+  warn('wrap', 'Balík zabalen do fólie (' + SILAGE.wrapCost + ' Kč). Senáž prodáš u stodoly, nebo jí nakrmíš krávy.', '');
+  t.wrapping = null;
 }
 
 /** Starts filling trailer t from the silo outlet with the chosen crop. */
@@ -413,7 +523,18 @@ function trailerLogistics(t, dt, onDone) {
       pour(_spout, c.x, 4.6, c.z, groundH(c.x, c.z) + 1.4, crop, dt, 0.5, 0.35);
     }
   }
-  if (t.tipping) {
+  if (t.tipping && forageIn(t)) { // chaff into the bunker, silage to the cows, either to the biogas plant
+    const kind = t.forage.kind, target = t.on && forageTarget(trailerCenter(t), kind);
+    if (!target) stopTipping(t, onDone);
+    else if (t.tip.rotation.x < -0.5) {
+      const amt = deliverForage(target, kind, Math.min(forageIn(t), TIP_RATE * dt), t);
+      if (amt <= 0) { if (target === 'cows') warn('feedFull', 'Krmelec u kravína je plný.'); stopTipping(t, onDone); return; }
+      t.forage.l -= amt;
+      if (t.forage.l < 1) t.forage = null;
+      _v.set(0, 0.2, 0); t.tip.localToWorld(_v);
+      pourStream(t, _v.x, _v.y, _v.z, groundH(_v.x, _v.z) + 0.1, kind === 'silage' ? SILAGE_C : CHAFF_C, 0.7);
+    }
+  } else if (t.tipping) {
     const m = t.on && sellPoint(trailerCenter(t), t.tank.crop);
     if (!m || t.tank.amount <= 0) stopTipping(t, onDone);
     else if (t.tip.rotation.x < -0.5) { // body is up
@@ -431,9 +552,15 @@ function trailerLogistics(t, dt, onDone) {
     for (let i = bales.length - 1; i >= 0; i--) {
       const b = bales[i];
       if (Math.hypot(b.x - tc.x, b.z - tc.z) > 3.4) continue;
-      if (t.tank.amount > 0 || t.pallets.length) { warn('baleGrain', t.pallets.length ? 'V přívěsu jsou palety. Balíky naložíš až do prázdného přívěsu.' : 'V přívěsu je zrno. Balíky naložíš až do prázdného přívěsu.'); break; }
+      if (t.tank.amount > 0 || t.pallets.length || forageIn(t) || t.pickup) {
+        warn('baleGrain', t.pickup ? 'Samosběrací vůz balíky nebere. Na ně potřebuješ obyčejný přívěs.' : t.pallets.length ? 'V přívěsu jsou palety. Balíky naložíš až do prázdného přívěsu.' : forageIn(t) ? 'V přívěsu je řezanka. Balíky naložíš až do prázdného přívěsu.' : 'V přívěsu je zrno. Balíky naložíš až do prázdného přívěsu.');
+        break;
+      }
       if (t.bales >= t.baleCap) { warn('baleFull', 'Přívěs je plný balíků. Odvez je ke stodole.'); break; }
-      removeBale(i); t.bales++; if (b.hay) t.hay = (t.hay || 0) + 1;
+      removeBale(i); t.bales++;
+      if (b.kind === 'hay') t.hay = (t.hay || 0) + 1;
+      else if (b.kind === 'grass') t.grass = (t.grass || 0) + 1;
+      else if (b.kind === 'silage') t.silage = (t.silage || 0) + 1;
       warn('baleLoad', 'V přívěsu: ' + plural(t.bales, 'balík', 'balíky', 'balíků') + ' z ' + t.baleCap + '.', '');
     }
   }
@@ -445,24 +572,27 @@ export function startTipping(t, store = false) {
 }
 export function stopTipping(t, onDone) {
   sellToast(t, onDone);
+  if (forageToast(t)) onDone?.();
   t.tipping = false;
   if (t.tank.amount <= 0) t.tank.crop = -1;
 }
 
-/** What the bales in trailer t fetch at the barn now: straw and hay are priced apart. */
+/** What the bales in trailer t fetch at the barn now: straw and hay swing with the market, grass and silage bales have fixed prices. */
 export function baleValue(t) {
-  const hay = t.hay || 0, straw = t.bales - hay;
-  return { straw, hay, money: Math.round(straw * balePrice(G.gameMin) + hay * hayPrice(G.gameMin)) };
+  const hay = t.hay || 0, grass = t.grass || 0, silage = t.silage || 0, straw = t.bales - hay - grass - silage;
+  return { straw, hay, grass, silage, money: Math.round(straw * balePrice(G.gameMin) + hay * hayPrice(G.gameMin) + grass * SILAGE.grassBale + silage * SILAGE.silageBale) };
 }
 /** Sells all bales from trailer t at the barn. */
 export function sellBales(t, onDone) {
-  const { straw, hay, money } = baleValue(t);
-  if (!straw && !hay) return;
+  const { straw, hay, grass, silage, money } = baleValue(t);
+  if (!t.bales) return;
   G.money += money; earn(money); G.flashT = 0.4;
-  t.bales = 0; t.hay = 0;
-  const parts = [];
-  if (straw) parts.push(plural(straw, 'balík', 'balíky', 'balíků') + ' slámy');
-  if (hay) parts.push(plural(hay, 'balík', 'balíky', 'balíků') + ' sena');
+  t.bales = 0; t.hay = 0; t.grass = 0; t.silage = 0;
+  const parts = [], n = k => plural(k, 'balík', 'balíky', 'balíků');
+  if (straw) parts.push(n(straw) + ' slámy');
+  if (hay) parts.push(n(hay) + ' sena');
+  if (grass) parts.push(n(grass) + ' nezabalené trávy');
+  if (silage) parts.push(n(silage) + ' senáže');
   toast('Prodáno ' + parts.join(' a ') + ' za ' + fmt(money) + ' Kč', 'good');
   onDone?.();
 }

@@ -48,13 +48,14 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 
 Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disky, náboji a maticemi, kabiny s rámy, dveřmi, stěrači, sedadlem a palubní deskou, světla a majáky, hydrauliku s hadicemi a spojkami, schůdky s plechem, SPZ, výstražné pruhy a nápisy.
 
-**Modely a značky:** obchod nabízí 60 modelů od nejlevnějších po nejlepší (katalog v `src/game/catalog.js`). Liší se barvami a velikostí podle značky i parametry. Značky jsou jen jako názvy, stroje nenesou loga.
+**Modely a značky:** obchod nabízí 80 modelů od nejlevnějších po nejlepší (katalog v `src/game/catalog.js`). Liší se barvami a velikostí podle značky i parametry. Značky jsou jen jako názvy, stroje nenesou loga.
 
 | Druh              | Modely                                                                                                                                                                                                 |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Traktory          | Zetor Major 80, Brázda 140 (start), Zetor Forterra 150 HD, Massey Ferguson 6S.165, Case IH Puma 185, New Holland T7.210, John Deere 6R 250, Claas Axion 870, Fendt 942 Vario (80–420 koní, 40–60 km/h) |
 | Kombajny          | Sampo Rosenlew SR2045, Klas 7 (start), Claas Tucano 450, Deutz-Fahr C6205, Case IH Axial-Flow 7250, John Deere S790, Claas Lexion 8900 (lišta 3,9–12,3 m, zásobník 4 500–18 000 l)                     |
 | Sklízeče cukrovky | Bulva 6, Grimme Rexor 620, Holmer Terra Dos T4-40, Ropa Tiger 6S (6–9 řádků, 20–35 tisíc l)                                                                                                            |
+| Řezačky           | Siláž 700, Claas Jaguar 960, Krone BiG X 1180 (adaptér 4,5–7,5 m, metá řezanku do přívěsu vedle sebe)                                                                                                     |
 | Harvestory        | Les 6, Les 8, Komatsu 931XC, John Deere 1270G, Ponsse Scorpion King (16–32 m³, rychlost kácení)                                                                                                        |
 | Auta              | Jeep Lesák 4×4, Dacia Duster 4×4, Toyota Hilux (80–100 km/h, mimo cesty pomalejší podle modelu)                                                                                                        |
 | Kultivátory       | Bednar Fenix 3 m, Kultivátor 4,2 m, Lemken Karat 5, Horsch Terrano 6 FX a 10 FX                                                                                                                        |
@@ -63,7 +64,10 @@ Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disk
 | Rozmetadla        | 12 m, Amazone ZA-TS 24 m, Rauch Axis 30 m                                                                                                                                                              |
 | Žací lišty        | 3 m, Pöttinger Novacat 352, Krone EasyCut B 870 (motýlková 8,7 m)                                                                                                                                      |
 | Lisy              | Lis na balíky, John Deere V461R, Krone Comprima V150 (rychlejší)                                                                                                                                       |
-| Přívěsy           | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků)                                                                                      |
+| Obraceče          | Obraceč 7,6 m, Krone Vendro 1120                                                                                                                                                                       |
+| Shrnovače         | Shrnovač 6,8 m, Claas Liner 2900 (9 m)                                                                                                                                                                 |
+| Ovíječ balíků     | Ovíječ balíků (tažený)                                                                                                                                                                                 |
+| Přívěsy           | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků), samosběrací vůz Pöttinger Jumbo 6010                                               |
 | Cisterny          | 5 000 l, 8 000 l, Joskin Modulo2 11000, Zunhammer SKE 18.5                                                                                                                                             |
 
 **Výkon traktoru:** každé nářadí potřebuje určitý výkon („potřebuje … koní“). Slabší traktor ho utáhne, ale pracuje pomaleji, úměrně poměru výkonu (nejméně na 35 %): Brázda 140 s Horschem 10 m (350 koní) pracuje na 40 %, Fendt 942 naplno. S plným přívěsem nebo cisternou jede slabý traktor pomaleji (prázdný stojí 40 % potřebného výkonu, plný všechno, nejhůř 45 % rychlosti). Přetížený traktor spotřebuje víc nafty, silný traktor s lehkým nářadím méně. HUD ukazuje „140 / 350 k · práce 40 %“, kůlna u každého nářadí, jak rychle s ním traktor pojede, obchod u traktoru, které tvoje nářadí utáhne pomaleji, a u nářadí, jak pojede s tvým nejsilnějším traktorem. Pomocníci pracují stejnou rychlostí.
@@ -379,11 +383,23 @@ Auta (obchod: Jeep Lesák 4×4 290 000 Kč, Dacia Duster 4×4 420 000 Kč, Toyot
 
 ## Louky a seno
 
-Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pole, ale nic se na nich nesije.
+Tři louky (24–26) leží u řeky a u rybníků. Koupíš je levněji než pole, ale nic se na nich nesije. Seno se dělá jako ve FS: **sečení → obracení → shrnutí → lisování** (`src/game/work.js`, sušení v `src/world/fields.js`).
 
-- **Sečení:** žací lišta (obchod, v kůlně klávesa 8) poseče vysokou trávu a nechá uprostřed záběru řádek sena. Posečená tráva sama doroste zhruba za 10 herních hodin, pod ležícím řádkem neroste.
-- **Lisování:** lis udělá z řádku kulaté balíky sena (zelenější než sláma). Naložíš je přívěsem a u stodoly prodáš dráž než slámu, nebo je vyložíš do krmelce kravína či ovčína. Ceník ukazuje cenu balíku sena zvlášť.
-- **Pomocník** umí louku posekat i slisovat. Polní nářadí a kombajn na louce nic nedělají a na loukách nejsou zakázky.
+- **Sečení:** žací lišta poseče vysokou trávu a nechá uprostřed záběru řádek čerstvé trávy (tmavě zelený). Posečená tráva sama doroste zhruba za 10 herních hodin, pod ležícím řádkem neroste.
+- **Sušení:** řádek čerstvé trávy uschne na seno (žlutozelený) za 6 herních hodin. **Obraceč** trávu rozhodí, takže uschne za 1,5 h. Rozhozenou trávu lis nesebere: **shrnovač** ji shrne zpátky do řádku.
+- **Lisování:** lis udělá ze suchého řádku kulaté balíky sena, z čerstvého balíky travní senáže (zelené, u stodoly jen za 600 Kč). Ty zabalí **ovíječ balíků**: připojíš ho za traktor, spustíš mezerníkem a projedeš kolem balíků, každý zabalí za 60 Kč do tmavé fólie. Zabalená senáž stojí u stodoly 2 200 Kč a krávy ji žerou stejně jako seno.
+- **Balíky** naložíš přívěsem a u stodoly prodáš (ceník ukazuje cenu sena a senáže zvlášť), nebo je vyložíš do krmelce kravína (seno i senáž) či ovčína (seno).
+- **Pomocník** umí louku posekat, obrátit, shrnout i slisovat. Polní nářadí a kombajn na louce nic nedělají a na loukách nejsou zakázky.
+
+## Siláž
+
+Týmová práce jako ve FS (`src/game/forage.js`). **Řezačka** (samojízdná, v obchodě mezi sklízeči) seká kukuřici na siláž (už od posledního stupně růstu, nebo zralou) a sbírá řádky čerstvé trávy z luk. Má jen malý zásobník: řezanku metá výmetným komínem vlevo do přívěsu, který jede vedle ní. Přívěs řídíš sám (Tab přepíná stroje), řezačku pomocník neřídí. Místo řezačky můžeš řádky trávy sbírat **samosběracím vozem** Pöttinger Jumbo: spustíš mu sběrač mezerníkem.
+
+- **Silážní žlab** stojí severně od kravína, zelený kruh je u jeho otevřeného konce. Přívěs s řezankou v něm vysypeš klávesou F.
+- **Dusání:** řezanku udusáš tak, že po ní jezdíš traktorem (těžší a rychlejší stroj dusá víc, velkou hromadu déle). Stav ukazuje výzva u žlabu a Kancelář → Farma.
+- **Zakrytí:** od 20 000 l a udusání aspoň 90 % žlab zakryješ plachtou (F v kruhu, i pěšky). Za 24 herních hodin je z řezanky siláž.
+- **Siláž** naložíš prázdným přívěsem v kruhu žlabu (F). V zeleném kruhu u kravína ji vysypeš do krmelce, v krmné směsi se počítá jako seno. Bioplynka u cukrovaru koupí siláž za 1,80 Kč/l a čerstvou řezanku za 0,60 Kč/l.
+- Cíl **Siláž** chce 40 000 l řezanky.
 
 ## Zvuk
 
@@ -395,7 +411,7 @@ Zvuk se zapne po kliknutí na Hrát a vypíná se tlačítkem Zvuk nahoře. V me
   | --- | --- | --- |
   | starý traktor | Zetor Major 80 | Ursus C-342 a C-328 |
   | traktor | ostatní traktory; Claas Axion a Fendt 942 s plynulou převodovkou (otáčky drží, tiše hučí hydrostat) | John Deere 5820, nahoře Mercedes OM 67/4 |
-  | velký stroj | kombajny, sklízeče cukrovky, harvestory (s pilou při kácení) | volnoběh autobusu MAN, práce harvestoru Komatsu 941 |
+  | velký stroj | kombajny, sklízeče cukrovky, řezačky, harvestory (s pilou při kácení) | volnoběh autobusu MAN, práce harvestoru Komatsu 941 |
   | dieselové auto | Dacia Duster, Toyota Hilux, auta v dopravě | dodávka Tarpan 239 D, Mercedes OM 67/4 |
   | benzínové auto | Lesák, auta v dopravě | Volvo 850 T5 |
 
@@ -417,4 +433,4 @@ Zbývající kroky vozového parku, odložené na později:
 
 ## Známá omezení a nápady
 
-- Nápady na další obsah: siláž a senáž, chov zvířat s rozmnožováním, pomocník, který sám krmí a vozí mléko.
+- Nápady na další obsah: pomocník, který sám krmí, vozí mléko nebo jezdí s přívěsem vedle řezačky.

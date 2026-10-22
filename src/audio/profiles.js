@@ -17,7 +17,7 @@ export const SET_RPM = {
   diesel: { idle: 720, work: 1600, max: 2400 },
   petrol: { idle: 854, work: 1500, max: 2050 },
 };
-const KIND_SET = { tractor: 'tractor', combine: 'big', beet: 'big', forest: 'big', jeep: 'diesel' };
+const KIND_SET = { tractor: 'tractor', combine: 'big', beet: 'big', chopper: 'big', forest: 'big', jeep: 'diesel' };
 const SPECIAL = {
   'zetor-major-80': { set: 'old', turbo: 0 },
   'claas-axion-870': { cvt: true },

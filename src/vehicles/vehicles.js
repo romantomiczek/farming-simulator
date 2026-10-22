@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
-import { nearShapes, BOUNDS, movers, PARK, PAD, roadAt, inRect } from '../world/layout.js';
+import { nearShapes, BOUNDS, movers, PARK, PAD, roadAt, inRect, CHOPPER_HOME } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { flatPlane, glassMat, lampMat, beaconMat, dirtMaterials } from '../render/materials.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher, buildLivestock, buildManureSpreader, buildSlurryTank, PALLET_MAT } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher, buildLivestock, buildManureSpreader, buildSlurryTank, PALLET_MAT, buildTedder, buildWindrower, buildWrapper, buildChopper } from './models.js';
 import { CROPS } from '../game/crops.js';
 import { MODEL, START_MODEL, modelName } from '../game/catalog.js';
 import { forestColliders } from '../world/forest.js';
@@ -43,16 +43,20 @@ const TOOL_SPEC = {
   livestock: { build: buildLivestock, name: 'Přívěs na zvířata', width: 0, workZ: 0, speed: 4.2, park: [-2, -72], trailed: true },
   manure: { build: buildManureSpreader, name: 'Rozmetadlo hnoje', width: 10, workZ: -6.5, speed: 4.0, park: [-2, -83], dust: col('#5a4630'), trailed: true },
   slurry: { build: buildSlurryTank, name: 'Cisterna na kejdu', width: 12, workZ: -5.6, speed: 4.4, park: [-2, -94], dust: col('#6a5a3a'), trailed: true },
+  // hay and silage (game/forage.js): beside the animal trailers
+  tedder: { build: buildTedder, name: 'Obraceč', width: 7.6, workZ: -1.3, speed: 4.6, park: [-10, -72], dust: col('#9cbf6a') },
+  windrower: { build: buildWindrower, name: 'Shrnovač', width: 6.8, workZ: -1.7, speed: 4.4, park: [-10, -83], dust: col('#9cbf6a') },
+  wrapper: { build: buildWrapper, name: 'Ovíječ balíků', width: 0, workZ: 0, speed: 3.6, park: [-10, -94], trailed: true },
 };
-export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher', 'manure', 'slurry', 'livestock'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher', 'manure', 'slurry', 'livestock', 'tedder', 'windrower', 'wrapper'];
 /** Static facts about an implement kind (name, width) for the UI, also when none is owned. */
 export const toolInfo = key => TOOL_SPEC[key];
 export const isToolKey = key => key in TOOL_SPEC;
-export const VEHICLE_TYPES = ['tractor', 'combine', 'beet', 'forest', 'jeep'];
+export const VEHICLE_TYPES = ['tractor', 'combine', 'beet', 'forest', 'jeep', 'chopper'];
 
 export const vehicles = [];
 export const tools = [];
-/** Live subset of vehicles: the combines and beet harvesters. */
+/** Live subset of vehicles: the combines, beet harvesters and forage harvesters. */
 export const HARVESTERS = [];
 
 const HITCH_Z = -1.75;
@@ -127,7 +131,7 @@ function trailedShape(im) {
 function makeTool(key, mid) {
   const s = TOOL_SPEC[key], m = modelFor(key, mid);
   const im = Object.assign(s.build(m.look), {
-    key, model: m.id, name: modelName(m), width: m.width ?? s.width, workZ: s.workZ, speed: m.speed ?? s.speed, need: m.hp || 0, dust: s.dust, own: 'own', cond: 1, on: null,
+    key, model: m.id, name: modelName(m), width: m.width ?? s.width, workZ: m.workZ ?? s.workZ, speed: m.speed ?? s.speed, need: m.hp || 0, dust: s.dust, own: 'own', cond: 1, on: null,
   });
   if (key === 'trailer') {
     // drawbar = axle to eye; two or three collision circles along the body
@@ -137,7 +141,7 @@ function makeTool(key, mid) {
     Object.assign(im, { originZ: 0, sitLen: L * 0.57, sitWid: 2.3, sitOff: im.centerZ });
   } else if (s.trailed) trailedShape(im);
   if (key === 'watertank') Object.assign(im, { water: 0, waterCap: m.cap, milk: false });
-  if (key === 'trailer') im.pallets = []; // pallets of eggs, wool, tomatoes (game/animals.js)
+  if (key === 'trailer') Object.assign(im, { pallets: [], forage: null, grass: 0, silage: 0, pickup: !!m.look.pickup }); // pallets (game/animals.js), chaff or silage (game/forage.js)
   if (key === 'livestock') Object.assign(im, { animals: { kind: null, n: 0, health: 1 }, buyKind: 'cows', animalCap: m.cap || 1 });
   if (key === 'manure' || key === 'slurry') Object.assign(im, { load: 0, loadCap: m.cap });
   if (s.trailed) Object.assign(im, { trailed: true, x: 0, z: 0, h: 0 });
@@ -246,7 +250,7 @@ export function dropTool(v) {
 }
 
 /** Words for messages: "jede s traktorem". */
-const NOUN = { tractor: 'traktorem', combine: 'kombajnem', beet: 'sklízečem', forest: 'harvestorem', jeep: 'autem' };
+const NOUN = { tractor: 'traktorem', combine: 'kombajnem', beet: 'sklízečem', forest: 'harvestorem', jeep: 'autem', chopper: 'řezačkou' };
 
 function makeVehicle(type, mid) {
   const m = modelFor(type, mid), look = m.look;
@@ -274,6 +278,15 @@ function makeVehicle(type, mid) {
     }, buildBeetHarvester(look));
     const s = v.scale;
     Object.assign(v, { r: 3.2 * s, wb: 4.6 * s, toolW: m.rows * 0.75, toolZ: 4.6 * s, fuelCap: m.fuel, vwork: 2.5 * (m.work || 1) });
+    v.tank.cap = m.tank;
+  } else if (type === 'chopper') {
+    // the forage harvester: a small buffer only, it blows the chaff into a trailer beside it (work.js)
+    Object.assign(v, {
+      gen: 'řezačky', harvester: true, r: 3.0, wb: 4.1, vmax: 8.3, vwork: 3.2, acc: 1.9, brk: 5, vrev: 2.5,
+      toolW: 4.5, toolZ: 3.9, header: 'chop', mapCol: '#9ab83a', home: CHOPPER_HOME, fuelCap: 700, fuelDrive: 0.09, fuelWork: 0.2,
+    }, buildChopper(look));
+    const s = v.scale;
+    Object.assign(v, { r: 3.0 * s, wb: 4.1 * s, toolW: m.header, toolZ: 3.9 * s, fuelCap: m.fuel, pipeRate: m.unload, vwork: 3.2 * (m.work || 1) });
     v.tank.cap = m.tank;
   } else if (type === 'forest') {
     Object.assign(v, {
@@ -432,7 +445,7 @@ export const MIN_POWER = 0.35;
 export const powerShare = (v, im) => (!im || !v.hp || !im.need ? 1 : clamp(v.hp / im.need, MIN_POWER, 1));
 /** How full the load of implement t is (0..1), or -1 when it carries nothing. */
 export function loadOf(t) {
-  if (t?.key === 'trailer') return Math.max(t.tank.amount / t.tank.cap, t.bales / t.baleCap);
+  if (t?.key === 'trailer') return Math.max((t.tank.amount + (t.forage?.l || 0)) / t.tank.cap, t.bales / t.baleCap);
   if (t?.key === 'watertank') return t.water / t.waterCap;
   return -1;
 }
@@ -523,12 +536,15 @@ function updateTrailer(t, dt) {
   if (t.key !== 'trailer') return;
   t.palletMeshes.forEach((m, i) => { m.visible = i < t.pallets.length; if (m.visible) m.material = PALLET_MAT[t.pallets[i]]; });
   t.tip.rotation.x += ((t.tipping ? -0.6 : 0) - t.tip.rotation.x) * Math.min(1, dt * 1.5);
-  const fill = t.tank.amount / t.tank.cap;
+  const fl = t.forage?.l || 0, fill = (t.tank.amount + fl) / t.tank.cap;
   t.grain.visible = fill > 0;
   t.grain.scale.y = Math.max(0.02, fill * t.grainH);
-  if (t.tank.crop >= 0) t.grainMat.color.copy(CROPS[t.tank.crop].heapCol);
+  if (fl > 0) t.grainMat.color.copy(t.forage.kind === 'silage' ? SILAGE_HEAP : CHAFF_HEAP);
+  else if (t.tank.crop >= 0) t.grainMat.color.copy(CROPS[t.tank.crop].heapCol);
   t.baleMeshes.forEach((m, i) => (m.visible = i < t.bales));
 }
+
+const CHAFF_HEAP = col('#7d9a3c'), SILAGE_HEAP = col('#8f8a3e');
 
 /* ---------- level of detail ---------- */
 /**
@@ -538,7 +554,7 @@ function updateTrailer(t, dt) {
  * The machine you drive and its implement always keep the detailed model. Loads (grain, bales, logs)
  * keep showing at any distance.
  */
-const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep, suv: buildSUV, pickup: buildPickup };
+const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep, suv: buildSUV, pickup: buildPickup, chopper: buildChopper };
 /** The builder of model m: its own (look.builder, e.g. the SUV among the cars) or the kind's. */
 const buildOf = m => VEHICLE_BUILD[m.look.builder] || TOOL_SPEC[m.kind]?.build || VEHICLE_BUILD[m.kind];
 /** A fresh detailed model of model id, outside the game (shop pictures): what the builder returns. */
@@ -700,6 +716,7 @@ const PHYS = {
   tractor: { grip: 0.7, lock: 0.55, rate: 1.1, back: 1.6, tau: 0.15, roll: 0.03, pitch: 0.02 },
   combine: { grip: 0.5, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
   beet: { grip: 0.5, lock: 0.6, rate: 0.8, back: 1.2, tau: 0.25, roll: 0.02, pitch: 0.015 },
+  chopper: { grip: 0.52, lock: 0.62, rate: 0.85, back: 1.25, tau: 0.22, roll: 0.02, pitch: 0.015 },
   forest: { grip: 0.58, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
   jeep: { grip: 1.4, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
 };
@@ -816,11 +833,15 @@ export function visual(v, dt, tankCropColor) {
     v.logMeshes.forEach((m, i) => (m.visible = i < n));
   } else {
     v.headerLift.position.y += ((v.lowered ? 0 : 0.6) - v.headerLift.position.y) * k;
-    if (v.lowered && v.header !== 'corn') v.reel.rotation.x += dt * (v.header === 'beet' ? 6 : 2.6);
-    v.pipe.rotation.y += ((v.unloading ? -Math.PI / 2 : 0) - v.pipe.rotation.y) * Math.min(1, dt * 2.5);
-    v.grain.visible = v.tank.amount > 0;
-    v.grain.scale.y = Math.max(0.02, (v.tank.amount / v.tank.cap) * 0.7);
-    if (tankCropColor) v.grainMat.color.copy(tankCropColor);
+    if (v.lowered && v.header !== 'corn') v.reel.rotation.x += dt * (v.header === 'beet' || v.header === 'chop' ? 6 : 2.6);
+    // the chopper's spout is out whenever it works or still has chaff in it
+    const out = v.type === 'chopper' ? v.lowered || v.tank.amount > 0 : v.unloading;
+    v.pipe.rotation.y += ((out ? -Math.PI / 2 : 0) - v.pipe.rotation.y) * Math.min(1, dt * 2.5);
+    if (v.grain) {
+      v.grain.visible = v.tank.amount > 0;
+      v.grain.scale.y = Math.max(0.02, (v.tank.amount / v.tank.cap) * 0.7);
+      if (tankCropColor) v.grainMat.color.copy(tankCropColor);
+    }
   }
   v.puffT -= dt;
   if (((v === G.active && !G.onFoot) || v.helper) && v.puffT <= 0 && (v.thr > 0 || v.lowered)) {

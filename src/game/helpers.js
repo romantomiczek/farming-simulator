@@ -1,6 +1,6 @@
 import { angDiff, fmt } from '../core/util.js';
 import { G, condFactor } from './state.js';
-import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_FERT2, B_ROLL, B_MULCH, FERT_COST, HERB_COST, LIME_COST } from './crops.js';
+import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_FERT2, B_ROLL, B_MULCH, FERT_COST, HERB_COST, LIME_COST, isWindrow } from './crops.js';
 import { sowable, WEED_SPRAYED } from './agro.js';
 import { fieldAt, FIELDS } from '../world/fields.js';
 import { vehicles, tools, toolLine, blockedAt, attachTool, labelOf, eyeOf } from '../vehicles/vehicles.js';
@@ -33,8 +33,8 @@ export const WAGE = HELPER_WAGE; // Kč per hour of work; an hour = 60 s real ti
 const PAD = 1.0; // how far inside the field edge the vehicle origin stays
 const OVERHANG = 1.0; // how far the machine may stick out past the field edge on headland passes
 const STUCK_S = 8; // seconds a helper waits at an obstacle before giving up
-const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'mower', 'sprayer', 'roller', 'mulcher'];
-const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', mower: 'sečení', sprayer: 'postřik', roller: 'válení', mulcher: 'mulčování', harvest: 'sklizeň', wood: 'těžba dřeva' };
+const FIELD_TOOLS = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'mower', 'sprayer', 'roller', 'mulcher', 'tedder', 'windrower'];
+const WHAT = { cultivator: 'kultivace', plough: 'orba', seeder: 'setí', spreader: 'hnojení', baler: 'lisování', mower: 'sečení', sprayer: 'postřik', roller: 'válení', mulcher: 'mulčování', tedder: 'obracení sena', windrower: 'shrnování', harvest: 'sklizeň', wood: 'těžba dřeva' };
 
 export const helpers = () => vehicles.filter(v => v.helper);
 export const jobName = v => WHAT[v.type === 'forest' ? 'wood' : v.harvester ? 'harvest' : v.impl];
@@ -43,8 +43,11 @@ export const jobName = v => WHAT[v.type === 'forest' ? 'wood' : v.harvester ? 'h
 function needs(f, v, i) {
   const s = f.state[i];
   if (s === S_NONE) return false;
-  if (f.meadow) return v.type === 'tractor' && ((v.impl === 'mower' && s === S_RIPE) || (v.impl === 'baler' && !!f.straw[i]));
-  if (v.impl === 'mower') return false;
+  if (f.meadow) {
+    const sw = f.straw[i];
+    return v.type === 'tractor' && ((v.impl === 'mower' && s === S_RIPE) || (v.impl === 'baler' && isWindrow(sw)) || (v.impl === 'tedder' && isWindrow(sw)) || (v.impl === 'windrower' && !!sw && !isWindrow(sw)));
+  }
+  if (v.impl === 'mower' || v.impl === 'tedder' || v.impl === 'windrower') return false;
   if (v.harvester) return s === S_RIPE && CROPS[f.crop[i]].header === v.header;
   switch (v.impl) {
     case 'cultivator': return s === S_STUB;
@@ -90,6 +93,7 @@ export function canHire(v, target, im = v.tool) {
   if (other) return { why: 'Pomocník už pracuje (' + labelOf(other) + '). Najednou může pracovat jen jeden.' };
   if (v.fuel <= 1) return { why: 'Stroj nemá naftu.' };
   if (G.money < WAGE) return { why: 'Na mzdu pomocníka nemáš peníze.' };
+  if (v.type === 'chopper') return { why: 'Řezačku pomocník neřídí: vedle ní musí jet přívěs, a to je práce pro dva.' };
   if (v.type === 'forest') return matureTrees() ? { wood: true } : { why: 'V lese teď není žádný vzrostlý strom.' };
   const f = target || fieldAt(v.x, v.z);
   if (!f) return { why: 'Zajeď na pole, které má pomocník obdělat, a stiskni H. Na vzdálené pole ho pošleš z Kanceláře.' };

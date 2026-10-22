@@ -9,12 +9,15 @@ import { trailerBales } from '../vehicles/models.js';
 /** Shop groups of the machine kinds, in shop order. */
 const GROUP = {
   tractor: 'Traktory', combine: 'Sklízecí stroje', beet: 'Sklízecí stroje', cultivator: 'Nářadí', plough: 'Nářadí', seeder: 'Nářadí', spreader: 'Nářadí',
-  baler: 'Nářadí', mower: 'Nářadí', sprayer: 'Nářadí', roller: 'Nářadí', mulcher: 'Nářadí', manure: 'Nářadí', slurry: 'Nářadí', livestock: 'Nářadí', trailer: 'Nářadí', watertank: 'Nářadí', jeep: 'Osobní auta', forest: 'Lesnictví',
+  baler: 'Nářadí', mower: 'Nářadí', tedder: 'Nářadí', windrower: 'Nářadí', wrapper: 'Nářadí', chopper: 'Sklízecí stroje', sprayer: 'Nářadí', roller: 'Nářadí', mulcher: 'Nářadí', manure: 'Nářadí', slurry: 'Nářadí', livestock: 'Nářadí', trailer: 'Nářadí', watertank: 'Nářadí', jeep: 'Osobní auta', forest: 'Lesnictví',
 };
 const n = x => x.toLocaleString('cs-CZ');
 const specs = m => (m.kind === 'tractor' ? ' ' + m.hp + ' koní, až ' + m.kmh + ' km/h, nádrž ' + m.fuel + ' l.'
   : m.kind === 'combine' ? ' Lišta ' + String(m.header).replace('.', ',') + ' m, zásobník ' + n(m.tank) + ' l, vykládání ' + n(m.unload) + ' l/s.'
   : m.kind === 'beet' ? ' ' + m.rows + ' řádků, zásobník ' + n(m.tank) + ' l.'
+  : m.kind === 'chopper' ? ' Adaptér ' + String(m.header).replace('.', ',') + ' m, metá ' + n(m.unload) + ' l/s.'
+  : m.kind === 'wrapper' ? ' Potřebuje ' + m.hp + ' koní.'
+  : m.kind === 'trailer' && m.look.pickup ? ' ' + n(m.cap) + ' l řezanky, sběrač ' + String(m.width).replace('.', ',') + ' m, potřebuje ' + m.hp + ' koní.'
   : m.kind === 'forest' ? ' Uveze ' + m.logs + ' m³ dřeva.'
   : m.kind === 'jeep' ? ' Až ' + m.kmh + ' km/h, mimo cesty ' + Math.round(m.kmh * m.offroad) + ' km/h.'
   : m.kind === 'trailer' ? ' ' + n(m.cap) + ' l zrna nebo ' + trailerBales(m.look.len || 5.6) + ' balíků, potřebuje ' + m.hp + ' koní.'
@@ -31,9 +34,9 @@ const modelRows = kinds => MODELS.filter(m => kinds.includes(m.kind)).map(m => (
  * they and the header live in G.machines / G.cond by key. Prices in Kč.
  */
 export const CATALOG = [
-  ...modelRows(['tractor', 'combine', 'beet']),
+  ...modelRows(['tractor', 'combine', 'beet', 'chopper']),
   { key: 'cornHeader', name: 'Řádkový adaptér', kind: 'Adaptéry kombajnu', price: 320000, desc: 'Na kukuřici a slunečnici. Nasazuje se v kůlně.' },
-  ...modelRows(['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'baler', 'mower', 'trailer', 'watertank', 'manure', 'slurry', 'livestock', 'jeep', 'forest']),
+  ...modelRows(['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'baler', 'mower', 'tedder', 'windrower', 'wrapper', 'trailer', 'watertank', 'manure', 'slurry', 'livestock', 'jeep', 'forest']),
   { key: 'cows', name: 'Kravín s 10 kravami', kind: 'Budovy', price: COWS.price, noLease: true, desc: 'Krávy žerou kukuřici, ječmen, cukrovku nebo balíky sena a dávají mléko. Mléko se prodá samo o půlnoci, nebo ho cisternou odvezeš do mlékárny v městečku za ' + COWS.dairyPrice + ' Kč/l místo ' + COWS.milkPrice + '.' },
   { key: 'mixer', name: 'Míchací krmný vůz', kind: 'Budovy', price: MIXER.price, noLease: true, desc: 'Stojí u kravína a míchá krmnou směs. Když je v krmelci zrno, seno i cukrovka (každé aspoň ' + Math.round(MIXER.minShare * 100) + ' %), dávají krávy o ' + Math.round(MIXER.bonus * 100) + ' % víc mléka. Potřebuje kravín.' },
   { key: 'sheep', name: 'Ovčín s 16 ovcemi', kind: 'Budovy', price: SHEEP.price, noLease: true, desc: 'Ovce žerou balíky sena z luk a dávají vlnu. Vlna se prodá o půlnoci.' },
@@ -109,7 +112,7 @@ export function blockReasonOf(p) {
   if (p.on) return 'Je připojené k traktoru. Nejdřív ho odpoj (Q).';
   if (p.harvester && (p.tank.amount > 0 || p.unloading)) return 'Nejdřív vyprázdni zásobník.';
   if (p.logs > 0) return 'Nejdřív prodej dřevo na pile.';
-  if (p.key === 'trailer' && (p.tank.amount > 0 || p.bales > 0)) return 'Nejdřív vyprázdni přívěs.';
+  if (p.key === 'trailer' && (p.tank.amount > 0 || p.bales > 0 || p.forage?.l > 0)) return 'Nejdřív vyprázdni přívěs.';
   if (p.key === 'watertank' && p.milk && p.water > 0) return 'V cisterně je mléko. Prodej ho v mlékárně.';
   if (G.contracts.active && key === contractNeeds(G.contracts.active) && piecesOf(key).length < 2) return 'Potřebuješ ho na rozpracovanou zakázku.';
   return null;

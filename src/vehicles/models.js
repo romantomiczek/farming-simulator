@@ -453,7 +453,7 @@ export const PALLET_MAT = { eggs: M('#e9dfc8', { roughness: 0.9 }), wool: M('#d6
  * drawbar eye (returned as drawbar), which sits on the tractor hitch. The body is hinged at z = −2.
  */
 export function buildTrailer(o = {}) {
-  const L = { body: '#c8794a', rib: '#b06a40', trim: '#e8a46f', len: 5.6, height: 1.3, axles: 2, brand: null, ...o };
+  const L = { body: '#c8794a', rib: '#b06a40', trim: '#e8a46f', len: 5.6, height: 1.3, axles: 2, brand: null, pickup: false, ...o };
   const Lb = L.len, Hb = L.height, eye = -2 + Lb + 1.6; // the eye well ahead of the body: room to turn behind the tractor's wheels
   const g = new THREE.Group(), body = P(L.body), rib = P(L.rib), trim = P(L.trim), frame = F();
   const z0 = -2.1, z1 = -2 + Lb + 0.1;
@@ -523,8 +523,17 @@ export function buildTrailer(o = {}) {
     m.userData.noBake = true; m.visible = false;
     palletMeshes.push(m);
   }
+  // forage wagon: a pickup under the front of the body lifts grass windrows into it (lowered with the space bar)
+  let lift = null;
+  if (L.pickup) {
+    lift = new THREE.Group(); lift.position.set(0, 0, z1 - 0.2); g.add(lift);
+    RB(2.1, 0.3, 0.6, 0.05, frame, 0, 0.45, 0.3, lift);
+    CY(0.22, 0.22, 2.0, 12, F('#56595b'), 0, 0.3, 0.55, lift).rotation.z = Math.PI / 2;
+    for (let i = 0; i < 10; i++) B(0.03, 0.26, 0.03, S(), -0.9 + i * 0.2, 0.15, 0.8, lift).rotation.x = 0.5;
+    for (const sx of [-1, 1]) { const gw = wheel(0.16, 0.1, '#56595b'); gw.position.set(sx * 1.1, 0.16, 0.7); gw.userData.static = gw.userData.spin.userData.static = true; lift.add(gw); }
+  }
   bake(g, NO_SNOW);
-  return { group: g, tip, grain, grainMat, wheels, baleMeshes, palletMeshes, drawbar: eye, bodyLen: Lb, grainH: Hb * 0.88 };
+  return { group: g, tip, grain, grainMat, wheels, baleMeshes, palletMeshes, drawbar: eye, bodyLen: Lb, grainH: Hb * 0.88, lift, up: 0.35, down: 0 };
 }
 
 /**
@@ -1231,4 +1240,185 @@ export function buildSlurryTank(o = {}) {
   const p = B(0.7, 0.04, 0.45, S('#c9cfd2'), 0, -0.05, -0.1, plate); p.rotation.x = -0.5;
   plate.traverse(c => { if (c.isMesh) c.userData.noBake = true; });
   return m;
+}
+
+/* ---------- forage: tedder, windrower, bale wrapper, forage harvester ---------- */
+
+/** A rotor of a tedder or rake: hub with n tine arms, spinning about its own upright axis (a disc in vehicles.js). */
+function rotor(p, x, y, z, r, n, arm, tine) {
+  const d = new THREE.Group(); d.position.set(x, y, z); p.add(d);
+  CY(0.12, 0.16, 0.35, 10, arm, 0, 0.05, 0, d);
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2, s = Math.sin(a), c = Math.cos(a);
+    rod([s * 0.1, 0.05, c * 0.1], [s * r, -0.12, c * r], 0.025, arm, d);
+    rod([s * r, -0.12, c * r], [s * r, -0.42, c * r], 0.012, tine, d);
+    rod([s * (r - 0.06), -0.12, c * (r - 0.06)], [s * (r - 0.06), -0.42, c * (r - 0.06)], 0.012, tine, d);
+  }
+  return d;
+}
+
+/**
+ * Tedder (obraceč): a row of spinning rotors that spread the swath so it dries fast. Raised, the
+ * outer sections fold up for the road. o = look: color, width, brand.
+ */
+export function buildTedder(o = {}) {
+  const L = { color: '#d9472f', width: 7.6, brand: null, ...o }, W = L.width, mid = 2.6, side = (W - mid) / 2;
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const red = P(L.color), frame = F(), tine = S('#c9cfd2');
+  RB(0.24, 0.24, 1.1, 0.04, frame, 0, 0.75, -0.45, lift);
+  RB(mid, 0.16, 0.16, 0.04, red, 0, 1.0, -1.15, lift);
+  brandOn(L, 0.14, 1.1, 0, 1.0, -1.235, Math.PI, lift);
+  const discs = [], per = Math.max(1, Math.round(side / 1.5)), rr = Math.min(0.75, (mid / 2) * 0.62);
+  for (const sx of [-1, 1]) discs.push(rotor(lift, sx * mid / 4, 0.55, -1.25, rr, 6, red, tine));
+  const wings = [];
+  for (const sx of [-1, 1]) {
+    // hinge at the edge of the middle beam: open = flat out, shut = standing up for the road
+    const w = wing(lift, sx * mid / 2, 1.0, -1.15, 'z', 0, sx * Math.PI * 0.5);
+    RB(side, 0.13, 0.13, 0.03, red, sx * side / 2, 0, 0, w);
+    for (let k = 0; k < per; k++) discs.push(rotor(w, sx * (side / per) * (k + 0.5), -0.45, -0.1, Math.min(0.75, (side / per) * 0.55), 6, red, tine));
+    decal('warnR', 0.5, 0.16, sx * (side - 0.3), 0.0, -0.075, Math.PI, w);
+    wings.push(w);
+  }
+  for (const sx of [-1, 1]) { const gw = wheel(0.22, 0.12, '#56595b'); gw.position.set(sx * mid / 4, 0.22, -1.9); gw.userData.static = gw.userData.spin.userData.static = true; lift.add(gw); }
+  ram([0, 1.25, -0.6], [0, 1.1, -1.1], 0.04, frame, lift);
+  implHoses(lift, 2, 0.95, -0.55);
+  bake(g, NO_SNOW);
+  return { group: g, lift, wings, discs, up: 0.45, down: 0 };
+}
+
+/**
+ * Two-rotor rake (shrnovač) with central delivery: the rotors on swinging arms sweep the spread
+ * grass into one windrow between them; raised, the arms fold up. o = look: color, width, brand.
+ */
+export function buildWindrower(o = {}) {
+  const L = { color: '#2f8f3a', width: 6.8, brand: null, ...o }, W = L.width, r = Math.min(1.6, W / 4.2);
+  const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
+  const body = P(L.color), frame = F(), tine = S('#c9cfd2');
+  RB(0.26, 0.26, 3.0, 0.05, body, 0, 0.9, -1.6, lift); // main beam
+  RB(1.4, 0.14, 0.14, 0.03, frame, 0, 0.75, -2.9, lift);
+  for (const sx of [-1, 1]) { const w = wheel(0.32, 0.18, '#d7dde2'); w.position.set(sx * 0.65, 0.32, -3.0); w.userData.static = w.userData.spin.userData.static = true; lift.add(w); }
+  brandOn(L, 0.16, 1.2, 0.135, 1.1, -1.6, Math.PI / 2, lift);
+  const wings = [], discs = [];
+  for (const sx of [-1, 1]) {
+    const w = wing(lift, sx * 0.15, 1.05, -1.7, 'z', 0, sx * Math.PI * 0.42);
+    rod([0, 0, 0], [sx * (W / 2 - r), -0.1, 0], 0.07, body, w);
+    ram([sx * 0.1, 0.25, 0.1], [sx * (W / 2 - r) * 0.5, 0.05, 0.1], 0.04, frame, w);
+    discs.push(rotor(w, sx * (W / 2 - r), -0.25, 0, r, 10, body, tine));
+    const gw = wheel(0.2, 0.1, '#56595b'); gw.position.set(sx * (W / 2 - r), -0.83, -0.35); gw.userData.static = gw.userData.spin.userData.static = true; w.add(gw);
+    decal('warnR', 0.4, 0.14, sx * (W / 2 - r), -0.1, -0.06 - r, Math.PI, w);
+    wings.push(w);
+  }
+  CY(0.06, 0.06, 0.8, 8, S(), 0, 0.95, -0.4, lift).rotation.x = Math.PI / 2;
+  implHoses(lift, 2, 0.95, -0.4);
+  bake(g, NO_SNOW);
+  return { group: g, lift, wings, discs, up: 0.4, down: 0 };
+}
+
+/**
+ * Trailed round bale wrapper (ovíječ): a turntable with two rollers that spins the bale while the
+ * arm winds film on it. Origin = the drawbar eye, the machine behind it. o = look: body, accent, brand.
+ */
+export function buildWrapper(o = {}) {
+  const L = { body: '#e9e9e2', accent: '#2f6fb0', brand: null, ...o };
+  const g = new THREE.Group(), body = P(L.body), accent = P(L.accent), frame = F();
+  RB(0.2, 0.2, 2.4, 0.04, frame, 0, 0.6, -1.2, g); // drawbar
+  RB(1.9, 0.16, 2.2, 0.04, frame, 0, 0.55, -3.0, g); // frame
+  const wheels = [];
+  for (const sx of [-1, 1]) { const w = wheel(0.38, 0.22, '#d7dde2'); w.position.set(sx * 1.1, 0.38, -3.0); g.add(w); wheels.push(w); fender(g, accent, sx * 1.1, 0.38, -3.0, 0.48, Math.PI * 0.15, Math.PI * 0.85, 0.26, 0.05); }
+  // the turntable spins with its rollers; the film arm stands beside it
+  const table = new THREE.Group(); table.position.set(0, 0.75, -3.0); g.add(table);
+  CY(0.95, 0.95, 0.1, 24, body, 0, 0, 0, table);
+  for (const sz of [-0.4, 0.4]) CY(0.16, 0.16, 1.5, 12, F('#56595b'), 0, 0.22, sz, table).rotation.z = Math.PI / 2;
+  for (const sx of [-1, 1]) RB(0.08, 0.35, 1.2, 0.02, accent, sx * 0.78, 0.25, 0, table);
+  RB(0.18, 1.9, 0.18, 0.04, accent, 1.05, 1.5, -3.0, g); // film arm post
+  RB(0.8, 0.14, 0.14, 0.03, accent, 0.7, 2.4, -3.0, g);
+  CY(0.14, 0.14, 0.75, 12, M('#e9e2c9', { roughness: 0.5 }), 1.05, 1.55, -3.55, g); // the roll of film
+  brandOn(L, 0.16, 1.1, 0, 0.75, -4.12, Math.PI, g);
+  for (const sx of [-1, 1]) { tailCluster(g, sx * 0.8, 0.65, -4.12); decal('warnR', 0.3, 0.12, sx * 0.5, 0.5, -4.11, Math.PI, g); }
+  implHoses(g, 2, 0.8, -0.3);
+  const lift = new THREE.Group(); g.add(lift);
+  bake(g, NO_SNOW);
+  return { group: g, lift, wheels, discs: [table], up: 0, down: 0 };
+}
+
+/**
+ * Self-propelled forage harvester (sklízecí řezačka): a big engine behind the cab, a rotary header for
+ * maize that also takes grass windrows, and the tall discharge spout that blows chaff into the
+ * trailer running beside it (folded back; swings out to the left when it works). o = look: body,
+ * dark, light, rim colours, scale, header width, names.
+ */
+const CHOPPER = { body: '#9ab83a', dark: '#7e9a2c', light: '#ecebe4', rim: '#d9dcd8', scale: 1, header: 4.5, brand: 'SILÁŽ', model: '700', text: '#fbf7ee', stroke: '#3d4a10' };
+export function buildChopper(o = {}) {
+  const L = { ...CHOPPER, ...o }, sc = L.scale, style = { fill: L.text, stroke: L.stroke };
+  const root = new THREE.Group(), g = new THREE.Group(); g.scale.setScalar(sc); root.add(g);
+  const body = P(L.body), dark = P(L.dark), light = P(L.light), frame = F(), black = F(BLACK);
+  const hw = L.header / sc;
+  // chassis, body with the engine bay behind the cab, side doors and vents
+  RB(1.9, 0.7, 5.0, 0.08, frame, 0, 0.95, -0.6, g);
+  RB(2.4, 1.8, 4.2, 0.16, body, 0, 2.15, -1.3, g, 3);
+  RB(2.44, 0.12, 4.24, 0.05, dark, 0, 1.25, -1.3, g);
+  for (const sx of [-1, 1]) for (const z of [-2.6, -1.2, 0.2]) B(0.012, 1.5, 0.025, black, sx * 1.201, 2.2, z, g);
+  sideText(L.brand, 0.42, 2.4, 1.2, 2.5, -1.3, g, style);
+  sideText(L.model, 0.3, 1.4, 1.2, 2.1, -1.3, g, style);
+  sideDecals('stripeR', 3.9, 0.2, 1.2, 1.45, -1.3, g);
+  sideDecals('vent', 1.1, 0.9, 1.2, 2.25, -2.75, g);
+  RB(2.2, 0.8, 2.6, 0.12, dark, 0, 3.4, -2.2, g); // engine hood
+  B(1.6, 0.06, 1.2, F('#1a1c1d'), 0, 3.82, -2.6, g);
+  decal('grid', 1.5, 1.1, 0, 3.854, -2.6, 0, g, Math.PI / 2);
+  CY(0.1, 0.1, 1.0, 10, black, -0.7, 4.2, -3.0, g);
+  CY(0.16, 0.16, 0.55, 14, S('#aeb4b7'), -0.7, 4.0, -3.0, g);
+  // cab up front over the feeder, big glass, beacons, platform and ladder
+  RB(2.1, 0.7, 1.9, 0.1, body, 0, 2.45, 1.3, g);
+  cab(g, { y: 2.8, z: 1.3, w: 2.0, h: 1.5, d: 1.7, roof: light, lights: 6, passenger: true });
+  beacon(g, 0.85, 4.55, 0.65, beaconMat); beacon(g, -0.85, 4.55, 0.65, beaconMat);
+  for (const sx of [-1, 1]) headlamp(g, sx * 0.85, 2.55, 2.26, 0.34, 0.16);
+  steps(g, -1.45, 0.6, 2.0, 2.8, 6, 0.24, 0.45);
+  rod([-1.45, 0.6, 2.45], [-1.45, 3.4, 2.45], 0.025, black, g);
+  // feeder with the knife drum housing between the front wheels
+  const fh = RB(1.3, 1.0, 1.6, 0.08, dark, 0, 1.2, 2.55, g); fh.rotation.x = 0.12;
+  for (const sx of [-1, 1]) ram([sx * 0.5, 0.7, 1.9], [sx * 0.5, 0.95, 3.2], 0.06, frame, g);
+  // rear: steering axle, lamps, counterweight
+  RB(2.0, 0.6, 0.5, 0.1, frame, 0, 1.0, -3.55, g);
+  for (const sx of [-1, 1]) {
+    tailCluster(g, sx * 1.0, 2.0, -3.42);
+    workLight(g, sx * 0.85, 3.2, -3.52, Math.PI, 0.2);
+    decal('warnR', 0.5, 0.18, sx * 0.9, 1.5, -3.81, Math.PI, g);
+  }
+  decal('plate2', 0.42, 0.21, 0, 1.25, -3.81, Math.PI, g);
+  const wheels = [], rear = [];
+  for (const sx of [-1, 1]) {
+    const w = wheel(1.0, 0.75, L.rim, 'lug'); w.position.set(sx * 1.5, 1.0, 1.4); g.add(w); wheels.push(w);
+    fender(g, body, sx * 1.5, 1.0, 1.4, 1.12, Math.PI * 0.42, Math.PI * 0.97, 0.84, 0.06);
+  }
+  for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * 1.25, 0.7, -2.7); g.add(p);
+    const w = wheel(0.7, 0.5, L.rim, 'lug'); p.add(w); wheels.push(w); rear.push(p);
+  }
+  // rotary header: a low wide box with row dividers and a spinning intake drum (the reel)
+  const header = new THREE.Group(); header.position.set(0, 0, 3.45); g.add(header);
+  const hl = new THREE.Group(); header.add(hl);
+  RB(hw, 0.55, 1.5, 0.08, body, 0, 0.55, 0.45, hl);
+  RB(hw, 0.12, 0.18, 0.03, light, 0, 0.88, -0.25, hl);
+  const rows = Math.max(4, Math.round(hw / 0.75));
+  for (let i = 0; i <= rows; i++) mk(new THREE.ConeGeometry(0.2, 0.9, 4), light, -hw / 2 + (i * hw) / rows, 0.45, 1.35, hl).rotation.x = Math.PI / 2;
+  for (const sx of [-1, 1]) decal('warnR', 1.0, 0.3, sx * (hw / 2 + 0.002), 0.6, 0.45, sx * Math.PI / 2, hl);
+  const reel = new THREE.Group(); reel.position.set(0, 0.5, 0.75); hl.add(reel);
+  CY(0.3, 0.3, hw - 0.3, 14, F('#56595b'), 0, 0, 0, reel).rotation.z = Math.PI / 2;
+  for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; B(hw - 0.4, 0.05, 0.14, S(), 0, Math.cos(a) * 0.32, Math.sin(a) * 0.32, reel).rotation.x = a; }
+  // the discharge spout: rises from behind the cab, folded back over the engine; out = to the left
+  const pipe = new THREE.Group(); pipe.position.set(0.3, 4.15, -0.2); g.add(pipe);
+  CY(0.32, 0.36, 0.5, 14, frame, 0, -0.2, 0, pipe); // turret
+  const len = 4.4;
+  const chute = RB(0.5, 0.42, len, 0.12, body, 0, 0.35, -len / 2, pipe); chute.rotation.x = -0.08;
+  for (let z = -0.6; z > -len + 0.3; z -= 0.9) RB(0.56, 0.06, 0.08, 0.02, light, 0, 0.58 + z * 0.08, z, pipe);
+  const flap = RB(0.5, 0.36, 0.7, 0.08, dark, 0, 0.6, -len - 0.2, pipe); flap.rotation.x = 0.55; // deflector at the end
+  const spot = spotAt(g, 4.4 * sc, 2.2 * sc);
+  bake(root, NO_SNOW);
+  for (const w of wheels) w.userData.r *= sc;
+  return {
+    group: root, wheels, front: [], rear, headerLift: hl, reel, pipe, spot, scale: sc,
+    exhaust: new THREE.Vector3(-0.7, 4.7, -3.0).multiplyScalar(sc),
+    pipeTip: new THREE.Vector3(0, 0.3, -len - 0.4),
+    pipeReach: { lx: (0.3 + len + 0.2) * sc, lz: -0.2 * sc },
+  };
 }
