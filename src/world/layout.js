@@ -194,6 +194,18 @@ export const MANURE_HEAP = { x: -48.5, z: -55.5, fill: { x: -48.5, z: -62.5, r: 
 export const BUNKER = { x0: -100, x1: -88, z0: -12, z1: 18, ring: { x: -94, z: -6, r: 4 } };
 /** Where the forage harvester stands, beside the bunker. */
 export const CHOPPER_HOME = [-80, 4];
+/**
+ * The building plot: grass east of the farm between field 5 and the village street, where the player
+ * may put up buildings of his own (game/build.js) besides his fields.
+ */
+export const BUILD_LAND = [{ x0: 132, x1: 161, z0: -57, z1: -3 }];
+/** Where the telehandler stands: on the grass east of the silos. */
+export const LOADER_HOME = [32, -20];
+/**
+ * The store of seed, fertiliser, lime and herbicide (game/supply.js): big bags under a lean-to roof on the
+ * north edge of the yard; F in its ring fills a hopper or loads a big bag onto a trailer.
+ */
+export const SUPPLY_STORE = { x: -21.5, z: -19, r: 4.2, shed: { x0: -27, x1: -16, z0: -13.6, z1: -10.6 } };
 /** In the town south of the main road: the livestock dealer (buys and sells animals) and the market hall (pallets). */
 export const LIVESTOCK = at('livestock', 575, 2, { r: 7 });
 export const MARKET_HALL = at('hall', 470, 2, { r: 7 });
@@ -244,6 +256,10 @@ export const NO_TREES = [
   { x0: 230, x1: 304, z0: 12, z1: 42 }, // the harvest festival and its tractor race (game/festival.js)
   { x0: 27, x1: 49, z0: -50, z1: -20 }, // greenhouses
   { x0: -106, x1: -74, z0: -16, z1: 24 }, // bunker silo and the forage harvester beside it
+  { x0: -29, x1: -14, z0: -16, z1: -8 }, // the store of seed and fertiliser
+  { x0: 27, x1: 37, z0: -26, z1: -14 }, // the telehandler's place
+  { x0: -7, x1: 1, z0: -72, z1: -52 }, // the header trailer's place
+  { x0: 130, x1: 163, z0: -59, z1: -1 }, // the building plot
   ...PLACES.map(p => ({ x0: p.rect.x0 - 5, x1: p.rect.x1 + 5, z0: p.rect.z0 - 5, z1: p.rect.z1 + 5 })),
   { x0: 6, x1: 142, z0: 106, z1: 140 },
   { x0: 395, x1: 720, z0: -40, z1: 175 }, // town and station

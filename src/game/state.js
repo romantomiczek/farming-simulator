@@ -8,6 +8,7 @@ export const TIME_SCALES = [1, 5, 20];
 export const DEV = { timeMult: 1, freezeTime: false, wildlife: true, tracks: true, wind: true };
 
 export const G = {
+  mode: 'farmer', // how the game started: 'farmer' | 'manager' | 'scratch' (balance.js MODES)
   money: 150000,
   gameMin: 8 * 60, // game minutes since day 1, 00:00; 1 real second = 1 game minute at 1×
   tsIdx: 0,
@@ -22,6 +23,8 @@ export const G = {
   contracts: { offers: [], active: null },
   silo: { stock: [0, 0, 0, 0, 0, 0], pick: 0 }, // grain in the farm silos (game/silo.js)
   deliveries: { offers: [], active: [] }, // delivery contracts (game/silo.js)
+  supplyPick: 'seed', // the kind of big bag F loads onto a trailer at the store (game/supply.js)
+  built: [], // buildings the player put up (game/build.js)
   farm: { cowFeed: 0, henFeed: 0, sheepFeed: 0, pigFeed: 0, water: 0, milk: 0, eggs: 0, wool: 0, pork: 0, tomatoes: 0, hungry: {}, mix: { grain: 0, hay: 0, beet: 0 } }, // see farm.js emptyFarm()
   stats: null, // see goals.js emptyStats()
   goals: [], // ids of finished goals

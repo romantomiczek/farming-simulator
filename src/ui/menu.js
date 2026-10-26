@@ -3,7 +3,13 @@ import { nowPlaying } from '../audio/music.js';
 import { sound } from '../audio.js';
 
 const $ = id => document.getElementById(id);
-const menu = $('menu'), main = $('menuMain'), gfx = $('menuGfx'), snd = $('menuSnd');
+const menu = $('menu'), main = $('menuMain'), gfx = $('menuGfx'), snd = $('menuSnd'), fresh = $('menuNew');
+/** How a new game can start (balance.js MODES has the numbers). */
+const MODE_CARDS = [
+  ['farmer', 'Nový farmář', 'Statek s poli 1 a 2, traktorem, kombajnem, kultivátorem, secím strojem a přívěsem, 150 000 Kč. Pole 1 je zralé, můžeš hned sklízet. Pro první hru.'],
+  ['manager', 'Správce farmy', 'Statek a 1 500 000 Kč, ale žádná pole ani stroje. Co koupíš, kde budeš hospodařit a čím, je na tobě.'],
+  ['scratch', 'Začátek od nuly', 'Jen auto a 500 000 Kč, žádná pole ani stroje, a výkupy platí o 10 % méně. Začni zakázkami u sousedů se stroji, které ti půjčí.'],
+];
 const VOLS = [['music', 'Hudba'], ['engines', 'Motory'], ['ambient', 'Okolí'], ['effects', 'Efekty']];
 let handlers = null;
 let started = false;
@@ -16,19 +22,15 @@ export const menuOpen = () => !menu.hidden;
 export function initMenu(h) {
   handlers = h;
   $('playBtn').onclick = () => hideMenu();
-  const newBtn = $('newBtn');
-  let armed = 0;
-  newBtn.onclick = () => {
-    // in-page confirmation: the first click arms the button for 3 seconds
-    if (!armed) {
-      newBtn.textContent = 'Opravdu? Klikni znovu';
-      newBtn.classList.add('danger');
-      armed = setTimeout(() => { armed = 0; newBtn.textContent = 'Nová hra'; newBtn.classList.remove('danger'); }, 3000);
-      return;
-    }
-    clearTimeout(armed); armed = 0;
-    newBtn.textContent = 'Nová hra'; newBtn.classList.remove('danger');
-    handlers.onNew();
+  // a new game: pick how to start; choosing one is the confirmation (the note warns that the game in progress goes)
+  $('newBtn').onclick = () => showNew(true);
+  $('newBack').onclick = () => showNew(false);
+  $('modeList').innerHTML = MODE_CARDS.map(([k, name, desc]) => `<button class="btn ghost mode" data-mode="${k}"><b>${name}</b><span>${desc}</span></button>`).join('');
+  $('modeList').onclick = e => {
+    const k = e.target.closest('[data-mode]')?.dataset.mode;
+    if (!k) return;
+    showNew(false);
+    handlers.onNew(k);
     hideMenu();
   };
   $('gfxBtn').onclick = () => showGfx(true);
@@ -100,15 +102,20 @@ function renderGfx() {
   $('aaNote').hidden = PRESETS[settings.preset].antialias === startAntialias;
 }
 
+function showNew(on) {
+  main.hidden = on; fresh.hidden = !on; gfx.hidden = true; snd.hidden = true;
+  $('newNote').textContent = 'Vyber, jak chceš začít.' + (started || handlers.hasProgress() ? ' Rozehraná hra se přepíše.' : '');
+  (on ? $('modeList').querySelector('button') : $('newBtn'))?.focus();
+}
+
 function showGfx(on) {
-  main.hidden = on; gfx.hidden = !on; snd.hidden = true;
+  main.hidden = on; gfx.hidden = !on; snd.hidden = true; fresh.hidden = true;
   (on ? $('presetSeg').querySelector('[aria-checked="true"]') : $('gfxBtn'))?.focus();
 }
 
 function refreshButtons() {
   const progress = started || handlers.hasProgress();
   $('playBtn').textContent = progress ? 'Pokračovat' : 'Hrát';
-  $('newBtn').hidden = !progress;
 }
 
 export function showMenu() {

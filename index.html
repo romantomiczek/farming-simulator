@@ -99,7 +99,7 @@
         <div class="tacts">
           <button data-tap="KeyE">Nastoupit</button><button data-tap="Space">Nářadí</button><button data-tap="KeyF">Akce F</button>
           <button data-tap="Tab">Stroj</button><button data-tap="KeyC">Osivo</button><button data-tap="KeyG">Do sila</button>
-          <button data-tap="KeyH">Pomocník</button><button data-tap="KeyK">Kancelář</button>
+          <button data-tap="KeyH">Pomocník</button><button data-tap="KeyL">Nakladač</button><button data-tap="KeyK">Kancelář</button>
         </div>
         <div class="pedals"><button data-hold="KeyS" aria-label="Brzda a couvání">▼</button><button data-hold="KeyW" aria-label="Plyn">▲</button></div>
       </div>
@@ -119,6 +119,7 @@
         <button role="tab" data-tab="jobs">Zakázky</button>
         <button role="tab" data-tab="market">Ceny a silo</button>
         <button role="tab" data-tab="farm">Farma</button>
+        <button role="tab" data-tab="build">Stavby</button>
         <button role="tab" data-tab="goals">Cíle</button>
         <button role="tab" data-tab="fin">Finance</button>
       </div>
@@ -143,13 +144,15 @@
           <div><span class="k"><kbd>F</kbd></span>prodej, překládka do přívěsu, výměna adaptéru kombajnu, koupě pole, nakládání ze sila</div>
           <div><span class="k"><kbd>G</kbd></span>uskladnit úrodu do sila (v kruhu Družstva na statku)</div>
           <div><span class="k"><kbd>Q</kbd></span>odpojit nářadí, kde stojíš / připojit nářadí, ke kterému jsi zacouval</div>
-          <div><span class="k"><kbd>1</kbd> <kbd>2</kbd></span>adaptér kombajnu v kůlně</div>
+          <div><span class="k"><kbd>L</kbd></span>nakladač a manipulátor: naber / polož; v kombajnu lišta na vozík a zpátky</div>
+          <div><span class="k"><kbd>1</kbd> <kbd>2</kbd></span>adaptér kombajnu v kůlně, u traktoru <kbd>1</kbd> čelní nakladač</div>
           <div><span class="k"><kbd>R</kbd></span>oprava stroje v kůlně</div>
           <div><span class="k"><kbd>K</kbd></span>kancelář: obchod, zakázky, farma, cíle, finance</div>
           <div><span class="k"><kbd>M</kbd></span>mapa kraje, klikni na svůj stroj; <kbd>1</kbd>–<kbd>5</kbd> plodiny, růst, stav půdy, vlastnictví</div>
           <div><span class="k"><kbd>P</kbd></span>ceny ve výkupech</div>
           <div><span class="k"><kbd>H</kbd></span>najmout / propustit pomocníka</div>
-          <div><span class="k"><kbd>C</kbd></span>změnit osivo</div>
+          <div><span class="k"><kbd>C</kbd></span>změnit osivo, ve skladu osiv druh big bagu</div>
+          <div><span class="k"><kbd>B</kbd></span>stavby: silo, kůlna, kravín, mlýn, pekárna, olejna, pila (<kbd>R</kbd> otočit, <kbd>F</kbd> postavit)</div>
           <div><span class="k"><kbd>T</kbd></span>zrychlit čas</div>
           <div><span class="k"><kbd>Z</kbd><kbd>X</kbd></span>otočit kameru (nebo táhni myší)</div>
           <div><span class="k"><kbd>kolečko</kbd></span>přiblížení</div>
@@ -157,7 +160,7 @@
         </div>
         <div class="actions">
           <button class="btn" id="playBtn">Hrát</button>
-          <button class="btn ghost" id="newBtn" hidden>Nová hra</button>
+          <button class="btn ghost" id="newBtn">Nová hra</button>
         </div>
         <div class="actions links">
           <button class="link" id="gfxBtn">Nastavení grafiky</button>
@@ -167,6 +170,13 @@
           <input type="file" id="importFile" accept=".json,application/json" hidden>
         </div>
         <p class="note" id="saveNote">Hra se průběžně ukládá v tomto prohlížeči.</p>
+      </section>
+
+      <section id="menuNew" class="cardsec" hidden>
+        <h2>Nová hra</h2>
+        <p class="lede" id="newNote">Vyber, jak chceš začít.</p>
+        <div class="modes" id="modeList"></div>
+        <div class="actions"><button class="btn ghost" id="newBack">Zpět</button></div>
       </section>
 
       <section id="menuGfx" class="cardsec" hidden>

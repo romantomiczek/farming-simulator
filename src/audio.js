@@ -100,6 +100,17 @@ export function playImpact(strength) {
   if (k > 0.35) for (const fr of [310, 467]) tone('square', fr, fr * 0.96, t + 0.02, 0.25, 0.02 * k, fx, A.filt('bandpass', fr * 2, 6));
 }
 
+/** Thunder after a lightning flash: a crack (when near) and a long low rumble, delay seconds later. */
+export function playThunder(strength, delay = 0) {
+  if (!A || !sound.on) return;
+  const t = A.ac.currentTime + delay, k = Math.min(1, Math.max(0, strength)), amb = A.bus.ambient;
+  const s = A.ac.createBufferSource(), f = A.filt('lowpass', 160 + 260 * k, 0.7), g = A.gain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25 + 0.35 * k, t + 0.08 + 0.3 * (1 - k));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 2.5 + 2 * k);
+  s.buffer = A.noise; s.loop = true; s.connect(f); f.connect(g); g.connect(amb); s.start(t, Math.random()); s.stop(t + 5);
+  if (k > 0.6) tone('sine', 60, 30, t, 0.6, 0.15 * k, amb);
+}
+
 /** A footstep of the farmer: ground = 'grass' | 'gravel' | 'soil' | 'snow', run = louder and sharper. */
 export function playStep(ground, run) {
   if (!A || !sound.on) return;

@@ -6,7 +6,7 @@ import {
   isMachine, piecesOf, sellValueOf, blockReasonOf, releasePiece, tradeBlock, buyWithTrade,
 } from '../game/machines.js';
 import { takeLoan, repayLoan, dailyInterest, emergencyFuel, LOAN_MAX, LOAN_STEP, INTEREST_DAILY, EMERGENCY } from '../game/economy.js';
-import { CTYPES, accept, cancelActive, canDo, needsLabel, progress } from '../game/contracts.js';
+import { CTYPES, accept, cancelActive, canDo, needsLabel, progress, borrowReward, lendText, BORROW_CUT } from '../game/contracts.js';
 import { neighbourOf, neighbourJobs } from '../world/neighbours.js';
 import { CROPS } from '../game/crops.js';
 import { BUILDINGS, GREENHOUSE, daysLeft, greenhouses, waterCap, eatsText, mixShares, mixOk } from '../game/farm.js';
@@ -17,18 +17,22 @@ import { MODEL, MODELS, modelName } from '../game/catalog.js';
 import { thumbURL, setThumbHandler, setViewer } from '../render/previews.js';
 import { PAD, PARK, inRect } from '../world/layout.js';
 import { MARKETS, accepts, marketPrice, bestMarket } from '../game/markets.js';
-import { SILO_CAP, siloTotal, deliveryMarket, deliveryPrice, acceptDelivery, canAcceptDelivery } from '../game/silo.js';
+import { siloCap, siloTotal, deliveryMarket, deliveryPrice, acceptDelivery, canAcceptDelivery } from '../game/silo.js';
 import { fmt2, plural } from '../core/util.js';
 import { fieldAt } from '../world/fields.js';
 import { cam } from '../render/camera.js';
-import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName, helperTools, busyHelper } from '../game/helpers.js';
+import { WAGE, canHire, sendHelper, dismiss, helperStatus, jobName, helperTools, allBusy, canHaul, sendHaul, helpers } from '../game/helpers.js';
+import { HELPER_MAX, BUILDS, PRODUCTION } from '../game/balance.js';
+import { BUILD_INFO, BUILD_KEYS, builtOf, startBuild, demolish, demolishBlock } from '../game/build.js';
+import { productions, prodIn, outOf, prodFull, OUT_NAME, IN_NAME } from '../game/production.js';
+import { targetsFor } from '../game/markets.js';
 import { toast } from './toast.js';
 import { GOALS, activeGoals, isDone, progressOf, progressText } from '../game/goals.js';
 import { FIELDS } from '../world/fields.js';
 import { S_STUB, S_CULT, S_SOWN, S_RIPE } from '../game/crops.js';
 import { buyField } from '../game/actions.js';
 import { fieldYield, WITHER_H, LIME_DUE } from '../game/agro.js';
-import { herd, herdName, PALLETS, palletsReady } from '../game/animals.js';
+import { herd, herdName, PALLETS, palletsReady, herdCap } from '../game/animals.js';
 import { HERD, DUNG, PALLET, SILAGE } from '../game/balance.js';
 import { bunkerState } from '../game/forage.js';
 import { SEASONS, seasonIdx } from '../game/weather.js';
@@ -55,6 +59,7 @@ export function initOffice(handlers) {
   body.onchange = e => {
     const t = e.target;
     if (t.dataset.tool) picks[t.dataset.tool] = t.value;
+    else if (t.dataset.haul) hauls[t.dataset.haul] = { ...hauls[t.dataset.haul], [t.dataset.part]: t.value };
     else if (t.dataset.trade) shop.trade = t.value || null;
     else if (t.dataset.filter === 'afford') shop.afford = t.checked;
     else if (t.dataset.filter === 'sort') shop.sort = t.value;
@@ -115,6 +120,7 @@ function act(a, key) {
       break;
     }
     case 'accept': ok = accept(key); break;
+    case 'acceptB': ok = accept(key, true); break;
     case 'dlv': ok = acceptDelivery(key); break;
     case 'cancel': cancelActive(); break;
     case 'loan': takeLoan(); break;
@@ -127,6 +133,13 @@ function act(a, key) {
       break;
     }
     case 'fire': { const v = vehicles.find(x => x.id === key); if (v?.helper) dismiss(v); break; }
+    case 'build': if (startBuild(key)) { closeOffice(); return; } ok = false; break;
+    case 'demolish': ok = demolish(key); break;
+    case 'haul': {
+      const v = vehicles.find(x => x.id === key), hl = haulPick(v);
+      ok = !!hl && sendHaul(v, hl.crop, hl.target, hl.amount);
+      break;
+    }
   }
   if (ok) h.onChange();
   render();
@@ -136,7 +149,7 @@ function render() {
   for (const b of tabs.children) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   $('officeMoney').textContent = fmt(G.money) + ' Kč';
   const top = body.scrollTop;
-  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'fleet' ? fleetHTML() : tab === 'jobs' ? jobsHTML() : tab === 'market' ? marketHTML() : tab === 'farm' ? farmHTML() : tab === 'goals' ? goalsHTML() : finHTML();
+  body.innerHTML = tab === 'shop' ? shopHTML() : tab === 'fleet' ? fleetHTML() : tab === 'jobs' ? jobsHTML() : tab === 'market' ? marketHTML() : tab === 'farm' ? farmHTML() : tab === 'build' ? buildHTML() : tab === 'goals' ? goalsHTML() : finHTML();
   body.scrollTop = top;
   // the detail of a model in the shop shows it turning
   const view = body.querySelector('canvas.mview');
@@ -155,7 +168,8 @@ function parkedAt(key) {
 /** Shop tabs: machine kinds (one row of cards each, cheapest first) or the buildings. */
 const SHOP = [
   { id: 'tractor', name: 'Traktory', kinds: ['tractor'] },
-  { id: 'harvest', name: 'Sklízeče', kinds: ['combine', 'beet', 'chopper'], extra: ['cornHeader'] },
+  { id: 'harvest', name: 'Sklízeče', kinds: ['combine', 'beet', 'chopper', 'headercart'], extra: ['cornHeader'] },
+  { id: 'loaders', name: 'Nakladače', kinds: ['loader'], extra: ['frontLoader'] },
   { id: 'tools', name: 'Nářadí', kinds: ['cultivator', 'plough', 'seeder', 'spreader', 'sprayer', 'roller', 'mulcher', 'mower', 'tedder', 'windrower', 'baler', 'wrapper'] },
   { id: 'haul', name: 'Přívěsy a cisterny', kinds: ['trailer', 'watertank', 'livestock', 'manure', 'slurry'] },
   { id: 'forest', name: 'Lesnictví', kinds: ['forest'] },
@@ -165,6 +179,7 @@ const SHOP = [
 const KIND_TITLE = {
   tractor: 'Traktory', combine: 'Kombajny', beet: 'Sklízeče cukrovky', cultivator: 'Kultivátory', plough: 'Pluhy', seeder: 'Secí stroje',
   spreader: 'Rozmetadla', manure: 'Rozmetadla hnoje', slurry: 'Cisterny na kejdu', livestock: 'Přívěsy na zvířata', sprayer: 'Postřikovače', roller: 'Válce', mulcher: 'Mulčovače', mower: 'Žací lišty', baler: 'Lisy', trailer: 'Přívěsy', watertank: 'Cisterny', forest: 'Harvestory', jeep: 'Auta',
+  chopper: 'Řezačky', tedder: 'Obraceče', windrower: 'Shrnovače', wrapper: 'Ovíječe', loader: 'Teleskopické manipulátory', headercart: 'Vozíky na lištu',
 };
 const n1 = x => String(Math.round(x * 10) / 10).replace('.', ',');
 /** The numbers a card shows for each kind: [label, value, text, more is better]. */
@@ -177,6 +192,11 @@ const STATS = {
   baler: m => [['Rychlost', m.speed, Math.round(m.speed * 3.6) + ' km/h', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
   trailer: m => [['Objem', m.cap, fmt(m.cap) + ' l', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
   watertank: m => [['Objem', m.cap, fmt(m.cap) + ' l', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
+  loader: m => [['Lopata', m.bucket, fmt(m.bucket) + ' l', 1], ['Výkon', m.hp, m.hp + ' k', 1], ['Balíky', m.bales, m.bales + '', 1]],
+  headercart: m => [['Lišta do', m.max, m.max + ' m', 1]],
+  seeder: m => [['Záběr', m.width, n1(m.width) + ' m', 1], ['Zásobník', m.cap, fmt(m.cap) + ' kg', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
+  spreader: m => [['Záběr', m.width, n1(m.width) + ' m', 1], ['Zásobník', m.cap, fmt(m.cap) + ' kg', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
+  sprayer: m => [['Záběr', m.width, n1(m.width) + ' m', 1], ['Nádrž', m.cap, fmt(m.cap) + ' l', 1], ['Potřebuje', m.hp, m.hp + ' k', 0]],
 };
 const statsOf = m => (STATS[m.kind] || (x => [['Záběr', x.width, n1(x.width) + ' m', 1], ['Potřebuje', x.hp, x.hp + ' k', 0]]))(m);
 const shop = { tab: 'tractor', sel: null, afford: false, sort: 'price' };
@@ -334,7 +354,7 @@ function fleetHTML() {
     <div><span>Hodnota při prodeji</span><b>${fmt(value)} Kč</b></div><div><span>Pronájmy za den</span><b>${fmt(dailyLeaseCost())} Kč</b></div></div>`;
   const row = p => {
     const why = blockReasonOf(p), key = p.model, lease = p.own === 'lease';
-    const chips = (lease ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(key))} Kč/den</span>` : '<span class="chip on">Vlastníš</span>') +
+    const chips = (p.own === 'borrow' ? '<span class="chip warn">Od souseda</span>' : lease ? `<span class="chip warn">Pronájem · ${fmt(leaseDaily(key))} Kč/den</span>` : '<span class="chip on">Vlastníš</span>') +
       `<span class="muted">stav ${pct(p.cond)}${p.type ? ' · nafta ' + Math.round((p.fuel / p.fuelCap) * 100) + ' %' : ''}</span>`;
     const acts = (p.type ? btn('drive', p.id, 'Přesednout', (p === G.active && !G.onFoot) || !!p.helper) : '') +
       btn('sellp', p.id, lease ? 'Vrátit' : 'Prodat · ' + fmt(sellValueOf(p)) + ' Kč', !!why, 'ghost');
@@ -371,9 +391,9 @@ function jobsHTML() {
     const can = canDo(o);
     const nb = neighbourOf(o.field), wait = Math.max(0, 240 - (G.gameMin - (o.at ?? G.gameMin)));
     out += `<div class="row"><div class="rmain"><b>${CTYPES[o.type].name} · pole ${o.field}</b><span>${nb.full}: „${nb.ask}“</span><span>${jobLine(o)} · čeká ještě ${Math.floor(wait / 60)} h ${Math.floor(wait % 60)} min</span>
-      ${can ? '' : '<p class="why">Ten stroj nemáš. Koupíš nebo pronajmeš ho v Obchodě.</p>'}</div>
-      <div class="rstate"><b>${fmt(o.reward)} Kč</b></div>
-      <div class="ract">${btn('accept', o.id, 'Přijmout', !!a || !can)}</div></div>`;
+      ${can ? '' : `<p class="why">Ten stroj nemáš. Soused ti půjčí ${lendText(o)} a nechá si ${Math.round(BORROW_CUT * 100)} % odměny.</p>`}</div>
+      <div class="rstate"><b>${fmt(can ? o.reward : borrowReward(o))} Kč</b></div>
+      <div class="ract">${can ? btn('accept', o.id, 'Přijmout', !!a) : btn('acceptB', o.id, 'Přijmout se strojem souseda', !!a)}</div></div>`;
   }
   return deliveriesHTML() + '<h3 class="grp">Práce na polích sousedů</h3>' + out;
 }
@@ -426,8 +446,8 @@ function priceChart(k) {
 /** Prices and the silo: what is stored, what it is worth, how prices went in the last days. */
 function marketHTML() {
   const st = siloTotal();
-  let out = `<p class="lede small">Úrodu nemusíš prodat hned. V kruhu Družstva na statku ji klávesou <kbd>G</kbd> uskladníš v silech (každou plodinu zvlášť, dohromady ${fmt(SILO_CAP)} l). Když cena vyskočí, přistav přívěs do bílého kruhu „Výdej ze sila“ na severní straně sil, klávesou <kbd>F</kbd> ho naplníš (<kbd>C</kbd> vybere plodinu) a odvezeš do výkupu, který zrovna platí nejvíc.</p>`;
-  out += `<div class="row"><div class="rmain"><b>Sila na statku</b><span>${fmt(st)} / ${fmt(SILO_CAP)} l</span><div class="bar"><i style="width:${((st / SILO_CAP) * 100).toFixed(1)}%"></i></div></div>
+  let out = `<p class="lede small">Úrodu nemusíš prodat hned. V kruhu Družstva na statku ji klávesou <kbd>G</kbd> uskladníš v silech (každou plodinu zvlášť, dohromady ${fmt(siloCap())} l). Když cena vyskočí, přistav přívěs do bílého kruhu „Výdej ze sila“ na severní straně sil, klávesou <kbd>F</kbd> ho naplníš (<kbd>C</kbd> vybere plodinu) a odvezeš do výkupu, který zrovna platí nejvíc.</p>`;
+  out += `<div class="row"><div class="rmain"><b>Sila na statku</b><span>${fmt(st)} / ${fmt(siloCap())} l</span><div class="bar"><i style="width:${((st / siloCap()) * 100).toFixed(1)}%"></i></div></div>
     <div class="rstate"><b>${fmt(G.silo.stock.reduce((a, l, k) => a + (l > 0 ? l * bestMarket(k, G.gameMin).p : 0), 0))} Kč</b><span class="muted">při dnešních cenách</span></div></div>`;
   out += '<div class="charts">';
   CROPS.forEach((c, k) => {
@@ -460,8 +480,8 @@ function farmHTML() {
         + (mixOk() ? ' · vyvážená, +' + Math.round(MIXER.bonus * 100) + ' % mléka' : ' · pro víc mléka potřebuje každé aspoň ' + Math.round(MIXER.minShare * 100) + ' %') + '</span>';
     }
     const h = herd(key), sh = HERD[key];
-    extra += '<span class="muted">Stádo: ' + herdName(key, h.n) + ' z ' + sh.cap + ' · zdraví ' + pct(h.health) +
-      (h.n >= sh.cap ? ' · budova je plná, prodej zvířata na dobytčím trhu' : h.health >= 0.75 && !F.hungry[key] ? ' · přibývají (' + sh.young + ')' : ' · nepřibývají, dokud nejsou zdravá a nakrmená') + '</span>';
+    extra += '<span class="muted">Stádo: ' + herdName(key, h.n) + ' z ' + herdCap(key) + ' · zdraví ' + pct(h.health) +
+      (h.n >= herdCap(key) ? ' · budova je plná, prodej zvířata na dobytčím trhu' : h.health >= 0.75 && !F.hungry[key] ? ' · přibývají (' + sh.young + ')' : ' · nepřibývají, dokud nejsou zdravá a nakrmená') + '</span>';
     extra += '<div class="bar"><i style="width:' + (h.health * 100).toFixed(0) + '%"></i></div>';
     out += row(b.name, 'Krmivo ' + fmt(F[b.store]) + ' / ' + fmt(b.cap) + ' l (' + eatsText(key) + ') · vystačí ' + days(daysLeft(key)),
       F.hungry[key] ? '<span class="chip warn">Hladoví</span>' : h.health < 0.5 ? '<span class="chip warn">Nemocná</span>' : '<span class="chip on">V pořádku</span>', extra);
@@ -475,7 +495,7 @@ function farmHTML() {
     '<span class="muted">Řezanku z řezačky nebo samosběracího vozu vysyp ve žlabu za kravínem, udusej ji traktorem (aspoň na ' + Math.round(SILAGE.packNeed * 100) + ' %) a zakryj plachtou (F). Za ' + SILAGE.fermentH + ' h je z ní siláž: krávy ji žerou jako seno, bioplynka u cukrovaru ji koupí za ' + fmt2(SILAGE.silagePrice) + ' Kč/l (řezanku za ' + fmt2(SILAGE.chaffPrice) + ').</span>' +
     (bk.covered ? '<div class="bar"><i style="width:' + Math.min(100, (bk.ferment / SILAGE.fermentH) * 100).toFixed(0) + '%"></i></div>' : ''));
   const waiting = Object.keys(PALLETS).filter(p => palletsReady(p) > 0).map(p => plural(palletsReady(p), 'paleta', 'palety', 'palet') + ' ' + PALLETS[p].label);
-  if (waiting.length) out += row('Palety k odvozu', waiting.join(' · '), '<span class="chip warn">Čekají</span>', '<span class="muted">Přívěsem (prázdným, v kruhu u budovy, F) je odvez do tržnice v městečku: zaplatí o ' + Math.round(PALLET.bonus * 100) + ' % víc. Co zůstane, odvezou o půlnoci za základní cenu.</span>');
+  if (waiting.length) out += row('Palety k odvozu', waiting.join(' · '), '<span class="chip warn">Čekají</span>', '<span class="muted">Přívěsem (prázdným, v kruhu u budovy, F) je odvez do tržnice v městečku: zaplatí o ' + Math.round(PALLET.bonus * 100) + ' % víc. Vejce, vlnu a rajčata, které zůstanou, odvezou o půlnoci za základní cenu; výrobky z tvých výroben čekají.</span>');
   const n = greenhouses();
   out += n
     ? row('Skleníky (' + n + ')', 'Voda ' + fmt(F.water) + ' / ' + fmt(waterCap()) + ' l · vystačí ' + days(daysLeft('water')),
@@ -503,16 +523,16 @@ const fieldLabel = (f, v, im) => (f.meadow ? 'Louka ' : 'Pole ') + f.id + (f.own
 
 /** Machines a helper can drive: send one (a tractor with the implement of your choice) to a field or the forest, or let him go. */
 function helpersHTML() {
-  const busy = busyHelper(null);
-  let out = '<h3 class="grp">Pomocník</h3><p class="lede small">Pošli stroj s pomocníkem na pole nebo do lesa. U traktoru vyber nářadí: pro jiné, než má zapojené, si pomocník nejdřív dojede. Na pole jede po silnicích, plný zásobník odveze na nejlepší výkup a po práci se vrátí na dvůr. Najednou pracuje jen jeden pomocník. Mzda ' + fmt(WAGE) + ' Kč za herní hodinu, platí se i cesta.</p>';
-  for (const v of vehicles.filter(x => x.type !== 'jeep')) {
+  const busy = allBusy(null), n = helpers().length;
+  let out = '<h3 class="grp">Pomocníci · ' + n + ' z ' + HELPER_MAX + '</h3><p class="lede small">Pošli stroj s pomocníkem na pole nebo do lesa. U traktoru vyber nářadí: pro jiné, než má zapojené, si pomocník nejdřív dojede. Na pole jede po silnicích, plný zásobník odveze na nejlepší výkup a po práci se vrátí na dvůr. Najednou může pracovat až ' + HELPER_MAX + ' pomocníků, každý za mzdu ' + fmt(WAGE) + ' Kč za herní hodinu, platí se i cesta.</p>';
+  for (const v of vehicles.filter(x => x.type !== 'jeep' && x.type !== 'loader')) {
     const name = labelOf(v) + (v.type === 'tractor' ? ' · ' + (v.tool ? labelOf(v.tool).toLowerCase() : 'bez nářadí') : '');
     if (v.helper) {
       out += `<div class="row active"><div class="rmain"><b>${name}</b><span>${helperStatus(v)} · mzda ${fmt(v.helper.wage)} Kč</span></div>
         <div class="rstate">${btn('fire', v.id, 'Propustit', false, 'ghost')}</div></div>`;
       continue;
     }
-    if (busy) continue; // only one helper at a time: the others wait until he is done
+    if (busy) continue; // all helpers at work: the others wait until one is done
     const im = toolPick(v), list = v.type === 'tractor' ? helperTools(v) : [];
     const toolSel = list.length > 1 || (list.length && list[0] !== v.tool)
       ? `<label class="hselect"><span class="sr">Nářadí</span><select data-tool="${v.id}">${list.map(t => `<option value="${t.id}"${t === im ? ' selected' : ''}>${labelOf(t)}${t === v.tool ? ' (zapojené)' : ''}${powerShare(v, t) < 1 ? ' · práce ' + pct(powerShare(v, t)) : ''}</option>`).join('')}</select></label>` : '';
@@ -524,7 +544,68 @@ function helpersHTML() {
       : `<label class="hselect"><span class="sr">Kam</span><select id="hsel-${v.id}">${opts.map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>`}</div>
       <div class="rstate">${btn('send', v.id, 'Poslat', !opts.length)}</div></div>`;
   }
-  if (busy) out += `<p class="muted">Ostatní stroje počkají, až pomocník (${labelOf(busy)}) skončí nebo ho propustíš.</p>`;
+  if (busy) out += `<p class="muted">Pracuje všech ${HELPER_MAX} pomocníků. Ostatní stroje počkají, až některý skončí nebo ho propustíš.</p>`;
+  return out + haulHTML(busy);
+}
+
+/** What the office remembers for a transport job of tractor v: crop, target and amount (the first that make sense). */
+const hauls = {};
+const HAUL_AMOUNTS = [10000, 30000, 60000, Infinity];
+function haulPick(v) {
+  const stocked = CROPS.map((_, k) => k).filter(k => G.silo.stock[k] >= 1);
+  if (!v || !stocked.length) return null;
+  const p = hauls[v.id] || {}, crop = stocked.includes(+p.crop) ? +p.crop : stocked[0];
+  const ts = targetsFor(crop).filter(m => m.id !== 'coop');
+  const target = ts.find(m => m.id === p.target)?.id || ts[0]?.id;
+  const amount = HAUL_AMOUNTS.includes(+p.amount) ? +p.amount : p.amount === 'Infinity' ? Infinity : Infinity;
+  return target ? { crop, target, amount, stocked, ts } : null;
+}
+/** Transport jobs: a tractor with a trailer takes a crop from the silo to a buyer, a feeder or the farm's production. */
+function haulHTML(busy) {
+  const list = vehicles.filter(v => v.type === 'tractor' && v.tool?.key === 'trailer' && !v.tool.pickup && !v.helper);
+  let out = '<h3 class="grp">Přeprava ze sila</h3><p class="lede small">Pomocník s traktorem a přívěsem naloží plodinu u výdeje ze sila, odveze ji do výkupu, do krmelce nebo do tvé výrobny, vysype ji a jede znovu, dokud nepřeveze, co chceš, nebo silo nevyprázdní.</p>';
+  if (!list.length) return out + '<p class="empty">Žádný volný traktor nemá připojený sklápěcí přívěs.</p>';
+  for (const v of list) {
+    const hl = haulPick(v), why = !hl ? 'V silu nic není.' : canHaul(v, hl.crop).why || (busy ? 'Všichni pomocníci pracují.' : '');
+    const sel = hl && !why ? `<label class="hselect"><span class="sr">Plodina</span><select data-haul="${v.id}" data-part="crop">${hl.stocked.map(k => `<option value="${k}"${k === hl.crop ? ' selected' : ''}>${CROPS[k].name} · ${fmt(G.silo.stock[k])} l</option>`).join('')}</select></label>
+      <label class="hselect"><span class="sr">Kam</span><select data-haul="${v.id}" data-part="target">${hl.ts.map(m => `<option value="${m.id}"${m.id === hl.target ? ' selected' : ''}>${esc(m.name)}${m.mult ? ' · ' + fmt2(marketPrice(m, hl.crop, G.gameMin)) + ' Kč/l' : ''}</option>`).join('')}</select></label>
+      <label class="hselect"><span class="sr">Kolik</span><select data-haul="${v.id}" data-part="amount">${HAUL_AMOUNTS.map(a => `<option value="${a}"${a === hl.amount ? ' selected' : ''}>${a === Infinity ? 'všechno' : fmt(a) + ' l'}</option>`).join('')}</select></label>` : '';
+    out += `<div class="row"><div class="rmain"><b>${labelOf(v)} · ${labelOf(v.tool).toLowerCase()}</b>${why ? `<span>${why}</span>` : sel}</div>
+      <div class="rstate">${btn('haul', v.id, 'Odvézt', !!why)}</div></div>`;
+  }
+  return out;
+}
+
+/** Building on your land: what you can put up, what stands and what the production does. */
+function buildHTML() {
+  let out = '<p class="lede small">Stavět můžeš na svých polích a na stavebním pozemku u vesnické silnice za polem 5 (cedule Na stavby). Klikni na Postavit, náhled budovy se objeví před tebou: najeď nebo dojdi, kam ji chceš, <kbd>R</kbd> ji otočí, <kbd>F</kbd> postaví, <kbd>Esc</kbd> stavbu zruší. Do režimu stavby se dostaneš i klávesou <kbd>B</kbd>. Budova na poli zabere jeho kus, pomocník ji neobjede.</p>';
+  out += '<h3 class="grp">Postavit</h3>';
+  for (const k of BUILD_KEYS) {
+    const s = BUILDS[k], n = builtOf(k).length, full = n >= s.max;
+    out += `<div class="row"><div class="rmain"><b>${BUILD_INFO[k].name}</b><span>${BUILD_INFO[k].desc}</span></div>
+      <div class="rstate"><b>${fmt(s.price)} Kč</b><span class="muted">${n} z ${s.max}</span></div>
+      <div class="ract">${btn('build', k, 'Postavit', full || G.money < s.price)}</div></div>`;
+  }
+  const prods = productions();
+  if (prods.length) {
+    out += '<h3 class="grp">Výroba</h3>';
+    for (const k of prods) {
+      const r = PRODUCTION[k], [label, unit] = OUT_NAME[r.out], pal = Math.floor(outOf(k) / PALLET[r.out]);
+      const state = prodFull(k) ? '<span class="chip warn">Plno palet</span>' : prodIn(k) > 0 ? '<span class="chip on">Pracuje</span>' : '<span class="chip">Bez vstupu</span>';
+      out += `<div class="row"><div class="rmain"><b>${BUILD_INFO[k].mine}</b><span>Vstup ${fmt(prodIn(k))} / ${fmt(r.store)} ${IN_NAME[k]} · ${label} ${fmt(outOf(k))} ${unit} (${plural(pal, 'paleta', 'palety', 'palet')} z ${PRODUCTION.outCap})</span>
+        <div class="bar"><i style="width:${Math.min(100, (prodIn(k) / r.store) * 100).toFixed(1)}%"></i></div>
+        <span class="muted">Za hodinu ${fmt(r.in)} ${IN_NAME[k]} → ${fmt(r.make)} ${unit}. Palety naložíš přívěsem nebo nakladačem v kruhu před budovou, tržnice za ně dá ${fmt(r.price * (1 + PALLET.bonus))} Kč za jednotku.</span></div>
+        <div class="rstate">${state}</div></div>`;
+    }
+  }
+  if (G.built.length) {
+    out += '<h3 class="grp">Tvoje stavby</h3>';
+    for (const b of G.built) {
+      const why = demolishBlock(b);
+      out += `<div class="row slim"><div class="rmain"><b>${BUILD_INFO[b.type].name}</b><span class="muted">${Math.round(b.x)}, ${Math.round(b.z)}</span>${why ? `<p class="why">${why}</p>` : ''}</div>
+        <div class="ract">${btn('demolish', b.id, 'Zbourat · ' + fmt(BUILDS[b.type].price * BUILDS.refund) + ' Kč', !!why, 'ghost')}</div></div>`;
+    }
+  }
   return out;
 }
 

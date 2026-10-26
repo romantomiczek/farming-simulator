@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { renderer, scene } from '../render/core.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { M, CY, flatPlane, bake } from '../render/materials.js';
-import { hash2, fmt, fmt2 } from '../core/util.js';
+import { hash2, fmt, fmt2, hexRgb } from '../core/util.js';
 import { CROPS, SOIL, SOIL_PLOW, STRAW, GRASS, SWATH, SW_FRESH, SW_TEDDED, SW_HAY, SW_TEDDED_DRY, S_STUB, S_CULT, S_SOWN, S_RIPE, S_NONE, B_FERT, B_PLOW, B_ROLL, B_MULCH, B_STONE } from '../game/crops.js';
 import { WITHER_H, LIME_DUE, weedsGrow, weedLevel, cellYield } from '../game/agro.js';
 import { FIELD_DEFS, ROADS, circles, inPoly, polyDist, roadAt } from './layout.js';
@@ -148,6 +148,7 @@ export const FIELDS = FIELD_DEFS.map(def => {
   f.bonus = new Uint8Array(f.n); f.straw = new Uint8Array(f.n);
   // weeds, harvests since liming, the crop before (game/agro.js)
   f.weed = new Uint8Array(f.n); f.lime = new Uint8Array(f.n); f.prev = new Uint8Array(f.n);
+  f.dmg = new Uint8Array(f.n); // yield lost to hail and drought, per cent (game/climate.js)
   // wheel ruts: track = 1 + orientation * 4 + offset in pixels, trackS = state + 1 when it was made
   // (a rut disappears as soon as a tool works the cell); not saved
   f.track = new Uint8Array(f.n); f.trackS = new Uint8Array(f.n);
@@ -239,7 +240,7 @@ export function applyStart(f) {
   const st = f.start || { s: 'stub' };
   const S = { stub: S_STUB, cult: S_CULT, sown: S_SOWN, ripe: S_RIPE }[st.s] ?? S_STUB;
   f.state.fill(S); f.crop.fill(st.crop || 0); f.growth.fill(S === S_RIPE ? CROPS[st.crop || 0].hours : 0); f.stage.fill(S === S_RIPE ? 4 : 0);
-  f.weed.fill(0); f.prev.fill(0); f.lime.fill(f.ownedStart ? 0 : (f.id * 3) % 5); // some of the neighbours' fields need lime when you buy them
+  f.weed.fill(0); f.prev.fill(0); f.dmg.fill(0); f.lime.fill(f.ownedStart ? 0 : (f.id * 3) % 5); // some of the neighbours' fields need lime when you buy them
   f.dir.fill(st.dir || 0); f.bonus.fill(0); f.straw.fill(0); f.track.fill(0);
   if (S === S_SOWN) {
     const hours = CROPS[st.crop || 0].hours;
@@ -248,9 +249,10 @@ export function applyStart(f) {
   applyMask(f);
   f.owned = f.ownedStart;
 }
-/** Cells outside the outline are never part of the field. */
+/** Cells outside the outline are never part of the field, nor those under a building the player put up (f.built, game/build.js). */
 export function applyMask(f) {
   if (f.mask) for (let i = 0; i < f.n; i++) if (!f.mask[i]) { f.state[i] = S_NONE; f.stage[i] = 0; f.straw[i] = 0; f.bonus[i] = 0; }
+  if (f.built) for (let i = 0; i < f.n; i++) if (f.built[i]) { f.state[i] = S_NONE; f.stage[i] = 0; f.straw[i] = 0; f.bonus[i] = 0; }
 }
 
 export function fieldAt(x, z) {
@@ -262,10 +264,12 @@ export function fieldAt(x, z) {
 const cropCss = CROPS.map(c => c.colors.map(hex => '#' + _c.set(hex).multiplyScalar(0.72).getHexString()));
 const cropLine = CROPS.map(c => c.colors.map(hex => '#' + _c.set(hex).multiplyScalar(0.55).getHexString()));
 
+const BUILT_GROUND = '#8d8a7a', BUILT_RGB = hexRgb(BUILT_GROUND);
 export function drawCell(f, i) {
   const ix = i % f.w, iz = (i / f.w) | 0, px = ix * CP, py = iz * CP, s = f.state[i], j = f.jit[i];
   const v = Math.floor(j * 3.999), ctx = f.ctx, along = f.dir[i] === 0;
   f.texDirty = true;
+  if (s === S_NONE && f.built?.[i]) { ctx.fillStyle = BUILT_GROUND; ctx.fillRect(px, py, CP, CP); return; } // under a building (game/build.js): trodden ground
   if (s === S_NONE) { ctx.clearRect(px, py, CP, CP); return; }
   if (f.meadow) {
     // grass, or the swath the mower left: a windrow in a line, tedded grass in loose specks
@@ -360,6 +364,7 @@ export function drawMini(f, i) {
   f.miniDirty = true;
   const kd = kindOf(f, i) * 40;
   if (f.kind[i] !== kd) { f.kind[i] = kd; f.kindDirty = true; }
+  if (s === S_NONE && f.built?.[i]) { d[o] = BUILT_RGB[0]; d[o + 1] = BUILT_RGB[1]; d[o + 2] = BUILT_RGB[2]; d[o + 3] = 255; return; }
   if (s === S_NONE) { d[o + 3] = 0; return; }
   let rgb;
   if (f.meadow) rgb = f.straw[i] ? SWATH[f.straw[i]].rgb : GRASS.rgb[s === S_RIPE ? 4 : grassStage(f.growth[i])];
@@ -411,6 +416,7 @@ function paintAll(f) {
   const row = (px, y, c) => { for (let x = 0; x < CP; x++) px1(px + x, y, c); };
   for (let i = 0; i < f.n; i++) {
     const s = f.state[i];
+    if (s === S_NONE && f.built?.[i]) { fill((i % f.w) * CP, ((i / f.w) | 0) * CP, rgb(BUILT_GROUND)); continue; }
     if (s === S_NONE) continue; // stays transparent
     const px = (i % f.w) * CP, py = ((i / f.w) | 0) * CP, j = f.jit[i], v = Math.floor(j * 3.999), along = f.dir[i] === 0;
     if (f.meadow) {

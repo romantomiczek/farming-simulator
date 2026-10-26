@@ -1,5 +1,7 @@
 import { CROPS } from './crops.js';
 import { has } from './machines.js';
+import { G } from './state.js';
+import { MODES } from './balance.js';
 import { BUILDINGS } from './farm.js';
 import { COW_PEN, HEN_RUN, SHEEP_PEN, PIG_PEN, BUYER_AT } from '../world/layout.js';
 
@@ -25,15 +27,15 @@ export const FEEDERS = [
   { id: 'pigsFeed', name: 'Krmelec u vepřína', short: 'Vepřín', ...PIG_PEN.feed, feed: 'pigs' },
 ];
 
-export const accepts = (m, crop) => (m.feed ? BUILDINGS[m.feed].eats.includes(crop) : m.mult.all != null || m.mult[crop] != null);
+export const accepts = (m, crop) => (m.feed ? BUILDINGS[m.feed].eats.includes(crop) : m.prod ? m.crops.includes(crop) : m.mult.all != null || m.mult[crop] != null);
 const near = p => m => Math.hypot(p.x - m.x, p.z - m.z) < m.r;
-export const marketAt = p => MARKETS.find(near(p)) || FEEDERS.find(m => has(m.feed) && near(p)(m)) || null;
+export const marketAt = p => MARKETS.find(near(p)) || FEEDERS.find(m => has(m.feed) && near(p)(m)) || targetHooks.flatMap(f => f()).find(near(p)) || null;
 /** Owned trough at p whose animals eat hay bales, or null. */
 export const hayFeederAt = p => FEEDERS.find(m => has(m.feed) && BUILDINGS[m.feed].hay && near(p)(m)) || null;
 
 /** Price in Kč/l at buyer m for crop at game minute t: multi-day swing plus a faster wobble. */
 export function marketPrice(m, crop, t) {
-  const c = CROPS[crop], d = t / 1440, k = m.mult[crop] ?? m.mult.all;
+  const c = CROPS[crop], d = t / 1440, k = (m.mult[crop] ?? m.mult.all) * (MODES[G.mode]?.sell ?? 1);
   return c.price * k * (1 + 0.14 * Math.sin((d * 2 * Math.PI) / 3.2 + crop * 2.1 + m.phase) + 0.05 * Math.sin(d * 2 * Math.PI * 1.7 + crop * 5.3 + m.phase * 2));
 }
 
@@ -43,6 +45,12 @@ export function bestMarket(crop, t) {
   for (const m of MARKETS) if (accepts(m, crop)) { const p = marketPrice(m, crop, t); if (!best || p > best.p) best = { m, p }; }
   return best;
 }
+
+/** Places a transport job can take crop to: buyers, owned feed troughs, and the farm's own production (production.js adds itself). */
+export const targetHooks = [];
+const allTargets = () => [...MARKETS, ...FEEDERS.filter(m => has(m.feed)), ...targetHooks.flatMap(f => f())];
+export const targetsFor = crop => allTargets().filter(m => accepts(m, crop));
+export const targetById = id => allTargets().find(m => m.id === id) || null;
 
 /** Names of the buyers that take crop, for hints. */
 export const buyersOf = crop => MARKETS.filter(m => accepts(m, crop)).map(m => m.name);

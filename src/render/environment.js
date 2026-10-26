@@ -43,7 +43,7 @@ export function updEnv(target, gameMin, vehicles, active, wx) {
   sun.intensity = lerp(0.35, 1.65, day) * PI * (1 - overcast);
   hemi.color.copy(C_HNIGHT).lerp(c1.copy(C_HSKY).lerp(C_HWARM, dawn * 0.55), day);
   hemi.groundColor.copy(C_HNIGHT).lerp(C_HGROUND, day);
-  hemi.intensity = lerp(0.38, 0.48, day) * PI * (1 - overcast * 0.35);
+  hemi.intensity = lerp(0.38, 0.48, day) * PI * (1 - overcast * 0.35) + (wx.bolt || 0) * 4.5; // a lightning flash lights up everything
   sky.copy(C_SKY).lerp(C_DUSK, dawn * 0.8).lerp(C_GREY, overcast * 0.8).lerp(C_NIGHT, 1 - day);
   zen.copy(C_ZEN).lerp(C_ZDUSK, dawn * 0.7).lerp(C_ZGREY, overcast * 0.85).lerp(C_ZNIGHT, 1 - day);
   scene.background = sky;

@@ -27,15 +27,18 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 | V                  | pohled z kabiny (myší nebo Z/X se rozhlížíš), znovu V zpět za stroj                                                                                                                                            |
 | Mezerník           | spustit / zvednout nářadí; v jeepu troubí                                                                                                                                                                      |
 | Tab                | přesednout do dalšího stroje v okolí (150 m), pěšky do nejbližšího stroje; Shift+Tab do dalšího ze všech strojů                                                                                                |
-| F                  | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu, prodej balíků u stodoly, tankování, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
-| 1–8                | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2)                                                                                                                                        |
+| F                  | prodej úrody ve výkupu, krmení zvířat, překládka do přívěsu, vysypání přívěsu (i na hromadu na zem), prodej balíků u stodoly, tankování, osivo a hnojivo ve skladu nebo z big bagu, voda pro skleníky, kácení stromu a prodej dřeva, výměna nářadí v kůlně, koupě pole u cedule |
+| L                  | nakladač (manipulátor, čelní nakladač na traktoru): naber balíky, paletu, big bag nebo lopatu z hromady / polož na přívěs, do zásobníku stroje, do krmelce nebo na zem; v kombajnu lišta na vozík a zpátky |
+| 1–8                | v kůlně: přímý výběr nářadí traktoru (1–8) nebo adaptéru kombajnu (1–2); u traktoru 1 nasadí nebo sundá čelní nakladač                                                                                         |
 | R                  | v kůlně: oprava stroje a připojeného nářadí                                                                                                                                                                    |
 | K                  | kancelář: obchod se stroji, zakázky, farma a pozemky, cíle, finance (čas se zastaví)                                                                                                                           |
 | M                  | velká mapa celého kraje; kliknutím na svůj stroj do něj přesedneš, 1–5 přepíná zobrazení (mapa, plodiny, růst, stav půdy, vlastnictví)                                                                         |
 | P                  | ceník výkupů vpravo nahoře (zobrazit / skrýt)                                                                                                                                                                  |
 | H                  | najmout pomocníka pro stroj, ve kterém sedíš, nebo ho propustit                                                                                                                                                |
-| C                  | změnit osivo; s rozmetadlem hnojivo / vápno; u výdeje ze sila s přívěsem plodinu, která se naloží                                                                                                              |
-| G                  | uskladnit úrodu do sila (v kruhu Družstva na statku)                                                                                                                                                           |
+| C                  | změnit osivo; s rozmetadlem hnojivo / vápno; u výdeje ze sila s přívěsem plodinu, která se naloží; ve skladu osiv druh big bagu                                                                                |
+| G                  | uskladnit úrodu do sila (v kruhu Družstva na statku nebo před silem, které sis postavil)                                                                                                                       |
+| B                  | stavby: Kancelář → Stavby; v režimu stavby R otočí budovu, F ji postaví, Esc stavbu zruší                                                                                                                      |
+| Q                  | odpojit nářadí, kde stojíš / připojit nářadí, ke kterému jsi zacouval; v kombajnu prázdný vozík na lištu                                                                                                       |
 | T                  | rychlost času 1× / 5× / 20×                                                                                                                                                                                    |
 | Z / X, tažení myší | otočení kamery                                                                                                                                                                                                 |
 | kolečko            | přiblížení (od kamery těsně za strojem až po pohled shora)                                                                                                                                                     |
@@ -48,7 +51,7 @@ Hra pak běží na <http://localhost:5173>. Příkaz `npm test` hru spustí v pr
 
 Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disky, náboji a maticemi, kabiny s rámy, dveřmi, stěrači, sedadlem a palubní deskou, světla a majáky, hydrauliku s hadicemi a spojkami, schůdky s plechem, SPZ, výstražné pruhy a nápisy.
 
-**Modely a značky:** obchod nabízí 80 modelů od nejlevnějších po nejlepší (katalog v `src/game/catalog.js`). Liší se barvami a velikostí podle značky i parametry. Značky jsou jen jako názvy, stroje nenesou loga.
+**Modely a značky:** obchod nabízí 85 modelů od nejlevnějších po nejlepší (katalog v `src/game/catalog.js`). Liší se barvami a velikostí podle značky i parametry. Značky jsou jen jako názvy, stroje nenesou loga.
 
 | Druh              | Modely                                                                                                                                                                                                 |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -69,6 +72,17 @@ Stroje mají lesklý lak, profilované kapoty a blatníky, kola s dezénem, disk
 | Ovíječ balíků     | Ovíječ balíků (tažený)                                                                                                                                                                                 |
 | Přívěsy           | BSS 10 t, Sklápěcí přívěs 14 000 l, Fliegl TMK 22, Krampe Bandit 750, Annaburger HTS 34 (až 40 000 l a 12 balíků), samosběrací vůz Pöttinger Jumbo 6010                                               |
 | Cisterny          | 5 000 l, 8 000 l, Joskin Modulo2 11000, Zunhammer SKE 18.5                                                                                                                                             |
+| Manipulátory      | Manitou MLT 737, Merlo TF42.7, JCB 542-70 Agri Xtra (lopata 2 500–3 600 l, 2–3 balíky); čelní nakladač na traktor                                                                                      |
+| Vozíky na lištu   | 8 m, 13 m (pro Lexion a S790)                                                                                                                                                                          |
+
+## Stroje jako ve FS
+
+- **Sklápění na cestu:** široké nářadí se při zvednutí složí a při spuštění rozloží: kultivátory a secí stroje širší než 4,5 m zvednou boční díly svisle nahoru (secí stroj má pak zásobník jen uprostřed), motýlková žací lišta Krone EasyCut zvedne boční lišty, postřikovač sklopí ramena dopředu, válec, obraceč a shrnovač zvednou boční díly. Pro kolize se počítá jen střed, takže složený stroj projede alejí.
+- **Vozík na lištu:** kombajn zacouvá zádí k oji vozíku a klávesou **L** na něj položí lištu; vozík pak táhne za sebou a je úzký pro silnice i aleje (i Claas Lexion 8900). Na poli **L** nasadí lištu zpátky, prázdný vozík odpojíš nebo připojíš klávesou **Q**. Vozík 8 m unese lištu do 8 m, vozík 13 m každou. S lištou na vozíku kombajn nesklízí a pomocník ho nepřevezme. První vozík stojí na trávě jižně od dvora.
+- **Osivo, hnojivo, vápno a postřik v zásobníku** (`src/game/supply.js`): secí stroj, rozmetadlo a postřikovač je nevezou za peníze na metr, ale v zásobníku (600–3 500 kg, nádrž 1 000–2 000 l). Naplníš je ve **skladu osiv a hnojiv** na severní straně dvora (zelený kruh, F zaplatí doplnění), nebo z **big bagů**: přívěs ve skladu naloží klávesou F big bag (1 000 kg osiva, hnojiva nebo vápna, IBC 1 000 l postřiku; C vybere druh), odvezeš ho k poli a F vedle přívěsu doplní nářadí. Cena za metr je stejná jako dřív (osivo 50 Kč/kg, hnojivo 10 Kč/kg, vápno 3 Kč/kg, postřik 25 Kč/l). Na sousedově poli při zakázce dodá vše soused. Pomocníkovi přivezou doplnění na pole o 10 % dráž. Nová farma má secí stroj plný, každé nové nářadí přijde prázdné.
+- **Nakladače** (`src/game/loader.js`): teleskopický manipulátor (Manitou, Merlo, JCB) a čelní nakladač, který nasadíš na traktor v kůlně (1). Klávesa **L** nabere, co leží před hlavou: kleště balíky (2–3, čelní nakladač 1), vidle paletu z přívěsu nebo od budovy a big bag ve skladu, lopata zrno, řezanku nebo siláž z hromady, hnůj z hnojiště nebo siláž ze žlabu. Znovu **L** to položí: balíky a palety na přívěs, balíky sena do krmelce, big bag do zásobníku secího stroje, rozmetadla nebo postřikovače, paletu výrobků prodá v tržnici, lopatu vysype do přívěsu, do rozmetadla hnoje, do krmelce, do výkupu nebo na hromadu. Nástroj na hlavě se mění sám podle nákladu.
+- **Hromady na zemi** (`src/world/heaps.js`): přívěs se zrnem nebo řezankou vysype mimo výkup klávesou F na hromadu za sebou (třeba u pole, když nestíhá odvoz); nakladač ji pak nabere a naloží. Hromady se ukládají.
+
 
 **Výkon traktoru:** každé nářadí potřebuje určitý výkon („potřebuje … koní“). Slabší traktor ho utáhne, ale pracuje pomaleji, úměrně poměru výkonu (nejméně na 35 %): Brázda 140 s Horschem 10 m (350 koní) pracuje na 40 %, Fendt 942 naplno. S plným přívěsem nebo cisternou jede slabý traktor pomaleji (prázdný stojí 40 % potřebného výkonu, plný všechno, nejhůř 45 % rychlosti). Přetížený traktor spotřebuje víc nafty, silný traktor s lehkým nářadím méně. HUD ukazuje „140 / 350 k · práce 40 %“, kůlna u každého nářadí, jak rychle s ním traktor pojede, obchod u traktoru, které tvoje nářadí utáhne pomaleji, a u nářadí, jak pojede s tvým nejsilnějším traktorem. Pomocníci pracují stejnou rychlostí.
 
@@ -147,6 +161,8 @@ Postřikovač má rameno, které se na cestu sklopí podél traktoru, válec zve
 
 **Počasí** se mění po čtyřech hodinách: jasno, oblačno, déšť, v zimě sněžení. Za deště a hodinu po něm se nesklízí. Déšť trochu urychlí růst. Předpověď je pod hodinami.
 
+**Počasí s následky** (`src/game/climate.js`): část dešťů jsou **bouřky** s blesky a hromem, nejčastěji v létě. Některé bouřky přinesou **krupobití**: na většině polí potluče rostoucí a zralé plodiny (výnos o 8–30 % méně na každém metru). V létě bývá den **sucha**: celý den nezaprší, rostoucí plodiny rostou pomaleji a každou hodinu přijdou zhruba o procento výnosu. Škody jsou v rozpisu výnosu jako „Počasí“ a zmizí se sklizní nebo novým setím. Louky se nepoškodí. Ve vývojářském panelu (F9) jsou tlačítka Bouřka a Kroupy.
+
 **Atmosféra:** obloha se sluncem, které zapadá za obzor, s měsícem, hvězdami a mraky (při zatažení jich je víc a šednou). Ráno a večer je světlo zlaté. Obilí, stromy a živé ploty se vlní ve větru, při dešti víc. Kola nechávají v poli koleje, které zmizí, až pole obděláš, a za sucha se za stroji práší. Kameru sklopíš myší až k obzoru.
 
 **Viditelná práce:** kombajn rozhazuje za sebou z drtiče vějíř slámy a plev, sklízeč cukrovky sype hlínu a odhazuje chrást. Pluh převrací hroudy doprava, kultivátor je vyhazuje nahoru a za kultivátorem, pluhem i secím strojem zůstává pruh čerstvé tmavé hlíny, který za dvě minuty oschne (`src/fx/furrows.js`). Lis zvedá ze řádku seno a slámu a balík vypadne s obláčkem stébel. Z výsypné roury i ze sklopeného přívěsu teče souvislý proud zrna (`src/fx/streams.js`). Po dešti jsou pole a tráva tmavší a na cestách se lesknou kaluže, které s osycháním mizí (`src/fx/wet.js`).
@@ -200,7 +216,7 @@ Poslední den léta (9:00–20:00) jsou u hlavní silnice za olejnou dožínky: 
 
 ## Pomocníci
 
-Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kancelář a klávesa H řeknou, kdo zrovna pracuje). Pomocníka najmeš dvěma způsoby:
+Najednou může pracovat **až pět pomocníků**, každý za svou mzdu (Kancelář → Farma ukazuje, kolik jich pracuje). Pomocníka najmeš dvěma způsoby:
 
 - **Na místě:** zajeď strojem na pole a stiskni **H**. Pomocník převezme řízení a ty přesedneš do dalšího volného stroje.
 - **Z Kanceláře (K → Farma → Pomocník):** u traktoru vyber nářadí (zapojené, nebo kterékoli volné; u každého je vidět, jak rychle s ním traktor pojede), pak pole nebo louku (u harvestoru les) a dej **Poslat**. Pro jiné nářadí si pomocník nejdřív dojede tam, kde stojí, a připojí si ho. Pak jede po silnicích (vpravo, jako auta, přes mosty a brod), práci udělá a vrátí se na dvůr. Tady vidíš i jeho stav a můžeš ho propustit.
@@ -209,20 +225,25 @@ Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kanc
 - **S čím pracuje:** kultivátor, pluh, secí stroj (seje zvolené osivo), rozmetadlo, žací lišta, lis, kombajn, sklízeč cukrovky a harvestor. S přívěsem nepracuje.
 - **Sklizeň:** pomocník poslaný z Kanceláře odveze plný zásobník na výkup, který zrovna platí nejvíc, a vrátí se tam, kde přestal. Najatý na místě čeká, až mu přistavíš přívěs a vyložíš ho (F). Za deště čeká, až plodiny oschnou.
 - **Les:** s harvestorem kácí vzrostlé stromy, ke kterým se dostane, plný harvestor odveze na výkup dřeva s lepší cenou a pokračuje, dokud v lese jsou vzrostlé stromy.
+- **Přeprava ze sila:** traktor se sklápěcím přívěsem dostane v Kanceláři → Farma → Přeprava ze sila úlohu „nalož u sila, vylož jinde“: vybereš plodinu, cíl (výkup, krmelec zvířat nebo tvůj mlýn či olejna) a kolik. Pomocník jezdí mezi výdejem ze sila a cílem, dokud nepřeveze, co chceš, nebo silo nevyprázdní, pak se vrátí na dvůr.
 - **Mzda:** 1 500 Kč za hodinu práce i cesty. Hodina je minuta skutečného času, takže zrychlený čas (T) mzdu nenafoukne. Když dochází nafta, pomocníkovi ji přivezou (cena nafty + 10 % za dovoz).
 - **Konec:** skončí, když je práce hotová nebo dojdou peníze. Kdykoli ho propustíš klávesou H ve stroji, který řídí, nebo v Kanceláři.
 - **Zakázky:** na sousedově poli může pracovat, jen když tam máš zakázku s odpovídajícím nářadím.
 - **Překážky:** na poli pomocník nikdy neprojede budovou, plotem, stromem ani zaparkovaným strojem; když mu něco stojí v cestě déle než 8 sekund, skončí s hlášením. Na cestě po silnicích čeká na stroje a auta a krátké úseky mimo silnici (z kůlny, ke kraji pole) projede.
-- **Ukládání:** pomocník se ukládá i s rozpracovanou trasou a fází (cesta pro nářadí, cesta, práce, odvoz). Po načtení hry pokračuje. Ze starší uložené hry s více pomocníky pokračuje jen první.
+- **Ukládání:** pomocník se ukládá i s rozpracovanou trasou a fází (cesta pro nářadí, cesta, práce, odvoz, přeprava). Po načtení hry pokračuje.
+- **Stavby na poli:** pomocník budovu, kterou sis postavil na poli, neobjede: když mu stojí v cestě, zastaví.
 
 ## Ekonomika
 
-**Kancelář (K)** má šest záložek. Dokud je otevřená, čas stojí.
+**Kancelář (K)** má osm záložek. Dokud je otevřená, čas stojí.
 
-- **Obchod:** záložky Traktory, Sklízeče, Nářadí, Přívěsy a cisterny, Lesnictví, Auta a Budovy. Každý druh má řadu karet od nejlevnějšího po nejlepší: fotka stroje, cena, proužky parametrů a srovnání s tím, co už máš („+50 % výkon“). Filtr „Jen na co mám“ a řazení od nejlevnějšího nebo od nejlepšího. Klik na kartu otevře detail s modelem stroje, který se otáčí (tažením myší ho otočíš sám), se všemi čísly, poznámkou o výkonu a nákupem. Stroj koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den); v detailu můžeš zvolit **protiúčet**: starý stroj stejného druhu se prodá (55 % ceny podle stavu) a doplatíš rozdíl, nový převezme jeho nářadí i tvoje místo za volantem. Na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs. Fotky karet hra nafotí sama hned po otevření obchodu, jednu za snímek (`src/render/previews.js`): ve studiu se stejným světlem jako ve hře, takže se nic nekompiluje a hra se nezadrhne.
+**Začátek hry:** Menu → Nová hra nabídne tři začátky. **Nový farmář** má statek s poli 1 a 2, traktorem, kombajnem, kultivátorem, secím strojem a přívěsem a 150 000 Kč. **Správce farmy** začíná s 1 500 000 Kč bez polí a strojů, jen s autem. **Začátek od nuly** má auto a 500 000 Kč a výkupy platí o 10 % méně. Ve všech třech je statek s budovami stejný.
+
+- **Obchod:** záložky Traktory, Sklízeče, Nářadí, Přívěsy a cisterny, Nakladače, Lesnictví, Auta a Budovy. Každý druh má řadu karet od nejlevnějšího po nejlepší: fotka stroje, cena, proužky parametrů a srovnání s tím, co už máš („+50 % výkon“). Filtr „Jen na co mám“ a řazení od nejlevnějšího nebo od nejlepšího. Klik na kartu otevře detail s modelem stroje, který se otáčí (tažením myší ho otočíš sám), se všemi čísly, poznámkou o výkonu a nákupem. Stroj koupíš, nebo pronajmeš (5 % ceny předem a 1,2 % ceny za každý den); v detailu můžeš zvolit **protiúčet**: starý stroj stejného druhu se prodá (55 % ceny podle stavu) a doplatíš rozdíl, nový převezme jeho nářadí i tvoje místo za volantem. Na začátku vlastníš traktor, kombajn, kultivátor, secí stroj a přívěs. Fotky karet hra nafotí sama hned po otevření obchodu, jednu za snímek (`src/render/previews.js`): ve studiu se stejným světlem jako ve hře, takže se nic nekompiluje a hra se nezadrhne.
 - **Vozový park:** každý stroj a nářadí s místem, stavem a nákladem; přesednutí, prodej a vrácení z pronájmu.
-- **Zakázky:** obděláváš sousedova pole, která ti nepatří (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem.
+- **Zakázky:** obděláváš sousedova pole, která ti nepatří (sklizeň, kultivace, orba, setí, hnojení). Osivo a hnojivo dodá soused a úrodu si odveze sám. Odměnu dostaneš, když do dvou dnů dokončíš 90 % práce. Nové nabídky přicházejí s každým dnem. Když na zakázku nemáš stroj, vezmeš ji **se strojem souseda**: přistaví ho k ceduli pole (kombajn nebo sklízeč, u nářadí i traktor, když žádný nemáš), nechá si 30 % odměny a po zakázce si ho vezme zpátky. Jeho stroj pracuje jen na poli ze zakázky.
 - **Farma:** pozemky (výměra, co na nich je, nákup sousedových polí na dálku), zásoby zvířat a skleníků, stav lesa.
+- **Stavby:** budovy, které si postavíš sám, a stav výroby, viz [Stavby a výroba](#stavby-a-výroba).
 - **Cíle:** tři aktivní cíle s odměnou (od první sklizně po celé údolí) a statistiky farmy. Aktuální cíl je vidět i pod Dalším krokem.
 - **Finance:** úvěr až 1 000 000 Kč po 100 000 Kč s úrokem 0,4 % denně. Najdeš tu i nouzový dovoz 60 l nafty, když v poli dojde.
 
@@ -231,6 +252,22 @@ Najednou pracuje **jen jeden pomocník**: dokud pracuje, další nenajmeš (Kanc
 **Opotřebení:** stroj i nářadí ztrácejí stav prací. Pod 50 % jezdí pomaleji a víc žerou. Opravíš je v kůlně klávesou R.
 
 Úroky a leasing se strhávají o půlnoci. Starší uložené hry si ponechají všechny stroje, které v nich už byly.
+
+## Stavby a výroba
+
+**Stavění** (`src/game/build.js`, modely v `src/world/placed.js`): v Kanceláři → **Stavby** (nebo klávesou B) vybereš budovu a dáš Postavit. Před tebou se objeví průhledný náhled: zelený, kde budova smí stát, červený, kde ne (a proč). Najeď strojem nebo dojdi, kam ji chceš, **R** ji otočí o čtvrt otáčky, **F** ji postaví a zaplatí, **Esc** stavbu zruší. Stavět se dá jen na tvém: na tvých polích a loukách a na **stavebním pozemku** u vesnické silnice za polem 5 (cedule Na stavby), ne přes cesty, budovy, stromy a stroje a ne na velkém svahu. Na poli budova zabere kus pole, který se při zbourání vrátí jako strniště. Zbouráním dostaneš zpátky polovinu ceny.
+
+| Budova        | Cena       | Co dělá                                                                                         |
+| ------------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| Obilné silo   | 380 000 Kč | +150 000 l v silech statku; G v kruhu před ním uskladní, F naloží (nejvýš 3)                    |
+| Strojní kůlna | 260 000 Kč | druhá dílna: oprava (R), adaptér kombajnu a čelní nakladač (nejvýš 2)                           |
+| Kravín        | 520 000 Kč | místo pro dalších 20 krav ke stádu v kravíně (potřebuje kravín, nejvýš 2)                       |
+| Mlýn          | 900 000 Kč | pšenice a ječmen → mouka: 800 l za hodinu dá 600 kg                                             |
+| Pekárna       | 700 000 Kč | mouka z palet → chléb: 300 kg za hodinu dá 400 bochníků                                         |
+| Olejna        | 800 000 Kč | řepka a slunečnice → olej: 400 l za hodinu dá 160 l                                             |
+| Pila          | 600 000 Kč | kulatina z harvestoru → prkna: 2 m³ za hodinu dají 1,5 m³                                       |
+
+**Výrobní řetězce** (`src/game/production.js`): výrobna má před vraty barevný kruh. Do mlýna a olejny vysypeš přívěs nebo zásobník sklízeče (F), může je vozit i pomocník z Přepravy ze sila; do pekárny vyložíš palety mouky (F s přívěsem nebo nakladačem L), na pilu složí harvestor dřevo (F). Výrobna pracuje po herních hodinách, dokud má vstup, a výrobky skládá na palety (mouka 500 kg, chléb 400 bochníků, olej 200 l, prkna 2 m³) do svého kruhu; když jich je 20, zastaví se. Palety naložíš přívěsem (F) nebo nakladačem a prodáš v tržnici v městečku (mouka 11 Kč/kg, chléb 14 Kč za bochník, olej 40 Kč/l, prkna 3 200 Kč/m³, tržnice přidá 40 %). Mouku můžeš místo prodeje upéct v pekárně. O půlnoci se výrobky neodvážejí. Kancelář → Stavby ukazuje vstup, výrobky a stav každé výrobny, Další krok upozorní, když výrobna stojí kvůli plným paletám.
 
 ## Přívěs na úrodu
 
@@ -331,11 +368,13 @@ src/
                        budovy a vesnice, městečko, nádraží a pískovna (landmarks.js),
                        vegetace, pole a louky, balíky, kravín, kurník a skleníky
                        (farmstead.js), les (forest.js), zvířata (wildlife.js),
-                       auta a vlak (traffic.js)
+                       auta a vlak (traffic.js), hromady na zemi (heaps.js), postavené budovy (placed.js)
   vehicles/            modely a jízda strojů, kolizní tvary a nárazy (body.js), nářadí, přívěs
   game/                stav hry, plodiny, výkupy, práce nářadí, akce, ukládání,
                        stroje a ekonomika, zakázky, počasí a roční období, pomocníci,
-                       zvířata a skleníky (farm.js), stáda, hnůj a palety (animals.js), lesnictví (forestry.js), cíle a statistiky (goals.js)
+                       zvířata a skleníky (farm.js), stáda, hnůj a palety (animals.js), lesnictví (forestry.js), cíle a statistiky (goals.js),
+                       osivo a hnojivo v zásobnících a big bagy (supply.js), nakladače (loader.js), škody počasí (climate.js),
+                       stavby (build.js), výroba (production.js)
   fx/                  částice (prach, plevy, kouř), déšť a sníh, stopy kol (tracks.js)
   ui/                  HUD, minimapa, menu, kancelář, měřič FPS, hlášky, vývojářský panel (devpanel.js),
                        editor mapy (mapeditor.js)
@@ -375,7 +414,7 @@ Pěšky narážíš do budov, plotů, kmenů stromů, strojů, přívěsů, aut 
 - **Tvar pro kolize:** každý stroj je jeden nebo víc obdélníků změřených z jeho 3D modelu: tělo (bez výsypné roury a jeřábu harvestoru), lišta kombajnu a sklízeče cukrovky a zapojené nářadí, takže narážejí i lišta a 12m secí stroj. Stromy překážejí kmenem, ne korunou. Kód je v `src/vehicles/body.js` a `drive()` v `src/vehicles/vehicles.js`.
 - **Náraz:** stroj se o překážku zastaví a trochu odskočí. Když narazí šikmo, klouže podél ní a ztratí jen část rychlosti. Když narazí rohem, pootočí se. Chvíli po nárazu klouže, než ho kola znovu chytí. Silný náraz krátce zatřese kamerou a je slyšet. Stroje se nárazem nepoškozují.
 - **Odstavná plocha** má místa po 14 m, aby se vedle sebe vešly i kombajny s nejširšími lištami.
-- **Omezení:** Claas Lexion 8900 (lišta 14 m) neprojede alejemi podél silnic, John Deere S790 (12,4 m) jen přesně středem. Pomocníci objíždějí překážky podle těla stroje bez lišty a nářadí.
+- **Omezení:** Claas Lexion 8900 (lišta 14 m) s nasazenou lištou neprojede alejemi podél silnic, John Deere S790 (12,4 m) jen přesně středem; s lištou na vozíku projedou oba. Pomocníci objíždějí překážky podle těla stroje bez lišty a nářadí.
 
 ## Auta
 
@@ -434,3 +473,4 @@ Zbývající kroky vozového parku, odložené na později:
 ## Známá omezení a nápady
 
 - Nápady na další obsah: pomocník, který sám krmí, vozí mléko nebo jezdí s přívěsem vedle řezačky.
+- Pomocník na poli neobjede budovu, kterou sis na poli postavil. Přeprava ze sila neumí vozit z hromady ani výrobky z výroben.

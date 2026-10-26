@@ -359,20 +359,45 @@ function brandOn(L, h, maxW, x, y, z, ry, p) {
   if (L.brand) textDecal(L.brand, h, maxW, x, y, z, ry, p, { fill: L.text || '#fbf7ee', stroke: L.stroke === undefined ? '#24312a' : L.stroke });
 }
 
-/** Cultivator. o = look: color, frame, width (m: beams, tines and roller follow it), brand. */
+/**
+ * Folding frame of a wide implement (over FOLD_W): what lies further out than ±mid/2 sits on two wings
+ * hinged there (at height y, depth z) that stand up for the road and open flat when the tool is lowered
+ * (vehicles.js turns them). at(x, y, z) gives the place and parent of a part, ready to spread into
+ * B/RB/mk: [x, y, z, parent]. span(y, z, fn) splits a beam across the whole width into the middle
+ * and the two wing pieces: fn(len, x, y, z, parent). Narrow tools get one rigid frame.
+ */
+const FOLD_W = 4.5;
+function folding(lift, W, y, z, mid = 3) {
+  const wide = W > FOLD_W, wings = wide ? [-1, 1].map(sx => wing(lift, sx * mid / 2, y, z, 'z', 0, sx * Math.PI * 0.5)) : [];
+  const at = (x, yy, zz) => {
+    if (!wide || Math.abs(x) <= mid / 2 + 1e-6) return [x, yy, zz, lift];
+    const sx = Math.sign(x);
+    return [x - sx * mid / 2, yy - y, zz - z, wings[sx < 0 ? 0 : 1]];
+  };
+  const span = (yy, zz, fn) => {
+    if (!wide) { fn(W, ...at(0, yy, zz)); return; }
+    fn(mid, ...at(0, yy, zz));
+    const side = (W - mid) / 2;
+    for (const sx of [-1, 1]) fn(side, ...at(sx * (mid / 2 + side / 2), yy, zz));
+  };
+  return { at, span, wings };
+}
+
+/** Cultivator. o = look: color, frame, width (m: beams, tines and roller follow it), brand. Wider than 4,5 m, the sides fold up. */
 export function buildCultivator(o = {}) {
   const L = { color: '#e0a640', frame: '#3a3f42', width: 4.2, brand: null, ...o }, W = L.width, hw = W / 2;
   const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
-  const y = P(L.color), frame = F(L.frame);
+  const y = P(L.color), frame = F(L.frame), cage = F('#6a6f72');
+  const { at, span, wings } = folding(lift, W, 0.85, -1.35);
   RB(0.24, 0.24, 1.0, 0.04, y, 0, 0.72, -0.4, lift);
-  RB(W, 0.22, 0.25, 0.05, y, 0, 0.85, -0.95, lift);
-  RB(W, 0.22, 0.25, 0.05, y, 0, 0.85, -1.75, lift);
+  span(0.85, -0.95, (len, ...p) => RB(len, 0.22, 0.25, 0.05, y, ...p));
+  span(0.85, -1.75, (len, ...p) => RB(len, 0.22, 0.25, 0.05, y, ...p));
   for (const sx of [-1, 1]) {
-    RB(0.18, 0.2, 1.1, 0.04, y, sx * (hw - 0.1), 0.85, -1.35, lift);
-    decal('warn', 0.5, 0.16, sx * (hw - 0.3), 0.85, -1.877, Math.PI, lift);
-    tailCluster(lift, sx * (hw - 0.15), 1.08, -1.9);
+    RB(0.18, 0.2, 1.1, 0.04, y, ...at(sx * (hw - 0.1), 0.85, -1.35));
+    decal('warn', 0.5, 0.16, ...at(sx * (hw - 0.3), 0.85, -1.877).slice(0, 3), Math.PI, at(sx * (hw - 0.3), 0, 0)[3]);
+    tailCluster(at(sx * (hw - 0.15), 0, 0)[3], ...at(sx * (hw - 0.15), 1.08, -1.9).slice(0, 3));
   }
-  brandOn(L, 0.16, Math.max(0.6, W - 1.6), 0, 0.85, -1.878, Math.PI, lift);
+  brandOn(L, 0.16, Math.max(0.6, Math.min(W, 3) - 1.6), 0, 0.85, -1.878, Math.PI, lift);
   RB(1.6, 0.2, 0.2, 0.04, y, 0, 0.85, -0.55, lift);
   // headstock A-frame with pins
   for (const sx of [-1, 1]) {
@@ -380,72 +405,94 @@ export function buildCultivator(o = {}) {
     CY(0.035, 0.035, 0.2, 8, S(), sx * 0.42, 0.55, -0.15, lift).rotation.z = Math.PI / 2;
   }
   rod([0, 1.35, -0.2], [0, 0.95, -0.95], 0.05, y, lift);
+  if (wings.length) for (const sx of [-1, 1]) ram([sx * 0.4, 1.25, -1.35], [sx * 1.45, 0.98, -1.35], 0.05, frame, lift); // folding rams
   implHoses(lift, 2, 0.95, -0.6);
   // spring tines: spring coil on the beam, shank down, steel point bent forward
   const n = Math.max(5, Math.round(W / 0.46));
   for (let i = 0; i < n; i++) {
     const x = -hw + 0.26 + (i * (W - 0.52)) / (n - 1), z = i % 2 ? -0.95 : -1.75;
-    mk(new THREE.TorusGeometry(0.07, 0.022, 6, 12), frame, x, 0.66, z, lift).rotation.y = Math.PI / 2;
-    mk(new THREE.TorusGeometry(0.07, 0.022, 6, 12), frame, x + 0.05, 0.66, z, lift).rotation.y = Math.PI / 2;
-    B(0.07, 0.62, 0.07, frame, x, 0.36, z - 0.06, lift).rotation.x = 0.18;
-    B(0.08, 0.06, 0.3, S(), x, 0.06, z + 0.04, lift).rotation.x = -0.35;
+    mk(new THREE.TorusGeometry(0.07, 0.022, 6, 12), frame, ...at(x, 0.66, z)).rotation.y = Math.PI / 2;
+    mk(new THREE.TorusGeometry(0.07, 0.022, 6, 12), frame, ...at(x + 0.05, 0.66, z)).rotation.y = Math.PI / 2;
+    B(0.07, 0.62, 0.07, frame, ...at(x, 0.36, z - 0.06)).rotation.x = 0.18;
+    B(0.08, 0.06, 0.3, S(), ...at(x, 0.06, z + 0.04)).rotation.x = -0.35;
   }
-  // cage roller (turns with the ground)
-  const roller = new THREE.Group(); roller.position.set(0, 0.32, -2.4); lift.add(roller);
-  const rings = Math.max(3, Math.round(W) + 1);
-  for (let k = 0; k < rings; k++) mk(new THREE.TorusGeometry(0.29, 0.025, 6, 20), F('#6a6f72'), -hw + 0.1 + (k * (W - 0.2)) / (rings - 1), 0, 0, roller).rotation.y = Math.PI / 2;
-  for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; B(W - 0.15, 0.05, 0.05, F('#6a6f72'), 0, Math.cos(a) * 0.29, Math.sin(a) * 0.29, roller); }
-  CY(0.05, 0.05, W - 0.1, 8, frame, 0, 0, 0, roller).rotation.z = Math.PI / 2;
-  for (const sx of [-1, 1]) RB(0.12, 0.12, 0.8, 0.03, y, sx * (hw - 0.1), 0.6, -2.05, lift);
+  // cage roller (turns with the ground): one on a rigid frame, three sections on a folding one
+  const drums = [];
+  const drum = (len, x, yy, zz, p) => {
+    const r = new THREE.Group(); r.position.set(x, yy, zz); p.add(r); drums.push(r);
+    const rings = Math.max(3, Math.round(len) + 1);
+    for (let k = 0; k < rings; k++) mk(new THREE.TorusGeometry(0.29, 0.025, 6, 20), cage, -len / 2 + 0.1 + (k * (len - 0.2)) / (rings - 1), 0, 0, r).rotation.y = Math.PI / 2;
+    for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; B(len - 0.15, 0.05, 0.05, cage, 0, Math.cos(a) * 0.29, Math.sin(a) * 0.29, r); }
+    CY(0.05, 0.05, len - 0.1, 8, frame, 0, 0, 0, r).rotation.z = Math.PI / 2;
+  };
+  span(0.32, -2.4, drum);
+  for (const sx of [-1, 1]) RB(0.12, 0.12, 0.8, 0.03, y, ...at(sx * (hw - 0.1), 0.6, -2.05));
   bake(g, NO_SNOW);
-  return { group: g, lift, roller, up: 0.45, down: -0.2 };
+  return { group: g, lift, roller: drums[0], rollers: drums, wings, up: 0.45, down: -0.2 };
 }
 
-/** Seed drill. o = look: body, light, frame, width (m: hopper, coulters, markers and wheels follow it), brand. */
+/**
+ * Seed drill. o = look: body, light, frame, width (m: hopper, coulters, markers and wheels follow it), brand.
+ * Wider than 4,5 m it has a central hopper and the coulter bar folds up on both sides.
+ */
 export function buildSeeder(o = {}) {
   const L = { body: '#4f78a8', light: '#6f97c4', frame: '#3a3f42', width: 4.0, brand: null, ...o }, W = L.width, hw = W / 2;
   const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
   const blue = P(L.body), blueLt = P(L.light), frame = F(L.frame);
+  const { at, span, wings } = folding(lift, W, 0.75, -1.25), HW = wings.length ? 1.4 : hw; // the hopper's half width
   RB(0.24, 0.24, 1.0, 0.04, frame, 0, 0.72, -0.4, lift);
-  RB(W, 0.2, 0.25, 0.04, frame, 0, 0.75, -0.9, lift);
-  RB(W - 0.2, 0.95, 1.05, 0.08, blue, 0, 1.5, -1.15, lift, 3);
-  RB(W - 0.08, 0.12, 1.16, 0.04, blueLt, 0, 2.03, -1.15, lift);
-  const lids = Math.max(2, Math.round(W / 1.3));
-  for (let k = 0; k < lids; k++) RB(0.3, 0.05, 0.06, 0.02, F(BLACK), (k - (lids - 1) / 2) * ((W - 0.8) / Math.max(1, lids - 1)), 2.06, -0.55, lift); // lid handles
-  for (let k = 0; k <= lids; k++) B(0.06, 0.9, 0.04, blueLt, -hw + 0.4 + (k * (W - 0.8)) / lids, 1.5, -0.62, lift); // ribs
-  decal('level', 0.5, 0.12, hw * 0.6, 1.75, -0.6, 0, lift);
-  brandOn(L, 0.22, W * 0.6, 0, 1.55, -1.678, Math.PI, lift);
-  for (const sx of [-1, 1]) RB(0.12, 0.8, 0.12, 0.03, frame, sx * (hw - 0.3), 0.95, -1.15, lift);
-  RB(W, 0.16, 0.2, 0.04, frame, 0, 0.55, -1.6, lift);
-  for (const sx of [-1, 1]) { decal('warn', 0.45, 0.14, sx * (hw - 0.25), 0.55, -1.702, Math.PI, lift); tailCluster(lift, sx * (hw - 0.3), 1.25, -1.72); }
+  span(0.75, -0.9, (len, ...p) => RB(len, 0.2, 0.25, 0.04, frame, ...p));
+  RB(2 * HW - 0.2, 0.95, 1.05, 0.08, blue, 0, 1.5, -1.15, lift, 3);
+  RB(2 * HW - 0.08, 0.12, 1.16, 0.04, blueLt, 0, 2.03, -1.15, lift);
+  const lids = Math.max(2, Math.round((2 * HW) / 1.3));
+  for (let k = 0; k < lids; k++) RB(0.3, 0.05, 0.06, 0.02, F(BLACK), (k - (lids - 1) / 2) * ((2 * HW - 0.8) / Math.max(1, lids - 1)), 2.06, -0.55, lift); // lid handles
+  for (let k = 0; k <= lids; k++) B(0.06, 0.9, 0.04, blueLt, -HW + 0.4 + (k * (2 * HW - 0.8)) / lids, 1.5, -0.62, lift); // ribs
+  decal('level', 0.5, 0.12, HW * 0.6, 1.75, -0.6, 0, lift);
+  brandOn(L, 0.22, 2 * HW * 0.6, 0, 1.55, -1.678, Math.PI, lift);
+  for (const sx of [-1, 1]) RB(0.12, 0.8, 0.12, 0.03, frame, sx * (HW - 0.3), 0.95, -1.15, lift);
+  span(0.55, -1.6, (len, ...p) => RB(len, 0.16, 0.2, 0.04, frame, ...p));
+  for (const sx of [-1, 1]) { decal('warn', 0.45, 0.14, ...at(sx * (hw - 0.25), 0.55, -1.702).slice(0, 3), Math.PI, at(sx * (hw - 0.25), 0, 0)[3]); tailCluster(at(sx * (hw - 0.3), 0, 0)[3], ...at(sx * (hw - 0.3), 1.25, -1.72).slice(0, 3)); }
+  if (wings.length) for (const sx of [-1, 1]) ram([sx * 0.5, 1.0, -1.3], [sx * 1.45, 0.85, -1.3], 0.05, frame, lift); // folding rams
   // seed tubes from the metering box down to the coulters, press wheels behind
-  const n = Math.max(6, Math.round(W / 0.333));
+  const n = Math.max(6, Math.round(W / 0.333)), tube = M('#8a9196', { roughness: 0.5, flatShading: false });
   for (let i = 0; i < n; i++) {
-    const x = -hw + 0.17 + (i * (W - 0.34)) / (n - 1);
-    hose([[x * 0.9, 1.02, -1.2], [x * 0.95, 0.7, -1.45], [x, 0.42, -1.6]], 0.022, lift, M('#8a9196', { roughness: 0.5, flatShading: false }));
-    CY(0.22, 0.22, 0.05, 14, S('#8d9396'), x, 0.28, -1.65, lift).rotation.z = Math.PI / 2;
-    CY(0.1, 0.1, 0.06, 10, RUBBER, x, 0.1, -1.95, lift).rotation.z = Math.PI / 2;
-    rod([x, 0.45, -1.65], [x, 0.12, -1.95], 0.015, frame, lift);
+    const x = -hw + 0.17 + (i * (W - 0.34)) / (n - 1), [lx, , , p] = at(x, 0, 0), inner = p === lift;
+    // on the wings the tubes come from the distribution pipe along the bar
+    if (inner) hose([[x * 0.9, 1.02, -1.2], [x * 0.95, 0.7, -1.45], [x, 0.42, -1.6]], 0.022, lift, tube);
+    else hose([[lx, 0.82 - 0.75, -1.0 + 1.25], [lx, 0.6 - 0.75, -1.45 + 1.25], [lx, 0.42 - 0.75, -1.6 + 1.25]], 0.022, p, tube);
+    CY(0.22, 0.22, 0.05, 14, S('#8d9396'), ...at(x, 0.28, -1.65)).rotation.z = Math.PI / 2;
+    CY(0.1, 0.1, 0.06, 10, RUBBER, ...at(x, 0.1, -1.95)).rotation.z = Math.PI / 2;
+    const [ax, ay, az] = at(x, 0.45, -1.65), [bx, by, bz] = at(x, 0.12, -1.95);
+    rod([ax, ay, az], [bx, by, bz], 0.015, frame, p);
   }
+  if (wings.length) span(0.82, -1.0, (len, x, y, z, p) => { if (p !== lift) CY(0.06, 0.06, len - 0.1, 8, tube, x, y, z, p).rotation.z = Math.PI / 2; });
   // folded bout markers and the loading step
   for (const sx of [-1, 1]) {
-    rod([sx * (hw - 0.05), 1.1, -1.1], [sx * (hw + 0.05), 2.4, -1.1], 0.04, frame, lift);
-    CY(0.18, 0.18, 0.04, 12, S('#8d9396'), sx * (hw + 0.05), 2.45, -1.1, lift).rotation.z = Math.PI / 2;
+    const [p0x, p0y, p0z, p] = at(sx * (hw - 0.05), 1.1, -1.1), [p1x, p1y, p1z] = at(sx * (hw + 0.05), 2.4, -1.1);
+    rod([p0x, p0y, p0z], [p1x, p1y, p1z], 0.04, frame, p);
+    CY(0.18, 0.18, 0.04, 12, S('#8d9396'), ...at(sx * (hw + 0.05), 2.45, -1.1)).rotation.z = Math.PI / 2;
   }
   B(1.4, 0.05, 0.35, F(), 0, 0.98, -0.45, lift);
   decal('tread', 1.36, 0.32, 0, 1.006, -0.45, 0, lift, Math.PI / 2);
   implHoses(lift, 2, 1.0, -0.5);
   const wheels = [];
-  for (const sx of [-1, 1]) { const w = wheel(0.36, 0.22, '#d7dde2'); w.position.set(sx * (hw + 0.15), 0.36, -0.95); lift.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) { const w = wheel(0.36, 0.22, '#d7dde2'); w.position.set(sx * (HW + 0.15), 0.36, -0.95); lift.add(w); wheels.push(w); }
   bake(g, NO_SNOW);
-  return { group: g, lift, wheels, up: 0.4, down: -0.05 };
+  return { group: g, lift, wheels, wings, up: 0.4, down: -0.05 };
 }
 
 /** Bale places of a trailer body len metres long: two layers along it. */
 export const trailerBales = len => Math.max(2, Math.floor((len - 0.4) / 1.3)) * 2;
 
-/** Pallets on a trailer: egg crates, wool sacks, tomato crates. */
-export const PALLET_MAT = { eggs: M('#e9dfc8', { roughness: 0.9 }), wool: M('#d6d0c2', { roughness: 1 }), tomatoes: M('#c8452f', { roughness: 0.8 }) };
+/**
+ * Pallets on a trailer: egg crates, wool sacks, tomato crates; big bags of seed, fertiliser and lime and
+ * an IBC of herbicide (game/supply.js); flour, bread, oil and planks from the farm's own production.
+ */
+export const PALLET_MAT = {
+  eggs: M('#e9dfc8', { roughness: 0.9 }), wool: M('#d6d0c2', { roughness: 1 }), tomatoes: M('#c8452f', { roughness: 0.8 }),
+  seed: M('#f1efe4', { roughness: 0.95 }), fert: M('#c9dcea', { roughness: 0.9 }), lime: M('#dcd8cc', { roughness: 1 }), herb: M('#e9ece6', { roughness: 0.45 }),
+  flour: M('#efe8d6', { roughness: 1 }), bread: M('#c98f4e', { roughness: 0.9 }), oil: M('#e3c24a', { roughness: 0.4 }), planks: M('#c9a06a', { roughness: 0.9 }),
+};
 
 /**
  * Grain trailer with a tipping body. o = look: body, rib, trim colours, len (body length), height
@@ -775,25 +822,30 @@ export function buildMower(o = {}) {
   const L = { color: '#c4473a', width: 3, brand: null, ...o }, W = L.width;
   const g = new THREE.Group(), lift = new THREE.Group(); g.add(lift);
   const red = P(L.color), frame = F();
-  const unit = (x, z, w) => {
-    RB(w + 0.1, 0.12, 0.6, 0.03, F('#56595b'), x, 0.12, z, lift); // cutter bar
+  // one mower unit of width w centred at x, z in parent p (a side unit's wing: x, z relative to its hinge)
+  const unit = (x, z, w, p = lift, y0 = 0) => {
+    RB(w + 0.1, 0.12, 0.6, 0.03, F('#56595b'), x, 0.12 - y0, z, p); // cutter bar
     // discs (hidden under the guard, so they stay still and merge with the rest)
     const n = Math.max(4, Math.round(w / 0.5));
-    for (let i = 0; i < n; i++) CY(0.24, 0.24, 0.08, 14, S(), x - w / 2 + 0.25 + (i * (w - 0.5)) / (n - 1), 0.22, z, lift);
-    RB(w + 0.2, 0.5, 0.95, 0.08, red, x, 0.55, z - 0.05, lift, 3); // guard
-    RB(w, 0.06, 0.1, 0.02, P('#e8e4da'), x, 0.81, z + 0.39, lift);
-    for (let k = 0; k < Math.round(w / 0.27); k++) B(0.02, 0.3, 0.2, RUBBER, x - w / 2 + 0.05 + k * 0.27, 0.2, z + 0.43, lift); // front curtain
-    for (const sx of [-1, 1]) decal('warnR', 0.5, 0.18, x + sx * (w / 2 - 0.2), 0.55, z - 0.526, Math.PI, lift);
+    for (let i = 0; i < n; i++) CY(0.24, 0.24, 0.08, 14, S(), x - w / 2 + 0.25 + (i * (w - 0.5)) / (n - 1), 0.22 - y0, z, p);
+    RB(w + 0.2, 0.5, 0.95, 0.08, red, x, 0.55 - y0, z - 0.05, p, 3); // guard
+    RB(w, 0.06, 0.1, 0.02, P('#e8e4da'), x, 0.81 - y0, z + 0.39, p);
+    for (let k = 0; k < Math.round(w / 0.27); k++) B(0.02, 0.3, 0.2, RUBBER, x - w / 2 + 0.05 + k * 0.27, 0.2 - y0, z + 0.43, p); // front curtain
+    for (const sx of [-1, 1]) decal('warnR', 0.5, 0.18, x + sx * (w / 2 - 0.2), 0.55 - y0, z - 0.526, Math.PI, p);
   };
   RB(0.24, 0.24, 0.9, 0.04, frame, 0, 0.72, -0.4, lift);
   for (const sx of [-1, 1]) rod([sx * 0.42, 0.55, -0.15], [sx * 0.6, 0.8, -0.9], 0.05, frame, lift);
+  const wings = [];
   if (W > 4.5) {
-    const sw = (W - 2.8) / 2; // two side units, the rear one closes the gap between them
+    const sw = (W - 2.8) / 2, hx = W / 2 - sw; // two side units, the rear one closes the gap between them
     unit(0, -1.6, 3.0);
     for (const sx of [-1, 1]) {
-      unit(sx * (W / 2 - sw / 2), -0.85, sw);
-      rod([sx * 0.4, 0.95, -0.6], [sx * (W / 2 - sw / 2), 0.85, -0.85], 0.06, frame, lift); // folding arm
-      ram([sx * 0.3, 1.15, -0.55], [sx * (W / 4), 1.05, -0.75], 0.04, frame, lift);
+      // the side units swing up on their arms for the road (butterfly), down flat to mow
+      const w = wing(lift, sx * hx, 0.85, -0.85, 'z', 0, sx * Math.PI * 0.5);
+      unit(sx * sw / 2, 0, sw, w, 0.85);
+      rod([sx * 0.4, 0.95, -0.6], [sx * hx, 0.85, -0.85], 0.06, frame, lift); // folding arm
+      ram([sx * 0.3, 1.15, -0.55], [sx * (hx - 0.2), 1.0, -0.8], 0.04, frame, lift);
+      wings.push(w);
     }
     brandOn(L, 0.16, 1.4, 0, 0.6, -2.176, Math.PI, lift);
   } else {
@@ -805,7 +857,7 @@ export function buildMower(o = {}) {
   mk(new THREE.ConeGeometry(0.12, 0.5, 8, 1, true), P('#e8b84a'), 0, 1.0, -0.4, lift).rotation.x = -Math.PI / 2;
   implHoses(lift, 1, 0.9, -0.6);
   bake(g, NO_SNOW);
-  return { group: g, lift, up: 0.55, down: -0.05 };
+  return { group: g, lift, wings, up: 0.55, down: -0.05 };
 }
 
 /** Round baler: pickup in front, bale chamber behind, single axle. o = look: body, accent, brand. */
@@ -1421,4 +1473,139 @@ export function buildChopper(o = {}) {
     pipeTip: new THREE.Vector3(0, 0.3, -len - 0.4),
     pipeReach: { lx: (0.3 + len + 0.2) * sc, lz: -0.2 * sc },
   };
+}
+
+/* ---------- header trailer and loaders ---------- */
+
+/**
+ * Header trailer (vozík na lištu): a long low frame on two axles with cradles the combine's header rests
+ * on lengthwise for the road. Origin = the drawbar eye, the frame behind it; mount = where vehicles.js
+ * puts the header. o = look: len (frame length), color.
+ */
+export function buildHeaderCart(o = {}) {
+  const L = { len: 8, color: '#e8b84a', ...o }, len = L.len, z0 = -1.8, z1 = z0 - len;
+  const g = new THREE.Group(), body = P(L.color), frame = F();
+  RB(0.16, 0.16, 1.9, 0.03, frame, 0, 0.55, -0.9, g); // drawbar
+  mk(new THREE.TorusGeometry(0.09, 0.03, 6, 12), S(), 0, 0.5, 0, g).rotation.x = Math.PI / 2; // eye
+  for (const sx of [-1, 1]) RB(0.14, 0.18, len, 0.03, body, sx * 0.55, 0.62, (z0 + z1) / 2, g); // side members
+  const n = Math.max(2, Math.round(len / 1.6));
+  for (let k = 0; k <= n; k++) RB(1.3, 0.12, 0.12, 0.02, body, 0, 0.62, z0 - 0.1 - (k * (len - 0.2)) / n, g); // cross members
+  // cradles: uprights with rubber pads the header lies on
+  const cradles = Math.max(2, Math.round(len / 4));
+  for (let k = 0; k < cradles; k++) {
+    const z = z0 - 0.8 - (k * (len - 1.6)) / (cradles - 1);
+    for (const sx of [-1, 1]) RB(0.1, 0.4, 0.1, 0.02, frame, sx * 0.5, 0.88, z, g);
+    RB(1.2, 0.08, 0.3, 0.02, RUBBER, 0, 1.1, z, g);
+  }
+  const wheels = [];
+  for (const az of [z0 - 1.0, z1 + 1.0]) for (const sx of [-1, 1]) { const w = wheel(0.38, 0.22, '#d7dde2'); w.position.set(sx * 0.95, 0.38, az); g.add(w); wheels.push(w); }
+  for (const sx of [-1, 1]) { tailCluster(g, sx * 0.6, 0.75, z1 - 0.06); decal('warnR', 0.3, 0.12, sx * 0.6, 0.55, z1 - 0.07, Math.PI, g); }
+  rod([0.25, 0.6, -0.6], [0.25, 0.08, -0.6], 0.04, F('#56595b'), g); // parking leg
+  const mount = new THREE.Group(); mount.position.set(0, 1.14, (z0 + z1) / 2); g.add(mount);
+  bake(g, NO_SNOW);
+  return { group: g, wheels, mount, len, up: 0, down: 0 };
+}
+
+/**
+ * The working end of a loader (telehandler or front loader): a carriage that stays level, with a bucket
+ * (heaps of grain, manure, silage), pallet forks (pallets, big bags) and a bale grab; vehicles.js shows
+ * the one in use. The load rides on it: bales, a pallet, a mound in the bucket. w = bucket width.
+ */
+function loaderHead(p, w, body, frame) {
+  const head = new THREE.Group(); p.add(head);
+  RB(1.1, 0.7, 0.12, 0.03, frame, 0, 0.2, 0, head); // carriage plate
+  for (const sx of [-0.35, 0.35]) CY(0.05, 0.05, 0.2, 8, S(), sx, 0.5, -0.05, head).rotation.x = Math.PI / 2;
+  const bucket = new THREE.Group(); head.add(bucket);
+  RB(w, 0.08, 1.1, 0.02, body, 0, -0.32, 0.55, bucket); // floor
+  RB(w, 0.9, 0.08, 0.02, body, 0, 0.1, 0.02, bucket); // back
+  for (const sx of [-1, 1]) RB(0.06, 0.75, 1.1, 0.02, body, sx * (w / 2 - 0.03), 0.02, 0.55, bucket);
+  B(w + 0.04, 0.05, 0.12, S(), 0, -0.34, 1.12, bucket); // cutting edge
+  const forks = new THREE.Group(); head.add(forks);
+  for (const sx of [-0.4, 0.4]) { B(0.12, 0.7, 0.05, frame, sx, 0.05, 0.08, forks); B(0.12, 0.05, 1.2, frame, sx, -0.28, 0.68, forks); }
+  RB(1.3, 0.1, 0.08, 0.02, frame, 0, 0.42, 0.08, forks);
+  const grab = new THREE.Group(); head.add(grab);
+  forks.userData.farSkip = grab.userData.farSkip = true; // the far model shows the bucket only
+  RB(1.4, 0.1, 0.12, 0.02, body, 0, 0.35, 0.1, grab);
+  for (const sx of [-1, 1]) { RB(0.08, 0.1, 1.3, 0.02, frame, sx * 0.62, 0.35, 0.7, grab); RB(0.08, 0.9, 0.08, 0.02, frame, sx * 0.62, -0.05, 1.3, grab); RB(0.08, 0.08, 1.1, 0.02, S(), sx * 0.62, -0.45, 0.8, grab); }
+  // the load: up to three bales stacked in the grab, a pallet on the forks, a mound in the bucket
+  const bales = [];
+  for (let k = 0; k < 3; k++) {
+    const m = mk(baleGeo(), new THREE.MeshStandardMaterial({ color: col('#e2c77d'), roughness: 0.9, flatShading: true }), 0, -0.45 + k * 1.5, 0.8, head); m.userData.noBake = true; m.visible = false;
+    m.geometry.translate(0, 0.75, 0);
+    bales.push(m);
+  }
+  const pallet = mk(new THREE.BoxGeometry(1.05, 1.0, 1.15).translate(0, 0.5, 0), PALLET_MAT.seed, 0, -0.26, 0.7, head); pallet.userData.noBake = true; pallet.visible = false;
+  const heapMat = new THREE.MeshStandardMaterial({ color: col('#e4bc52'), roughness: 1, flatShading: true });
+  const heap = mk(new THREE.ConeGeometry(0.75, 0.6, 8).scale(w / 1.5, 1, 0.9).translate(0, 0.3, 0), heapMat, 0, -0.28, 0.55, head); heap.userData.noBake = true; heap.visible = false;
+  return { head, tools: { bucket, forks, grab }, load: { bales, pallet, heap, heapMat } };
+}
+
+/**
+ * Telehandler (teleskopický manipulátor): low chassis on four equal steering wheels, the cab on the left,
+ * the engine on the right and the telescopic boom pivoted at the back; at its end the loader head.
+ * o = look: body, dark, frame, rim, scale, brand, model. arm = boom angles: down at the ground, carrying, raised over a trailer.
+ */
+const TELE = { body: '#d8261d', dark: '#a91d17', frame: '#2a2d2f', rim: '#2a2d2f', scale: 1, brand: 'MANITOU', model: 'MLT 737', text: '#fbf7ee', stroke: '#3a1410' };
+export function buildTelehandler(o = {}) {
+  const L = { ...TELE, ...o }, sc = L.scale, style = { fill: L.text, stroke: L.stroke };
+  const root = new THREE.Group(), g = new THREE.Group(); g.scale.setScalar(sc); root.add(g);
+  const body = P(L.body), dark = P(L.dark), frame = F(L.frame), black = F(BLACK);
+  RB(1.0, 0.45, 4.4, 0.06, frame, 0, 0.75, 0, g); // chassis
+  for (const z of [-1.42, 1.42]) CY(0.14, 0.14, 1.6, 10, frame, 0, 0.6, z, g).rotation.z = Math.PI / 2; // axles
+  // engine on the right with vents, counterweight at the back, fuel tank under the cab
+  RB(0.72, 0.95, 2.3, 0.1, body, -0.62, 1.4, -0.95, g);
+  decal('grid', 0.6, 0.5, -0.985, 1.5, -1.3, -Math.PI / 2, g);
+  sideText(L.brand, 0.2, 1.3, -0.98, 1.2, -0.7, g, style);
+  RB(2.1, 0.75, 0.5, 0.1, dark, 0, 1.0, -2.3, g);
+  for (const sx of [-1, 1]) { tailCluster(g, sx * 0.85, 1.25, -2.56); decal('warnR', 0.4, 0.14, sx * 0.55, 0.85, -2.56, Math.PI, g); }
+  RB(0.5, 0.45, 1.1, 0.06, body, 0.7, 0.8, 0.1, g);
+  CY(0.06, 0.06, 1.0, 8, black, -0.62, 2.35, -1.6, g); // exhaust
+  // cab on the left, out of the boom's way
+  const cg = new THREE.Group(); cg.position.x = 0.62; cg.userData.static = true; g.add(cg);
+  cab(cg, { y: 1.05, z: 0.15, w: 0.92, h: 1.5, d: 1.55, roof: body, lights: 2, rearLights: false });
+  steps(g, 1.12, 0.55, 0.9, 0.6, 2);
+  for (const sx of [-1, 1]) headlamp(g, sx * 0.8, 1.35, 2.1, 0.24, 0.14);
+  // wheels: all four steer (front and rear opposite), with mudguards on the steering pivots
+  const wheels = [], front = [], rear = [];
+  for (const [z, list] of [[1.42, front], [-1.42, rear]]) for (const sx of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(sx * 0.98, 0.6, z); g.add(p);
+    const w = wheel(0.6, 0.45, L.rim, 'lug'); p.add(w); wheels.push(w); list.push(p);
+    fender(p, dark, 0, 0, 0, 0.7, Math.PI * 0.2, Math.PI * 0.8, 0.5, 0.05);
+  }
+  // the boom: pivot at the back between cab and engine, a telescopic inner section, lift ram, the head at its end
+  const boom = new THREE.Group(); boom.position.set(-0.08, 1.95, -1.75); g.add(boom);
+  RB(0.44, 0.46, 4.4, 0.06, body, 0, 0, 2.1, boom);
+  RB(0.34, 0.34, 1.8, 0.04, frame, 0, -0.02, 4.6, boom);
+  ram([0, -0.85, 1.4], [0, -0.2, 2.6], 0.08, frame, boom);
+  sideText(L.model, 0.16, 1.2, 0.225, 0.02, 2.0, boom, style);
+  hose([[0.15, 0.2, 0.2], [0.18, 0.25, 2.5], [0.15, 0.1, 5.0]], 0.025, boom);
+  const hd = loaderHead(boom, 2.3, dark, frame);
+  hd.head.position.set(0, -0.1, 5.55);
+  const spot = spotAt(g, 2.2 * sc, 1.0 * sc);
+  bake(root, NO_SNOW);
+  for (const w of wheels) w.userData.r *= sc;
+  return {
+    group: root, wheels, front, rear, boom, ...hd, spot, scale: sc, exhaust: new THREE.Vector3(-0.62, 2.9, -1.6).multiplyScalar(sc),
+    arm: { low: 0.27, carry: 0.02, high: -0.42 },
+  };
+}
+
+/**
+ * Front loader for a tractor (čelní nakladač): two arms from brackets beside the cab down to the loader
+ * head in front of the bonnet. Built in the tractor's unscaled frame; vehicles.js scales it with the tractor.
+ */
+export function buildFrontLoader(o = {}) {
+  const L = { body: '#3a3f42', ...o };
+  const g = new THREE.Group(), body = P(L.body), frame = F();
+  for (const sx of [-1, 1]) { RB(0.14, 0.6, 0.5, 0.03, frame, sx * 0.66, 1.55, 0.4, g); RB(0.5, 0.12, 0.14, 0.02, frame, sx * 0.45, 1.3, 0.4, g); } // brackets
+  const boom = new THREE.Group(); boom.position.set(0, 2.05, 0.45); g.add(boom);
+  for (const sx of [-1, 1]) {
+    RB(0.13, 0.22, 3.2, 0.03, body, sx * 0.72, 0, 1.6, boom); // arm
+    ram([sx * 0.62, -0.75, 0.1], [sx * 0.66, -0.15, 1.5], 0.05, frame, boom);
+  }
+  RB(1.5, 0.14, 0.14, 0.03, body, 0, -0.05, 2.2, boom); // cross tube
+  const hd = loaderHead(boom, 2.0, body, frame);
+  hd.head.position.set(0, -0.15, 3.3);
+  bake(g, NO_SNOW);
+  return { group: g, boom, ...hd, arm: { low: 0.52, carry: 0.15, high: -0.35 } };
 }

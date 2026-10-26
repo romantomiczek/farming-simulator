@@ -13,7 +13,7 @@ import { CROPS } from './game/crops.js';
 import { work, updateLogistics, sellPoint } from './game/work.js';
 import { G, TIME_SCALES, DEV } from './game/state.js';
 import { newGame, loadLocal, saveLocal, exportFile, importFile } from './game/save.js';
-import { toggleTool, switchVehicle, doF, doG, doC, cycleTime, pickInShed, repairHere, toggleHitch, toggleHelper, toggleSeat, toggleCabView } from './game/actions.js';
+import { toggleTool, switchVehicle, doF, doG, doC, cycleTime, pickInShed, repairHere, toggleHitch, toggleHelper, toggleSeat, toggleCabView, doLoader } from './game/actions.js';
 import { generateDeliveries, checkDeliveries } from './game/silo.js';
 import { person, walk, showPerson, seat } from './world/person.js';
 import { helperTick } from './game/helpers.js';
@@ -22,6 +22,8 @@ import { buildWildlife } from './world/wildlife.js';
 import { buildTraffic } from './world/traffic.js';
 import { growForest, trees as forestTrees } from './world/forest.js';
 import { farmTick, sellProducts } from './game/farm.js';
+import { prodTick } from './game/production.js';
+import { buildActive, buildKey, updBuild, startBuild } from './game/build.js';
 import { packTick, forageTick } from './game/forage.js';
 import { forestryTick } from './game/forestry.js';
 import { has, ownershipHooks } from './game/machines.js';
@@ -34,7 +36,8 @@ import { bindInput, driveInput, releaseAll, keys } from './core/input.js';
 import { cam, bindCamera, updateCamera, shakeCamera, viewFocus, grassCentre } from './render/camera.js';
 import { updEnv, updSeasonTint, snapSeasonTint } from './render/environment.js';
 import { updSnow, snapSnow } from './render/snow.js';
-import { WX, updateWeather, season, isWinter } from './game/weather.js';
+import { WX, updateWeather, season, isWinter, isRainy } from './game/weather.js';
+import { climateTick } from './game/climate.js';
 import { updRain } from './fx/rain.js';
 import { updTracks } from './fx/tracks.js';
 import { updWind, wind } from './render/wind.js';
@@ -61,7 +64,7 @@ import { pumpPreviews } from './render/previews.js';
 import { toast } from './ui/toast.js';
 import { initDev, toggleDev, updDev, devEnabled } from './ui/devpanel.js';
 import { mapEditorOpen } from './ui/mapeditor.js';
-import { toggleSound, updAudio, sound, playImpact, playStep } from './audio.js';
+import { toggleSound, updAudio, sound, playImpact, playStep, playThunder } from './audio.js';
 
 /* ---------- world ---------- */
 const terrain = buildTerrain(scene);
@@ -100,12 +103,14 @@ cam.t.set(player().x, 1, player().z);
 /* ---------- input & menu ---------- */
 /** Big map: clicking one of your machines puts you in it. */
 const openMap = () => toggleBigMap(undefined, v => { seat(v); cam.manual = -99; releaseAll(); toggleBigMap(false); toast('Řídíš: ' + v.name); });
-const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyG: doG, KeyC: doC, KeyT: cycleTime, KeyR: repairHere, KeyQ: toggleHitch, KeyK: () => openOffice(), KeyH: toggleHelper, KeyP: () => togglePrices() };
+const ACTIONS = { KeyV: toggleCabView, KeyE: toggleSeat, KeyM: openMap, Space: toggleTool, Tab: switchVehicle, KeyF: doF, KeyG: doG, KeyC: doC, KeyT: cycleTime, KeyR: repairHere, KeyQ: toggleHitch, KeyK: () => openOffice(), KeyH: toggleHelper, KeyP: () => togglePrices(), KeyL: doLoader };
 bindInput(code => {
   if (mapEditorOpen()) return; // the map editor handles its own keys
   if (code === 'F9' && devEnabled) { toggleDev(); return; }
   if (menuOpen()) { if (code === 'Escape' || code === 'Enter') hideMenu(); return; }
   if (officeOpen()) { if (code === 'Escape' || code === 'KeyK') closeOffice(); return; }
+  if (buildActive() && buildKey(code)) return;
+  if (code === 'KeyB') { openOffice('build'); return; }
   if (code === 'Escape' && bigMapOpen()) { toggleBigMap(false); return; }
   if (bigMapOpen() && /^Digit[1-5]$/.test(code)) { setMapView(VIEWS[+code.slice(5) - 1].key); return; }
   if (code === 'Escape') { showMenu(); return; }
@@ -117,7 +122,7 @@ initMenu({
   hasProgress: () => hasSave,
   onPlay: () => { G.playing = true; releaseAll(); if (settings.sound && !sound.on) setSound(toggleSound()); },
   onPause: () => { G.playing = false; saveLocal(); },
-  onNew: () => { newGame(); saveLocal(); cam.manual = -99; toast('Nová sezóna začíná. Pole 1 je zralé.'); },
+  onNew: mode => { newGame(mode); saveLocal(); cam.manual = -99; toast(G.mode === 'farmer' ? 'Nová sezóna začíná. Pole 1 je zralé.' : 'Nová farma: pole, stroje a budovy koupíš v Kanceláři (K), zakázky u sousedů zvládneš i s jejich stroji.'); },
   onQuality: applyQuality,
   onExport: () => { saveLocal(); exportFile(); },
   onImport: async file => { const ok = await importFile(file); if (ok) cam.manual = -99; return ok; },
@@ -147,7 +152,7 @@ addEventListener('pagehide', saveLocal);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveLocal(); });
 
 /* ---------- main loop ---------- */
-let slowT = 0, mapT = 0, forestHours = 0, growHours = 0;
+let slowT = 0, mapT = 0, forestHours = 0, growHours = 0, heardThunder = 0;
 const ear = { x: 0, z: 0, rx: 1, rz: 0 }, selling = new Set();
 function tick(dt) {
   if (G.playing) {
@@ -155,8 +160,10 @@ function tick(dt) {
     updSnow(gm / 60, isWinter(), WX.rain > 0.05);
     G.gameMin += gm;
     updateWeather(dt);
-    growHours += (gm / 60) * season().growth * (WX.kind === 'rain' ? 1.1 : 1);
+    growHours += (gm / 60) * season().growth * (isRainy(WX.kind) ? 1.1 : WX.drought ? 0.8 : 1);
+    climateTick(gm / 60);
     farmTick(gm / 60);
+    prodTick(gm / 60);
     forageTick(gm / 60);
     forestHours += gm / 60;
     upkeep(dt);
@@ -207,6 +214,7 @@ function tick(dt) {
   setFieldWet(wetness());
   for (const r of rotors) r.rotation.z += dt * 0.9;
 
+  if (buildActive()) updBuild(dt, player());
   updateCamera(dt, player());
   document.body.classList.toggle('incab', !!cam.cabNow); // the cab has its own terminal: the machine panel steps aside
   updLOD(camera.position, quality().machineLod);
@@ -217,6 +225,7 @@ function tick(dt) {
   updSeasonTint(dt, terrain.material, vegetation.leafMat, season(), wetness());
   grass.update(grassCentre(), quality().grass ?? 0, terrain.material.color);
   updRain(dt, cam.t, WX.rain, isWinter());
+  if (WX.thunder !== heardThunder) { heardThunder = WX.thunder; playThunder(0.5 + Math.random() * 0.5, 0.4 + Math.random() * 2.5); }
   if (DEV.wind) updWind(dt, WX.rain, WX.cloud);
   if (G.flashT > 0) G.flashT -= dt;
   updUI();

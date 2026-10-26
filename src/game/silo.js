@@ -18,14 +18,17 @@ import { SILO_LOAD } from '../world/layout.js';
  *   the contract lapses (no penalty, the premium is lost).
  */
 export const SILO_CAP = 200000;
+/** Silos the player built (game/build.js): their litres and their outlets (loading rings). */
+export const extraSilo = { cap: 0, loads: [] };
+export const siloCap = () => SILO_CAP + extraSilo.cap;
 /** Litres a second that run from the silo outlet into a trailer. */
 export const LOAD_RATE = 900;
 export const emptySilo = () => ({ stock: CROPS.map(() => 0), pick: 0 });
 export const siloTotal = () => G.silo.stock.reduce((a, b) => a + b, 0);
-export const siloSpace = () => Math.max(0, SILO_CAP - siloTotal());
+export const siloSpace = () => Math.max(0, siloCap() - siloTotal());
 /** What the stock would fetch now at the best buyer of each crop. */
 export const siloValue = () => G.silo.stock.reduce((a, l, k) => a + l * (l > 0 ? bestMarket(k, G.gameMin).p : 0), 0);
-export const inSiloLoad = p => Math.hypot(p.x - SILO_LOAD.x, p.z - SILO_LOAD.z) < SILO_LOAD.r;
+export const inSiloLoad = p => [SILO_LOAD, ...extraSilo.loads].some(z => Math.hypot(p.x - z.x, p.z - z.z) < z.r);
 
 /** Puts up to amt litres of crop into the silos; returns how much went in. */
 export function store(crop, amt) {

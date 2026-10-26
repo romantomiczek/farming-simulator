@@ -144,6 +144,23 @@ export const MODELS = [
     look: { body: '#f0b400', dark: '#2a2d2f', frame: '#2a2d2f', scale: 1.1, brand: 'PONSSE', model: 'SCORPION KING' }, desc: 'Nejrychlejší kácení a 32 m³ dřeva.',
   },
 
+  /* ---------- telehandlers (game/loader.js): bucket = litres, bales = round bales on the grab ---------- */
+  {
+    id: 'manitou-mlt-737', kind: 'loader', brand: 'Manitou', name: 'MLT 737', price: 1900000, hp: 130, kmh: 40, fuel: 140, bucket: 2500, bales: 2, start: true,
+    look: { body: '#d8261d', dark: '#a91d17', frame: '#2a2d2f', rim: '#2a2d2f', brand: 'MANITOU', model: 'MLT 737', text: '#fbf7ee', stroke: '#3a1410', scale: 1 },
+    desc: 'Teleskopický manipulátor: nabere lopatou zrno, hnůj nebo siláž z hromady, vidlemi palety a big bagy, kleštěmi dva balíky, a naloží je na přívěs.',
+  },
+  {
+    id: 'merlo-tf42', kind: 'loader', brand: 'Merlo', name: 'TF42.7', price: 2300000, hp: 156, kmh: 40, fuel: 150, bucket: 3000, bales: 2,
+    look: { body: '#2f8f3a', dark: '#24702d', frame: '#2a2d2f', rim: '#2a2d2f', brand: 'MERLO', model: 'TF42.7', text: '#fbf7ee', stroke: '#0f3a1c', scale: 1.04 },
+    desc: 'Rychlejší a silnější manipulátor s lopatou na 3 000 l.',
+  },
+  {
+    id: 'jcb-542-70', kind: 'loader', brand: 'JCB', name: '542-70 Agri Xtra', price: 2700000, hp: 173, kmh: 40, fuel: 170, bucket: 3600, bales: 3,
+    look: { body: '#f2c200', dark: '#d9ae00', frame: '#2a2d2f', rim: '#2a2d2f', brand: 'JCB', model: '542-70', text: '#26282a', stroke: null, scale: 1.1 },
+    desc: 'Největší manipulátor: lopata na 3 600 l a tři balíky najednou.',
+  },
+
   /* ---------- cars: kmh = top speed, offroad = speed off the roads (share of kmh), r/wb = size ---------- */
   { id: 'lesak', kind: 'jeep', brand: 'Jeep', name: 'Lesák 4×4', price: 290000, kmh: 80, fuel: 70, offroad: 1, start: true, look: {}, desc: 'Otevřený terénní vůz. Mimo cesty jede stejně rychle jako po nich.' },
   {
@@ -167,18 +184,19 @@ export const MODELS = [
   { id: 'lemken-juwel-6', kind: 'plough', brand: 'Lemken', name: 'Juwel 8, 6 radlic', price: 420000, width: 3.8, hp: 180, look: { color: '#1f5aa6', bottoms: 6, brand: 'LEMKEN' }, desc: 'Šestiradličný pluh, +15 % výnosu.' },
   { id: 'kuhn-varimaster-8', kind: 'plough', brand: 'Kuhn', name: 'Vari-Master, 8 radlic', price: 650000, width: 5.1, hp: 260, look: { color: '#c42b2f', bottoms: 8, brand: 'KUHN' }, desc: 'Osmiradličný pluh pro nejsilnější traktory, +15 % výnosu.' },
 
-  { id: 'seci-3', kind: 'seeder', brand: '', name: 'Secí stroj 3 m', price: 180000, width: 3.0, hp: 70, look: { width: 3.0 }, desc: 'Malý secí stroj na všech šest plodin.' },
-  { id: 'seci-4', kind: 'seeder', brand: '', name: 'Secí stroj', price: 260000, width: 4.0, hp: 110, start: true, look: {}, desc: 'Seje všech šest plodin.' },
-  { id: 'amazone-cirrus-6', kind: 'seeder', brand: 'Amazone', name: 'Cirrus 6003', price: 550000, width: 6.0, hp: 180, look: { body: '#ef7d00', light: '#f4f4f0', width: 6.0, brand: 'AMAZONE' }, desc: 'Šestimetrový secí stroj.' },
-  { id: 'vaderstad-rapid-8', kind: 'seeder', brand: 'Väderstad', name: 'Rapid 800S', price: 800000, width: 8.0, hp: 250, look: { body: '#f2c200', light: '#2a2d2f', width: 8.0, brand: 'VÄDERSTAD', text: '#26282a', stroke: null }, desc: 'Osmimetrový secí stroj.' },
-  { id: 'horsch-pronto-12', kind: 'seeder', brand: 'Horsch', name: 'Pronto 12 SW', price: 1300000, width: 12.0, hp: 380, look: { body: '#c4262e', light: '#d9dcd8', width: 12.0, brand: 'HORSCH' }, desc: 'Dvanáctimetrový secí stroj na největší pole.' },
+  // cap = hopper (kg of seed or fertiliser, l of herbicide), filled at the farm store or from big bags (game/supply.js)
+  { id: 'seci-3', kind: 'seeder', brand: '', name: 'Secí stroj 3 m', price: 180000, width: 3.0, hp: 70, cap: 600, look: { width: 3.0 }, desc: 'Malý secí stroj na všech šest plodin.' },
+  { id: 'seci-4', kind: 'seeder', brand: '', name: 'Secí stroj', price: 260000, width: 4.0, hp: 110, cap: 800, start: true, look: {}, desc: 'Seje všech šest plodin.' },
+  { id: 'amazone-cirrus-6', kind: 'seeder', brand: 'Amazone', name: 'Cirrus 6003', price: 550000, width: 6.0, hp: 180, cap: 1500, look: { body: '#ef7d00', light: '#f4f4f0', width: 6.0, brand: 'AMAZONE' }, desc: 'Šestimetrový secí stroj, boční díly se na cestu sklopí.' },
+  { id: 'vaderstad-rapid-8', kind: 'seeder', brand: 'Väderstad', name: 'Rapid 800S', price: 800000, width: 8.0, hp: 250, cap: 2500, look: { body: '#f2c200', light: '#2a2d2f', width: 8.0, brand: 'VÄDERSTAD', text: '#26282a', stroke: null }, desc: 'Osmimetrový secí stroj, na cestu se složí.' },
+  { id: 'horsch-pronto-12', kind: 'seeder', brand: 'Horsch', name: 'Pronto 12 SW', price: 1300000, width: 12.0, hp: 380, cap: 3500, look: { body: '#c4262e', light: '#d9dcd8', width: 12.0, brand: 'HORSCH' }, desc: 'Dvanáctimetrový secí stroj na největší pole, na cestu se složí.' },
 
-  { id: 'rozm-12', kind: 'spreader', brand: '', name: 'Rozmetadlo', price: 90000, width: 12, hp: 60, start: true, look: {}, desc: 'Hnojivo +25 % výnosu.' },
-  { id: 'amazone-zats-24', kind: 'spreader', brand: 'Amazone', name: 'ZA-TS 24 m', price: 220000, width: 24, hp: 90, look: { body: '#f4f4f0', accent: '#ef7d00', hopper: 1.25, brand: 'AMAZONE', text: '#ef7d00', stroke: null }, desc: 'Dvojnásobný záběr, pole pohnojíš za polovinu času.' },
-  { id: 'rauch-axis-30', kind: 'spreader', brand: 'Rauch', name: 'Axis 30 m', price: 320000, width: 30, hp: 110, look: { body: '#e8e8e4', accent: '#1f4f9c', hopper: 1.4, brand: 'RAUCH', text: '#1f4f9c', stroke: null }, desc: 'Největší rozmetadlo se záběrem 30 m.' },
+  { id: 'rozm-12', kind: 'spreader', brand: '', name: 'Rozmetadlo', price: 90000, width: 12, hp: 60, cap: 1200, start: true, look: {}, desc: 'Hnojivo +25 % výnosu.' },
+  { id: 'amazone-zats-24', kind: 'spreader', brand: 'Amazone', name: 'ZA-TS 24 m', price: 220000, width: 24, hp: 90, cap: 2000, look: { body: '#f4f4f0', accent: '#ef7d00', hopper: 1.25, brand: 'AMAZONE', text: '#ef7d00', stroke: null }, desc: 'Dvojnásobný záběr, pole pohnojíš za polovinu času.' },
+  { id: 'rauch-axis-30', kind: 'spreader', brand: 'Rauch', name: 'Axis 30 m', price: 320000, width: 30, hp: 110, cap: 3000, look: { body: '#e8e8e4', accent: '#1f4f9c', hopper: 1.4, brand: 'RAUCH', text: '#1f4f9c', stroke: null }, desc: 'Největší rozmetadlo se záběrem 30 m.' },
 
-  { id: 'postrik-18', kind: 'sprayer', brand: '', name: 'Postřikovač 18 m', price: 120000, width: 18, hp: 70, look: {}, desc: 'Postřik proti plevelu na rostoucí plodiny, plevel bere až 25 % výnosu. Rameno se na cestu sklopí.' },
-  { id: 'amazone-ux-30', kind: 'sprayer', brand: 'Amazone', name: 'UF 2002, 30 m', price: 380000, width: 30, hp: 110, look: { body: '#f4f4f0', frame: '#ef7d00', width: 30, brand: 'AMAZONE', text: '#ef7d00', stroke: null }, desc: 'Třicetimetrové rameno, velká pole postříkáš rychle.' },
+  { id: 'postrik-18', kind: 'sprayer', brand: '', name: 'Postřikovač 18 m', price: 120000, width: 18, hp: 70, cap: 1000, look: {}, desc: 'Postřik proti plevelu na rostoucí plodiny, plevel bere až 25 % výnosu. Rameno se na cestu sklopí.' },
+  { id: 'amazone-ux-30', kind: 'sprayer', brand: 'Amazone', name: 'UF 2002, 30 m', price: 380000, width: 30, hp: 110, cap: 2000, look: { body: '#f4f4f0', frame: '#ef7d00', width: 30, brand: 'AMAZONE', text: '#ef7d00', stroke: null }, desc: 'Třicetimetrové rameno, velká pole postříkáš rychle.' },
   { id: 'valec-6', kind: 'roller', brand: '', name: 'Cambridge válec 6 m', price: 80000, width: 6, hp: 90, look: {}, desc: 'Uválcuje půdu před setím nebo hned po něm (+5 % výnosu) a zatlačí kameny po orbě, které jinak ničí lištu.' },
   { id: 'vaderstad-rollex-12', kind: 'roller', brand: 'Väderstad', name: 'Rollex 12 m', price: 230000, width: 12, hp: 170, look: { color: '#f2c200', width: 12, brand: 'VÄDERSTAD', text: '#26282a', stroke: null }, desc: 'Dvanáctimetrový válec.' },
   { id: 'mulc-3', kind: 'mulcher', brand: '', name: 'Mulčovač 3 m', price: 70000, width: 3, hp: 80, look: {}, desc: 'Rozseká strniště a slámu po sklizni (+5 % výnosu). Pole pak ještě zkultivuj.' },
@@ -214,6 +232,9 @@ export const MODELS = [
   { id: 'shrnovac-68', kind: 'windrower', brand: '', name: 'Shrnovač 6,8 m', price: 140000, width: 6.8, hp: 70, start: true, look: {}, desc: 'Shrne rozhozenou trávu nebo seno zpátky do řádku, aby ho sebral lis, samosběrací vůz nebo řezačka.' },
   { id: 'claas-liner-2900', kind: 'windrower', brand: 'Claas', name: 'Liner 2900', price: 290000, width: 9.0, hp: 100, look: { color: '#a9bf2b', width: 9.0, brand: 'CLAAS' }, desc: 'Dvourotorový shrnovač se záběrem 9 m.' },
   { id: 'ovijec', kind: 'wrapper', brand: '', name: 'Ovíječ balíků', price: 160000, hp: 60, start: true, look: {}, desc: 'Zabalí balík čerstvé trávy do fólie (60 Kč): z balíku za 600 Kč je senáž za 2 200 Kč, kterou žerou i krávy.' },
+  // header trailers: the combine puts its header on one for the road (L) and tows it; max = widest header that fits
+  { id: 'vozik-lista-8', kind: 'headercart', brand: '', name: 'Vozík na lištu 8 m', price: 90000, max: 8, hp: 0, start: true, look: { len: 8 }, desc: 'Kombajn na něj klávesou L položí lištu do 8 m a táhne ho za sebou. Úzký na silnice i do alejí.' },
+  { id: 'vozik-lista-13', kind: 'headercart', brand: '', name: 'Vozík na lištu 13 m', price: 160000, max: 13, hp: 0, look: { len: 12.6, color: '#c8352b' }, desc: 'Dlouhý vozík pro lišty až 13 m, i pro Lexion a S790.' },
   { id: 'cisterna-5', kind: 'watertank', brand: '', name: 'Cisterna 5 000 l', price: 50000, cap: 5000, hp: 60, look: { len: 2.8, r: 0.85 }, desc: 'Malá cisterna na vodu nebo mléko.' },
   { id: 'cisterna-8', kind: 'watertank', brand: '', name: 'Cisterna', price: 70000, cap: 8000, hp: 90, start: true, look: {}, desc: 'Voda z rybníka pro skleníky, nebo mléko z kravína do mlékárny.' },
   { id: 'joskin-modulo-11', kind: 'watertank', brand: 'Joskin', name: 'Modulo2 11000', price: 160000, cap: 11000, hp: 130, look: { body: '#3b8f3a', dark: '#2f7230', len: 4.4, r: 1.0, brand: 'JOSKIN' }, desc: 'Cisterna na 11 000 l.' },

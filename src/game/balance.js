@@ -23,8 +23,19 @@ export const GREENHOUSE = { price: 180000, waterStore: 6000, waterPerHour: 40, k
 /** Forestry: a full-grown tree of size 1 holds treeM3 of wood; trees grow from a sapling in growDays. */
 export const WOOD = { harvesterPrice: 1600000, pricePerM3: 1500, treeM3: 3.6, logCap: 24, growDays: 3 };
 
-/** Hired helper, Kč per game hour of work (and of driving to the field). */
-export const HELPER_WAGE = 1500;
+/**
+ * How a new game starts (save.js newGame): money, whether the farm has its fields and machines, and the
+ * buyers' prices (sell). New farmer = fields 1 and 2 and the starting fleet; farm manager = money and
+ * nothing else; from scratch = a car and less money, and the buyers pay less.
+ */
+export const MODES = {
+  farmer: { name: 'Nový farmář', money: 150000, fleet: true, fields: true, sell: 1 },
+  manager: { name: 'Správce farmy', money: 1500000, fleet: false, fields: false, sell: 1 },
+  scratch: { name: 'Začátek od nuly', money: 500000, fleet: false, fields: false, sell: 0.9 },
+};
+
+/** Hired helper, Kč per game hour of work (and of driving to the field); at most HELPER_MAX work at once. */
+export const HELPER_WAGE = 1500, HELPER_MAX = 5;
 
 /**
  * Herds (game/animals.js): head count to start with and the most the building holds, value of a
@@ -41,8 +52,37 @@ export const HERD = {
 export const HEALTH = { up: 0.03, down: 0.05, breedAbove: 0.75, sickBelow: 0.2, deathPerHour: 0.01 };
 /** The farm's slurry pit and manure heap (litres), and how much the spreaders put on a square metre. */
 export const DUNG = { slurryCap: 120000, manureCap: 80000, slurryPerM2: 2, manurePerM2: 1.5 };
-/** Pallets of products, and what the market hall in the town pays on top of the midnight pickup. */
-export const PALLET = { eggs: 600, wool: 120, tomatoes: 300, bonus: 0.4, maxStack: 6 };
+/** Pallets of products (units on one pallet), and what the market hall in the town pays on top of the midnight pickup. */
+export const PALLET = { eggs: 600, wool: 120, tomatoes: 300, flour: 500, bread: 400, oil: 200, planks: 2, bonus: 0.4, maxStack: 6 };
+
+/**
+ * Buildings you put up yourself (game/build.js): price, footprint w × d in metres, at most max of a kind.
+ * A silo adds silo litres to the farm silos, a cow shed room for cows more cows; refund = share of the
+ * price you get back for pulling one down.
+ */
+export const BUILDS = {
+  silo: { price: 380000, w: 9, d: 9, max: 3, silo: 150000 },
+  shed: { price: 260000, w: 16, d: 11, max: 2 },
+  cowshed: { price: 520000, w: 18, d: 12, max: 2, cows: 20 },
+  mill: { price: 900000, w: 12, d: 10, max: 1 },
+  bakery: { price: 700000, w: 12, d: 9, max: 1 },
+  oilmill: { price: 800000, w: 14, d: 9, max: 1 },
+  sawmill: { price: 600000, w: 16, d: 10, max: 1 },
+  refund: 0.5,
+};
+/**
+ * The farm's own production (game/production.js), per game hour while there is input: in = litres of a
+ * crop (crops), kg of flour (from flour pallets) or m³ of logs; make = units of out per hour, onto
+ * pallets of PALLET[out]; price = Kč a unit (the market hall pays PALLET.bonus more); store = input the
+ * building holds; outCap = full pallets it keeps before it stops.
+ */
+export const PRODUCTION = {
+  mill: { crops: [0, 1], in: 800, out: 'flour', make: 600, store: 60000, price: 11 },
+  bakery: { pallet: 'flour', in: 300, out: 'bread', make: 400, store: 6000, price: 14 },
+  oilmill: { crops: [2, 4], in: 400, out: 'oil', make: 160, store: 40000, price: 40 },
+  sawmill: { logs: true, in: 2, out: 'planks', make: 1.5, store: 60, price: 3200 },
+  outCap: 20,
+};
 
 /**
  * Silage (game/forage.js): the bunker holds cap litres of chaff; it has to be packed (driven over)
@@ -53,3 +93,15 @@ export const PALLET = { eggs: 600, wool: 120, tomatoes: 300, bonus: 0.4, maxStac
 export const SILAGE = { cap: 300000, packNeed: 0.9, fermentH: 24, coverMin: 20000, cornPerM2: 30, grassPerM2: 12, chaffPrice: 0.6, silagePrice: 1.8, grassBale: 600, silageBale: 2200, wrapCost: 60, baleFeed: 1200 };
 /** A mown windrow dries into hay by itself in dryH game hours; tedded grass in teddedH. */
 export const HAY_DRY = { dryH: 6, teddedH: 1.5 };
+
+/**
+ * Seed, fertiliser, lime and herbicide (game/supply.js): sold at the farm store in big bags of bag kg
+ * (an IBC of bag litres for the herbicide), price in Kč per kg or l. The seeder, the spreader and the
+ * sprayer carry them in their hoppers and use the Kč/m² of crops.js divided by the price, so a square
+ * metre costs what it did when it was paid as you drove. A helper has a refill brought out for
+ * delivery more.
+ */
+export const SUPPLY = { seed: { price: 50, bag: 1000 }, fert: { price: 10, bag: 1000 }, lime: { price: 3, bag: 1000 }, herb: { price: 25, bag: 1000 }, delivery: 0.1 };
+
+/** Loaders (game/loader.js): what the bucket holds (l) and how many round bales the grab carries. */
+export const LOADER = { bucket: 2500, frontBucket: 1500, bales: 2, frontBales: 1, price: 260000 };

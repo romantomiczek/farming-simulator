@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { scene } from '../render/core.js';
 import { clamp, lerp, col, angDiff } from '../core/util.js';
-import { nearShapes, BOUNDS, movers, PARK, PAD, roadAt, inRect, CHOPPER_HOME } from '../world/layout.js';
+import { nearShapes, BOUNDS, movers, PARK, PAD, roadAt, inRect, CHOPPER_HOME, LOADER_HOME } from '../world/layout.js';
 import { emit, SMOKE } from '../fx/particles.js';
 import { flatPlane, glassMat, lampMat, beaconMat, dirtMaterials } from '../render/materials.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LOD } from './parts.js';
 import { G, condFactor } from '../game/state.js';
-import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher, buildLivestock, buildManureSpreader, buildSlurryTank, PALLET_MAT, buildTedder, buildWindrower, buildWrapper, buildChopper } from './models.js';
+import { buildTractor, buildCombine, buildBeetHarvester, buildForester, buildCultivator, buildSeeder, buildTrailer, buildPlough, buildSpreader, buildBaler, buildWaterTank, buildMower, buildJeep, buildSUV, buildPickup, buildSprayer, buildRoller, buildMulcher, buildLivestock, buildManureSpreader, buildSlurryTank, PALLET_MAT, buildTedder, buildWindrower, buildWrapper, buildChopper, buildHeaderCart, buildTelehandler, buildFrontLoader } from './models.js';
 import { CROPS } from '../game/crops.js';
 import { MODEL, START_MODEL, modelName } from '../game/catalog.js';
 import { forestColliders } from '../world/forest.js';
@@ -47,12 +47,16 @@ const TOOL_SPEC = {
   tedder: { build: buildTedder, name: 'Obraceč', width: 7.6, workZ: -1.3, speed: 4.6, park: [-10, -72], dust: col('#9cbf6a') },
   windrower: { build: buildWindrower, name: 'Shrnovač', width: 6.8, workZ: -1.7, speed: 4.4, park: [-10, -83], dust: col('#9cbf6a') },
   wrapper: { build: buildWrapper, name: 'Ovíječ balíků', width: 0, workZ: 0, speed: 3.6, park: [-10, -94], trailed: true },
+  // the combine's header trailer (towed by the combine, not a tractor): on the grass south of the yard, facing the road
+  headercart: { build: buildHeaderCart, name: 'Vozík na lištu', width: 0, workZ: 0, speed: 4.2, park: [-3, -69], parkH: Math.PI, trailed: true },
 };
-export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher', 'manure', 'slurry', 'livestock', 'tedder', 'windrower', 'wrapper'];
+export const IMPL_ORDER = ['cultivator', 'plough', 'seeder', 'spreader', 'baler', 'trailer', 'watertank', 'mower', 'sprayer', 'roller', 'mulcher', 'manure', 'slurry', 'livestock', 'tedder', 'windrower', 'wrapper', 'headercart'];
+/** Implements with a hopper (game/supply.js) and what they carry: seed, fertiliser or lime, herbicide. */
+export const HOPPER = { seeder: 'seed', spreader: 'fert', sprayer: 'herb' };
 /** Static facts about an implement kind (name, width) for the UI, also when none is owned. */
 export const toolInfo = key => TOOL_SPEC[key];
 export const isToolKey = key => key in TOOL_SPEC;
-export const VEHICLE_TYPES = ['tractor', 'combine', 'beet', 'forest', 'jeep', 'chopper'];
+export const VEHICLE_TYPES = ['tractor', 'combine', 'beet', 'forest', 'jeep', 'chopper', 'loader'];
 
 export const vehicles = [];
 export const tools = [];
@@ -144,6 +148,8 @@ function makeTool(key, mid) {
   if (key === 'trailer') Object.assign(im, { pallets: [], forage: null, grass: 0, silage: 0, pickup: !!m.look.pickup }); // pallets (game/animals.js), chaff or silage (game/forage.js)
   if (key === 'livestock') Object.assign(im, { animals: { kind: null, n: 0, health: 1 }, buyKind: 'cows', animalCap: m.cap || 1 });
   if (key === 'manure' || key === 'slurry') Object.assign(im, { load: 0, loadCap: m.cap });
+  if (HOPPER[key]) Object.assign(im, { fill: { kind: HOPPER[key], amount: 0 }, fillCap: m.cap || 1000 }); // a new one comes empty
+  if (key === 'headercart') im.maxHeader = m.max || 8;
   if (s.trailed) Object.assign(im, { trailed: true, x: 0, z: 0, h: 0 });
   else {
     im.foot = footprint(im.group, im.group, im.wings || []); // collision shape while hitched (trailers have their circles; folding wings left out)
@@ -158,7 +164,7 @@ function makeTool(key, mid) {
 export function addTool(key, o = {}) {
   const im = makeTool(key, o.model);
   im.id = o.id || newId(key); noteId(im.id);
-  im.own = o.own === 'lease' ? 'lease' : 'own'; im.cond = Number.isFinite(o.cond) ? o.cond : 1;
+  im.own = o.own === 'lease' || o.own === 'borrow' ? o.own : 'own'; im.cond = Number.isFinite(o.cond) ? o.cond : 1;
   im.slot = pickSlot(tools, t => t.key, key, o.slot);
   im.park = im.slot < 0 ? [...TOOL_SPEC[key].park] : tSlot(im.slot);
   if (im.slot >= 0 && key === 'trailer') im.park[1] += 0.5;
@@ -179,10 +185,12 @@ export function removeTool(im) {
 
 /** Puts an implement back on its parking spot (detached from any tractor). */
 export function parkTool(im) {
+  if (im.key === 'headercart' && im.on?.transport) headerOff(im.on);
   if (im.on) { const v = im.on; v.tool = null; v.impl = null; v.lowered = false; im.on = null; refreshParts(v); }
   if (im.trailed) {
     im.tipping = false;
-    im.h = 0; im.x = im.park[0]; im.z = im.park[1] - im.drawbar;
+    const h = im.slot < 0 ? TOOL_SPEC[im.key].parkH || 0 : 0;
+    im.h = h; im.x = im.park[0] - Math.sin(h) * im.drawbar; im.z = im.park[1] - Math.cos(h) * im.drawbar;
     scene.add(im.group);
     placeTrailed(im);
     return;
@@ -218,7 +226,7 @@ export function toolInReach(v) {
   const [hx, hz] = hitchPos(v);
   let best = null, bd = HITCH_REACH;
   for (const t of tools) {
-    if (t.on) continue;
+    if (t.on || t.key === 'headercart') continue;
     const e = eyeOf(t), d = Math.hypot(e.x - hx, e.z - hz);
     if (d < bd && Math.abs(angDiff(v.h, e.h)) < HITCH_ANGLE[t.trailed ? 'trailer' : 'tool']) { best = t; bd = d; }
   }
@@ -230,7 +238,7 @@ export function toolNearby(v, r = 6) {
   const [hx, hz] = hitchPos(v);
   let best = null, bd = r;
   for (const t of tools) {
-    if (t.on) continue;
+    if (t.on || t.key === 'headercart') continue;
     const e = eyeOf(t), d = Math.hypot(e.x - hx, e.z - hz);
     if (d < bd) { best = t; bd = d; }
   }
@@ -240,6 +248,7 @@ export function toolNearby(v, r = 6) {
 export function dropTool(v) {
   const im = v.tool;
   if (!im) return null;
+  if (im.key === 'headercart') return unhitchCart(v);
   v.tool = null; v.impl = null; v.lowered = false; im.on = null;
   refreshParts(v);
   if (im.trailed) { im.tipping = false; return im; }
@@ -250,7 +259,7 @@ export function dropTool(v) {
 }
 
 /** Words for messages: "jede s traktorem". */
-const NOUN = { tractor: 'traktorem', combine: 'kombajnem', beet: 'sklízečem', forest: 'harvestorem', jeep: 'autem', chopper: 'řezačkou' };
+const NOUN = { tractor: 'traktorem', combine: 'kombajnem', beet: 'sklízečem', forest: 'harvestorem', jeep: 'autem', chopper: 'řezačkou', loader: 'manipulátorem' };
 
 function makeVehicle(type, mid) {
   const m = modelFor(type, mid), look = m.look;
@@ -301,13 +310,21 @@ function makeVehicle(type, mid) {
       home: [-27, -27], fuelCap: 70, fuelDrive: 0.022, fuelWork: 0,
     }, buildOf(m)(look));
     Object.assign(v, { r: m.r || 1.6, wb: m.wb || 2.6, vmax: m.kmh / 3.6, fuelCap: m.fuel, offroad: m.offroad });
+  } else if (type === 'loader') {
+    // telehandler (game/loader.js): drives like a small tractor, all four wheels steer
+    Object.assign(v, {
+      gen: 'manipulátoru', r: 2.2, wb: 2.84, vmax: m.kmh / 3.6, vwork: 0, acc: 3.0, brk: 7, vrev: 4, mapCol: look.body || '#d8261d',
+      home: LOADER_HOME, fuelCap: m.fuel, fuelDrive: (0.05 * m.hp) / 140, fuelWork: 0, hp: m.hp,
+    }, buildTelehandler(look));
+    Object.assign(v, { r: 2.2 * v.scale, wb: 2.84 * v.scale, bucketCap: m.bucket, baleCap: m.bales, ld: { carry: null, arm: 0, lift: 0 } });
   }
   Object.assign(v, { model: m.id, name: modelName(m), noun: NOUN[type] });
   v.hitchZ = v.hitchZ ?? HITCH_Z;
   v.fuel = v.fuelCap; v.y = 0; v.tool = null; v.impl = null; v.available = true;
   v.group.rotation.order = 'YXZ'; // heading, then pitch and roll on slopes
   // collision body: the model's footprint without the pipe and the crane (they reach over things)
-  v.bodyPart = partOf(footprint(v.group, v.group, [v.headerLift, v.pipe, v.crane].filter(Boolean)));
+  v.bodyPart = partOf(footprint(v.group, v.group, [v.headerLift, v.pipe, v.crane, v.boom].filter(Boolean)));
+  if (type === 'combine') v.hitchZ = v.bodyPart.cz - v.bodyPart.hz - 0.15; // the header trailer hangs on behind
   v.inertia = ((2 * v.bodyPart.hx) ** 2 + (2 * v.bodyPart.hz) ** 2) / 12;
   v.pivotZ = pivotOf(v);
   v.seat = seatOf(v);
@@ -355,13 +372,15 @@ function refreshParts(v) {
     if (Number.isFinite(fp.x0)) v.parts.push(partOf(fp));
   }
   if (v.tool?.foot) v.parts.push(partOf(v.tool.foot, v.hitchZ));
+  if (v.boom) v.parts.push(partOf(footprint(v.boom, v.group))); // the telehandler's boom and head reach out in front
+  if (v.fl) v.parts.push(partOf(footprint(v.fl.group, v.group))); // a tractor's front loader
 }
 
 /** A new machine on its parking place. o = { id, model, own, cond, slot }. */
 export function addVehicle(type, o = {}) {
   const v = makeVehicle(type, o.model);
   v.id = o.id || newId(type); noteId(v.id);
-  v.own = o.own === 'lease' ? 'lease' : 'own'; v.cond = Number.isFinite(o.cond) ? o.cond : 1;
+  v.own = o.own === 'lease' || o.own === 'borrow' ? o.own : 'own'; v.cond = Number.isFinite(o.cond) ? o.cond : 1;
   v.slot = pickSlot(vehicles, x => x.type, type, o.slot);
   if (v.slot >= 0) v.home = vSlot(v.slot);
   v.x = v.home[0]; v.z = v.home[1];
@@ -375,6 +394,7 @@ export function addVehicle(type, o = {}) {
 
 export function removeVehicle(v) {
   if (v.tool) parkTool(v.tool);
+  if (v.fl) frontLoaderOff(v);
   if (v.type === 'combine') for (const hd of [v.grainHdr, v.cornHdr]) { hd.parent?.remove(hd); dispose(hd); }
   scene.remove(v.group); dispose(v.group);
   vehicles.splice(vehicles.indexOf(v), 1);
@@ -398,6 +418,7 @@ export function sendHome(v) {
 /* ---------- combine headers ---------- */
 /** Mounts the grain or row header on combine v; the other one waits in the yard by the shed. */
 export function setHeader(v, key) {
+  v.transport = false; // a header lying on the trailer comes back to the feeder house
   const on = key === 'corn' ? v.cornHdr : v.grainHdr;
   const off = key === 'corn' ? v.grainHdr : v.cornHdr;
   v.header = key === 'corn' ? 'corn' : 'grain';
@@ -406,6 +427,84 @@ export function setHeader(v, key) {
   // in the yard the spare header keeps its size: the combine's scale is not around it there
   scene.add(off); off.position.set(v.headerPark[0], 0, v.headerPark[1]); off.rotation.set(0, 0, 0); off.scale.set(v.hdrScale * v.scale, v.scale, v.scale);
   if (v.lodFar) setFar(v, true);
+  refreshParts(v);
+}
+
+/* ---------- the header trailer ---------- */
+/** The header trailer combine v can take where it stands: free, its drawbar eye behind v's hitch, or null. */
+export function cartInReach(v, r = 4) {
+  if (v.type !== 'combine' || v.tool) return null;
+  const [hx, hz] = hitchPos(v);
+  let best = null, bd = r;
+  for (const t of tools) {
+    if (t.key !== 'headercart' || t.on) continue;
+    const e = eyeOf(t), d = Math.hypot(e.x - hx, e.z - hz);
+    if (d < bd && Math.abs(angDiff(v.h, e.h)) < 1.2) { best = t; bd = d; }
+  }
+  return best;
+}
+/** The nearest free header trailer and how far its eye is from combine v's hitch: { t, d } or null. */
+export function nearestCart(v) {
+  const [hx, hz] = hitchPos(v);
+  let best = null;
+  for (const t of tools) {
+    if (t.key !== 'headercart' || t.on) continue;
+    const e = eyeOf(t), d = Math.hypot(e.x - hx, e.z - hz);
+    if (!best || d < best.d) best = { t, d };
+  }
+  return best;
+}
+/** Combine v takes header trailer t in tow (empty, or to lay its header on it next). */
+export function hitchCart(v, t) {
+  t.on = v; v.tool = t;
+  scene.add(t.group);
+  refreshParts(v);
+}
+/**
+ * Combine v lays its header on header trailer t and tows it: the machine gets narrow for the roads and
+ * the alleys. The header goes back on with headerOff (the trailer stays hitched) or unhitchCart.
+ */
+export function headerOn(v, t) {
+  const hdr = v.header === 'corn' ? v.cornHdr : v.grainHdr;
+  hitchCart(v, t); v.lowered = false;
+  t.mount.add(hdr);
+  hdr.position.set(0, 0, 0); hdr.rotation.set(0, Math.PI / 2, 0); hdr.scale.set(v.hdrScale * v.scale, v.scale, v.scale);
+  hdr.traverse(o => { if (o.isMesh) o.visible = true; });
+  v.transport = true;
+  if (v.lodFar) setFar(v, true);
+  refreshParts(v);
+}
+/** The header goes back on the combine. */
+export function headerOff(v) {
+  if (!v.transport) return;
+  setHeader(v, v.header);
+}
+/** Leaves the combine's header trailer standing where it is, with the header back on the combine. */
+export function unhitchCart(v) {
+  const t = v.tool;
+  if (!t || t.key !== 'headercart') return null;
+  headerOff(v);
+  v.tool = null; t.on = null;
+  refreshParts(v);
+  return t;
+}
+
+/* ---------- front loader ---------- */
+/** Mounts the farm's front loader on tractor v (in the shed). */
+export function frontLoaderOn(v) {
+  if (v.fl) return;
+  v.fl = buildFrontLoader();
+  v.fl.group.scale.setScalar(v.scale);
+  v.group.add(v.fl.group);
+  dirtMaterials(v.fl.group, v.dirtU);
+  v.ld = { carry: null, arm: 0, lift: 0 };
+  if (v.lodFar) setFar(v, true);
+  refreshParts(v);
+}
+export function frontLoaderOff(v) {
+  if (!v.fl) return;
+  v.group.remove(v.fl.group); dispose(v.fl.group);
+  v.fl = null; v.ld = null;
   refreshParts(v);
 }
 
@@ -535,7 +634,7 @@ function updateTrailer(t, dt) {
   if (t.key === 'manure' && t.load !== undefined) { const f = t.load / t.loadCap; t.loadMesh.visible = f > 0.01; t.loadMesh.scale.y = Math.max(0.02, f * 0.95); }
   if (t.key !== 'trailer') return;
   t.palletMeshes.forEach((m, i) => { m.visible = i < t.pallets.length; if (m.visible) m.material = PALLET_MAT[t.pallets[i]]; });
-  t.tip.rotation.x += ((t.tipping ? -0.6 : 0) - t.tip.rotation.x) * Math.min(1, dt * 1.5);
+  t.tip.rotation.x += ((t.tipping || t.htip ? -0.6 : 0) - t.tip.rotation.x) * Math.min(1, dt * 1.5);
   const fl = t.forage?.l || 0, fill = (t.tank.amount + fl) / t.tank.cap;
   t.grain.visible = fill > 0;
   t.grain.scale.y = Math.max(0.02, fill * t.grainH);
@@ -554,7 +653,7 @@ const CHAFF_HEAP = col('#7d9a3c'), SILAGE_HEAP = col('#8f8a3e');
  * The machine you drive and its implement always keep the detailed model. Loads (grain, bales, logs)
  * keep showing at any distance.
  */
-const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep, suv: buildSUV, pickup: buildPickup, chopper: buildChopper };
+const VEHICLE_BUILD = { tractor: buildTractor, combine: buildCombine, beet: buildBeetHarvester, forest: buildForester, jeep: buildJeep, suv: buildSUV, pickup: buildPickup, chopper: buildChopper, loader: buildTelehandler };
 /** The builder of model m: its own (look.builder, e.g. the SUV among the cars) or the kind's. */
 const buildOf = m => VEHICLE_BUILD[m.look.builder] || TOOL_SPEC[m.kind]?.build || VEHICLE_BUILD[m.kind];
 /** A fresh detailed model of model id, outside the game (shop pictures): what the builder returns. */
@@ -565,17 +664,22 @@ const FAR_PLAIN = new Map([[glassMat, ['#4b6470', 0.15, 0.3]], [lampMat, ['#fff4
 const farGeo = new Map(), farSets = new Map(), _c = new THREE.Color();
 let farMat = null, whiteUV = [0, 0];
 
-/** The far model of model id (one per model: colours, size and extras differ). */
-function farModel(id) {
-  if (farGeo.has(id)) return farGeo.get(id);
+/** The far model of lodKind key: a model id, + '|t' for a combine whose header rides on its trailer (one per model: colours, size and extras differ). */
+function farModel(key) {
+  if (farGeo.has(key)) return farGeo.get(key);
+  const id = key.split('|')[0];
   LOD.low = true;
   let m;
   try { m = buildOf(MODEL[id])(MODEL[id].look); } finally { LOD.low = false; }
   if (m.cornHdr) m.cornHdr.parent?.remove(m.cornHdr); // the grain header stays on, the row header is the spare one
+  if (key.endsWith('|t')) m.grainHdr.parent?.remove(m.grainHdr);
   m.group.updateMatrixWorld(true);
+  // a loader shows its bucket from afar, not the forks and the grab as well
+  const skip = new Set();
+  m.group.traverse(o => { if (o.userData.farSkip) o.traverse(c => skip.add(c)); });
   const geos = [];
   m.group.traverse(o => {
-    if (!o.isMesh || o.userData.noBake) return;
+    if (!o.isMesh || o.userData.noBake || skip.has(o)) return;
     const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
     for (const k of Object.keys(g.attributes)) if (!KEEP.has(k)) g.deleteAttribute(k);
     if (o.material.vertexColors) {
@@ -593,7 +697,7 @@ function farModel(id) {
   if (m.cornHdr) m.cornHdr.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
   const geo = mergeGeometries(geos);
   geos.forEach(g => g.dispose());
-  farGeo.set(id, geo);
+  farGeo.set(key, geo);
   return geo;
 }
 
@@ -631,7 +735,7 @@ function setFar(p, far) {
 }
 
 const posOf = p => (p.type || p.trailed ? p : p.on || p.group.position);
-const lodKind = p => p.model;
+const lodKind = p => (p.transport ? p.model + '|t' : p.model);
 /**
  * Every frame after the camera moved: picks the detailed or the far model for every piece and
  * writes the far pieces into their kind's instanced mesh. eye = camera position, dist = machineLod (metres from the camera).
@@ -643,7 +747,7 @@ export function updLOD(eye, dist) {
   const counts = new Map();
   const decide = p => {
     const q = posOf(p), d = Math.hypot(q.x - eye.x, q.z - eye.z, eye.y);
-    const far = p !== G.active && !(p.on && p.on === G.active) && d > dist + (p.lodFar ? -4 : 0);
+    const far = p !== G.active && !(p.on && p.on === G.active) && p.key !== 'headercart' && d > dist + (p.lodFar ? -4 : 0);
     if (far !== !!p.lodFar) setFar(p, far);
     if (far) counts.set(lodKind(p), (counts.get(lodKind(p)) || 0) + 1);
   };
@@ -719,6 +823,7 @@ const PHYS = {
   chopper: { grip: 0.52, lock: 0.62, rate: 0.85, back: 1.25, tau: 0.22, roll: 0.02, pitch: 0.015 },
   forest: { grip: 0.58, lock: 0.65, rate: 0.9, back: 1.3, tau: 0.2, roll: 0.025, pitch: 0.02 },
   jeep: { grip: 1.4, lock: 0.6, rate: 1.7, back: 2.6, tau: 0.08, roll: 0.06, pitch: 0.035, slide: true },
+  loader: { grip: 0.75, lock: 0.62, rate: 1.3, back: 1.8, tau: 0.14, roll: 0.035, pitch: 0.025 },
 };
 const GRAV = 9.81;
 /** The ground under the wheels: wet after rain, snow in winter (set by the main loop). */
@@ -799,6 +904,32 @@ export function sitOnGround(group, x, z, h, len, wid, off) {
 }
 
 const _v = new THREE.Vector3();
+const BALE_COL = { straw: col('#e2c77d'), hay: col('#b9b77a'), grass: col('#7fa24a'), silage: col('#2f3a2c') };
+const HEAP_COL = { manure: col('#4a3a26'), silage: col('#8f8a3e'), chaff: col('#7d9a3c') };
+/**
+ * A loader's boom and head (L = the telehandler, or the tractor's front loader): the boom goes down to
+ * the ground when empty, up a little with a load and high for a moment after tipping (ld.lift); the
+ * head stays level and shows the tool for what it carries, and the load on it.
+ */
+function loaderPose(v, L, dt) {
+  const ld = v.ld, c = ld.carry, a = L.arm;
+  if (ld.lift > 0) ld.lift -= dt;
+  const want = ld.lift > 0 ? a.high : c ? a.carry : a.low;
+  L.boom.rotation.x += (want - L.boom.rotation.x) * Math.min(1, dt * 2.2);
+  L.head.rotation.x = -L.boom.rotation.x + (ld.lift > 0 && ld.tipped ? 0.9 : 0);
+  const tool = c?.kind === 'bale' ? 'grab' : c?.kind === 'pallet' ? 'forks' : c ? 'bucket' : ld.tool || 'bucket';
+  for (const k in L.tools) L.tools[k].visible = k === tool;
+  const n = c?.kind === 'bale' ? c.bales.length : 0;
+  L.load.bales.forEach((m, i) => { m.visible = i < n; if (m.visible) m.material.color.copy(BALE_COL[c.bales[i]] || BALE_COL.straw); });
+  L.load.pallet.visible = c?.kind === 'pallet';
+  if (c?.kind === 'pallet') L.load.pallet.material = PALLET_MAT[c.p] || PALLET_MAT.seed;
+  L.load.heap.visible = c?.kind === 'heap';
+  if (c?.kind === 'heap') {
+    L.load.heap.scale.setScalar(0.4 + 0.6 * Math.min(1, c.l / (v.bucketCap || 1500)));
+    L.load.heapMat.color.copy(c.crop >= 0 ? CROPS[c.crop].heapCol : HEAP_COL[c.what] || HEAP_COL.manure);
+  }
+}
+
 /** Moves meshes to match the simulation: wheels, steering, lifts, reel, discs, pipe, grain heap, exhaust. */
 export function visual(v, dt, tankCropColor) {
   v.y = sitOnGround(v.group, v.x, v.z, v.h, v.wb, v.r * 1.1, 0);
@@ -819,9 +950,13 @@ export function visual(v, dt, tankCropColor) {
       if (im.roller && v.lowered) im.roller.rotation.x += (v.speed * dt) / 0.3;
       if (im.wheels && v.lowered && !im.trailed) for (const w of im.wheels) w.userData.spin.rotation.x += (v.speed * dt) / w.userData.r;
       if (im.discs && v.lowered) im.discs.forEach((d, i) => (d.rotation.y += (i ? 1 : -1) * dt * 18));
+      if (im.rollers && v.lowered) for (const r of im.rollers.slice(1)) r.rotation.x += (v.speed * dt) / 0.3;
       // booms and side sections unfold when lowered and fold for the road when raised
       if (im.wings) for (const w of im.wings) { const u = w.userData; w.rotation[u.axis] += ((v.lowered ? u.open : u.shut) - w.rotation[u.axis]) * k * 0.6; }
     }
+    if (v.fl) loaderPose(v, v.fl, dt);
+  } else if (v.type === 'loader') {
+    loaderPose(v, v, dt);
   } else if (v.type === 'jeep') {
     // nothing to animate besides wheels and steering
   } else if (v.type === 'forest') {

@@ -29,6 +29,7 @@ export const emptyFarm = () => ({
   mix: { grain: 0, hay: 0, beet: 0 }, // what the cows' feed is made of, in litres
   herd: {}, slurry: 0, manure: 0, // herds and what they leave (animals.js)
   bunker: { chaff: 0, packed: 0, covered: false, ferment: 0, silage: 0 }, // the silage bunker (forage.js)
+  millIn: 0, bakeryIn: 0, oilmillIn: 0, sawmillIn: 0, flour: 0, bread: 0, oil: 0, planks: 0, // own production (production.js)
 });
 export const greenhouses = () => (has('greenhouse1') ? 1 : 0) + (has('greenhouse2') ? 1 : 0);
 export const waterCap = () => greenhouses() * GREENHOUSE.capPer;

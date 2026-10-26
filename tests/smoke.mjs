@@ -268,6 +268,7 @@ try {
     for (const [kind, id] of [['sprayer', 'postrik-18'], ['roller', 'valec-6'], ['plough', 'pluh-5'], ['spreader', 'rozm-12']]) if (!window.__zl.tools.some(x => x.key === kind)) M.buy(id);
     const lane = (key, setup) => {
       attach(key, t); G.active = t; setup?.();
+      if (t.tool.fill) t.tool.fill = { kind: t.spreadLime ? 'lime' : t.tool.fill.kind, amount: t.tool.fillCap }; // a full hopper (game/supply.js)
       Object.assign(t, { x: f.x0 + 14, z: f.z0 + 3, h: 0, speed: 0, helper: null });
       window.__zl.act('Space'); window.__zl.hold('KeyW', 240); window.__zl.act('Space');
       return t.tool;
@@ -302,7 +303,7 @@ try {
     return { stones, ploughed: ploughed.length, rolled, stonesLeft, sprayed, before: +before.toFixed(3), after: +after.toFixed(3), limed, withered, ripe: +ripe.toFixed(2), dry: +dry.toFixed(2), summer, rows: y.rows.length };
   });
   check('polní práce: kameny, válec, postřik, vápno, přezrání, kalendář', agro.ploughed > 50 && agro.stones > 0 && agro.rolled > 50 && agro.stonesLeft === 0 && agro.sprayed > 50 && agro.after > agro.before &&
-    agro.limed > 50 && agro.withered && Math.abs(agro.dry - agro.ripe / 2) < 0.01 && agro.summer && agro.rows === 9,
+    agro.limed > 50 && agro.withered && Math.abs(agro.dry - agro.ripe / 2) < 0.01 && agro.summer && agro.rows === 10,
     'zoráno ' + agro.ploughed + ' m², kameny ' + agro.stones + ' · uválcováno ' + agro.rolled + ' m², kamenů zbylo ' + agro.stonesLeft + ' · postřik ' + agro.sprayed + ' m², výnos ' + agro.before + ' → ' + agro.after +
     ' · vyvápněno ' + agro.limed + ' m² · přezrálé ' + (agro.withered ? 'ano' : 'ne') + ' ' + agro.ripe + ' → ' + agro.dry + ' · v létě pšenice ano, cukrovka ne: ' + (agro.summer ? 'ano' : 'ne'));
 
@@ -367,7 +368,7 @@ try {
   });
   check('vozový park', park.t2 && park.hitched && park.rows === park.pieces, 'druhý traktor na odstavné ploše s přívěsem · ' + park.rows + ' řádků v Kanceláři');
 
-  // a helper with the second tractor fetches a plough from the yard, hitches it and drives to field 2; a second helper is refused
+  // a helper with the second tractor fetches a plough from the yard, hitches it and drives to field 2; a second helper may work too
   const fetch = await page.evaluate(async () => {
     const V = await import('/src/vehicles/vehicles.js'), M = await import('/src/game/machines.js'), H = await import('/src/game/helpers.js'), z = window.__zl;
     for (const v of V.vehicles) if (v.helper) H.dismiss(v);
@@ -379,9 +380,9 @@ try {
     for (let i = 0; i < 2400 && t2.helper && t2.helper.mode !== 'field'; i++) { z.step(1, 0.05); if (modes[modes.length - 1] !== t2.helper?.mode) modes.push(t2.helper?.mode); }
     const hitched = pl.on === t2;
     if (t2.helper) H.dismiss(t2);
-    return { sent, block: block.includes('jen jeden'), modes: modes.join(' → '), hitched };
+    return { sent, block: block.includes('pracuje'), modes: modes.join(' → '), hitched };
   });
-  check('pomocník dojede pro nářadí', fetch.sent && fetch.block && fetch.hitched && fetch.modes === 'fetch → travel → field', fetch.modes + (fetch.block ? ' · druhého pomocníka nepustí' : ' · DRUHÝ POMOCNÍK PROŠEL'));
+  check('pomocník dojede pro nářadí', fetch.sent && !fetch.block && fetch.hitched && fetch.modes === 'fetch → travel → field', fetch.modes + (fetch.block ? ' · DRUHÉHO POMOCNÍKA NEPUSTÍ' : ' · může pracovat i druhý pomocník'));
 
   // level of detail: the parked second tractor far from the camera uses the simplified model, near it the detailed one
   const lod = await page.evaluate(async () => {
@@ -702,7 +703,7 @@ try {
       if (!M.buy(m.id)) { bad.push(m.id + ' nejde koupit'); continue; }
       const p = [...V.vehicles, ...V.tools].filter(x => x.model === m.id).pop();
       if (m.width && Math.abs(p.width - m.width) > 1e-6) bad.push(m.id + ' záběr ' + p.width);
-      if (m.cap && (p.tank?.cap ?? p.waterCap ?? p.loadCap ?? p.animalCap) !== m.cap) bad.push(m.id + ' objem');
+      if (m.cap && (p.tank?.cap ?? p.waterCap ?? p.loadCap ?? p.animalCap ?? p.fillCap) !== m.cap) bad.push(m.id + ' objem');
       if (m.header && p.toolW !== m.header) bad.push(m.id + ' lišta');
       if (m.tank && p.tank.cap !== m.tank) bad.push(m.id + ' zásobník');
       if (m.kmh && Math.round(p.vmax * 3.6) !== m.kmh) bad.push(m.id + ' rychlost');
@@ -727,6 +728,87 @@ try {
   });
   check('výkon traktoru', power.brWork === 0.4 && power.feWork === 1 && power.empty === 1 && power.full < 0.6,
     'Horsch 10 m: Brázda ' + Math.round(power.brWork * 100) + ' %, Fendt ' + Math.round(power.feWork * 100) + ' % · plný Annaburger za Brázdou ' + Math.round(power.full * 100) + ' %');
+
+  // machines as in FS (TODO 9): the store fills a hopper and loads big bags, a trailer tips a heap on the ground,
+  // the telehandler scoops it into the trailer, the combine lays its header on the trailer and takes it back,
+  // a wide seeder folds for the road, the front loader goes on a tractor in the shed
+  const fs9 = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), M = await import('/src/game/machines.js'), A = await import('/src/game/actions.js');
+    const L = await import('/src/world/layout.js'), Hp = await import('/src/world/heaps.js'), LD = await import('/src/game/loader.js'), H = await import('/src/game/helpers.js'), z = window.__zl;
+    for (const v of V.vehicles) if (v.helper) H.dismiss(v);
+    z.G.money = 5e7;
+    for (const id of ['manitou-mlt-737', 'vozik-lista-13', 'frontLoader', 'horsch-pronto-12']) M.buy(id);
+    const t = V.vehicles.find(v => v.type === 'tractor' && !v.helper), tr = V.tools.find(x => x.key === 'trailer' && !x.pickup), out = {};
+    const place = (v, x, zz, h = 0) => { Object.assign(v, { x, z: zz, h, speed: 0 }); z.step(2); };
+    z.seat(t);
+    // the spreader at the store
+    const sp = V.tools.find(x => x.key === 'spreader'); V.attachTool(t, sp); sp.fill.amount = 0; t.spreadLime = false;
+    place(t, L.SUPPLY_STORE.x, L.SUPPLY_STORE.z + 1.5);
+    out.store = A.fAction()?.kind; z.act('KeyF'); out.filled = Math.round(sp.fill.amount);
+    // big bags onto the trailer at the store
+    V.attachTool(t, tr); tr.tank = { crop: -1, amount: 0, cap: tr.tank.cap }; tr.bales = 0; tr.pallets = [];
+    place(t, L.SUPPLY_STORE.x, L.SUPPLY_STORE.z - 6, Math.PI); V.attachTool(t, tr);
+    { const c = V.trailerCenter(tr), dx = L.SUPPLY_STORE.x - c.x, dz = L.SUPPLY_STORE.z - c.z; t.x += dx; t.z += dz; tr.x += dx; tr.z += dz; z.step(1); }
+    out.bagAct = A.fAction()?.kind; z.act('KeyF'); out.bags = tr.pallets.join(',');
+    // a heap on the ground, scooped back by the telehandler
+    tr.pallets = []; tr.tank = { crop: 0, amount: 6000, cap: tr.tank.cap };
+    place(t, 60, 20, 0); out.tip = A.fAction()?.kind; z.act('KeyF'); z.step(200);
+    const h = Hp.heaps[0]; out.heap = h ? Math.round(h.l) : 0;
+    const lo = V.vehicles.find(v => v.type === 'loader'); z.seat(lo);
+    place(lo, h.x, h.z - 4.6, 0); out.scoop = LD.lAction(lo)?.kind; z.act('KeyL'); out.carry = lo.ld.carry?.l || 0;
+    { const c = V.trailerCenter(tr), px = Math.cos(tr.h), pz = -Math.sin(tr.h); place(lo, c.x + px * 4.6, c.z + pz * 4.6, Math.atan2(-px, -pz)); }
+    out.dump = LD.lAction(lo)?.kind; z.act('KeyL'); out.back = Math.round(tr.tank.amount);
+    tr.tank = { crop: -1, amount: 0, cap: tr.tank.cap }; for (const x of [...Hp.heaps]) Hp.takeFromHeap(x, x.l);
+    // the Lexion lays its header on the 13 m trailer and is narrow; L takes it back, Q leaves the trailer
+    M.buy('claas-lexion-8900');
+    const c = V.vehicles.find(v => v.model === 'claas-lexion-8900'), cart = V.tools.find(x => x.model === 'vozik-lista-13'); z.seat(c);
+    place(c, 60, 40, 0); Object.assign(cart, { h: 0, x: c.x, z: c.z + c.hitchZ - cart.drawbar }); z.step(2);
+    const wide = c.parts.length; z.act('KeyL'); out.transport = c.transport && c.parts.length < wide;
+    z.act('KeyL'); z.act('KeyQ'); out.headerBack = !c.transport && !c.tool;
+    // a 12 m seeder folds its wings when raised
+    const pr = V.tools.find(x => x.model === 'horsch-pronto-12'); V.attachTool(t, pr); z.seat(t); t.lowered = false; z.step(60);
+    out.folded = pr.wings.length === 2 && pr.wings.every(w => Math.abs(w.rotation.z) > 1.2);
+    // the front loader in the shed
+    V.dropTool(t); place(t, 12, -38, 0); A.pickInShed(1); out.front = !!t.fl;
+    A.pickInShed(1); out.frontOff = !t.fl;
+    z.seat(V.vehicles.find(v => v.type === 'combine'));
+    return out;
+  });
+  check('stroje jako ve FS: sklad osiv, big bagy, hromada, manipulátor, vozík na lištu, sklápění, čelní nakladač',
+    fs9.store === 'fillHopper' && fs9.filled === 1200 && fs9.bagAct === 'buyBag' && fs9.bags === 'seed' && fs9.tip === 'tipGround' && fs9.heap === 6000 && fs9.scoop === 'scoop' &&
+    fs9.carry === 2500 && fs9.dump === 'bucketTrailer' && fs9.back === 2500 && fs9.transport && fs9.headerBack && fs9.folded && fs9.front && fs9.frontOff, JSON.stringify(fs9));
+
+  // building and production, weather, the game modes and the neighbour's machine (TODO 10)
+  const fs10 = await page.evaluate(async () => {
+    const V = await import('/src/vehicles/vehicles.js'), A = await import('/src/game/actions.js'), Bd = await import('/src/game/build.js'), P = await import('/src/game/production.js');
+    const H = await import('/src/game/helpers.js'), Cl = await import('/src/game/climate.js'), S = await import('/src/game/silo.js'), z = window.__zl, out = {};
+    for (const v of V.vehicles) if (v.helper) H.dismiss(v);
+    z.G.money = 5e7;
+    out.yard = !Bd.check('mill', -20, -30, 0).ok;
+    out.mill = Bd.construct('mill', 146, -45, 0);
+    out.silo = Bd.construct('silo', -40, 20, 1); out.cap = S.siloCap();
+    // the trailer tips wheat into the mill, it grinds flour
+    const t = V.vehicles.find(v => v.type === 'tractor' && !v.helper), tr = V.tools.find(x => x.key === 'trailer' && !x.pickup); z.seat(t);
+    V.attachTool(t, tr); tr.tank = { crop: 0, amount: 8000, cap: tr.tank.cap }; tr.pallets = []; tr.bales = 0;
+    const ring = Bd.ringOf(z.G.built.find(b => b.type === 'mill'));
+    Object.assign(t, { x: ring.x, z: ring.z + 6, h: Math.PI, speed: 0 }); V.attachTool(t, tr); z.step(2);
+    { const c = V.trailerCenter(tr), dx = ring.x - c.x, dz = ring.z - c.z; t.x += dx; t.z += dz; tr.x += dx; tr.z += dz; z.step(1); }
+    out.tipAct = A.fAction()?.kind; z.act('KeyF'); z.step(300); out.milled = Math.round(P.prodIn('mill') + 0.4) >= 7800;
+    const f0 = z.G.farm.flour; P.prodTick(2); out.flour = Math.round(z.G.farm.flour - f0);
+    // a transport job: a helper hauls barley from the silo to the mill
+    z.G.silo.stock[1] = 9000; out.haul = H.sendHaul(t, 1, 'prod-mill', 9000);
+    for (let i = 0; i < 4000 && t.helper; i++) z.step(1, 0.05);
+    out.hauled = Math.round(9000 - z.G.silo.stock[1]); if (t.helper) H.dismiss(t);
+    // hail on a growing field
+    const f = z.fields.find(x => x.id === 2); f.state.fill(2); f.stage.fill(2); f.crop.fill(0); f.dmg.fill(0);
+    Cl.hail(4242); out.hail = Math.max(...f.dmg) > 0;
+    // pull the silo down: the field gets its cells back
+    const area = z.fields.find(x => x.id === 1).area;
+    out.demolish = Bd.demolish(z.G.built.find(b => b.type === 'silo').id) && z.fields.find(x => x.id === 1).area > area;
+    return out;
+  });
+  check('stavby, výroba, přeprava a krupobití', fs10.yard && fs10.mill && fs10.silo && fs10.cap === 350000 && fs10.tipAct === 'tip' && fs10.milled && fs10.flour === 1200 &&
+    fs10.haul && fs10.hauled === 9000 && fs10.hail && fs10.demolish, JSON.stringify(fs10));
 
   // an hour of game time at full speed: traffic, animals, growth, helpers' world
   await page.evaluate(() => { const z = window.__zl; z.G.tsIdx = 2; z.step(1800, 0.05); z.G.tsIdx = 0; });
@@ -766,6 +848,23 @@ try {
   });
   check('převod uložení z verze 4', old.ok && old.types === 'tractor,combine,forest' && old.tools === 'cultivator,seeder*,trailer' && old.hitch === 'trailer' && old.trailer === 7000 &&
     old.cond === 0.5 && old.seed === 2 && old.combine === 3000 && old.logs === 6 && old.active === 'combine' && old.cows && old.trailerModel === 'fliegl-22' && old.trailerCap === 22000, JSON.stringify(old));
+
+  // new games in the other modes, and a contract with the neighbour's machine when you have none
+  const modes = await page.evaluate(async () => {
+    const save = await import('/src/game/save.js'), C = await import('/src/game/contracts.js'), z = window.__zl;
+    save.newGame('manager');
+    const manager = z.G.money + ' ' + z.vehicles.map(v => v.type).join(',') + ' ' + z.fields.filter(f => f.owned).length;
+    save.newGame('scratch');
+    const scratch = z.G.money + ' ' + z.vehicles.map(v => v.type).join(',');
+    const reload = save.applySave(JSON.parse(JSON.stringify(save.serialize()))) && z.vehicles.map(v => v.type).join(',') === 'jeep';
+    const o = z.G.contracts.offers.find(x => !C.canDo(x));
+    const lent = o && C.accept(o.id, true) && z.vehicles.some(v => v.own === 'borrow');
+    C.cancelActive();
+    const back = !z.vehicles.some(v => v.own === 'borrow') && !z.tools.some(t => t.own === 'borrow');
+    save.newGame(); z.seat(z.G.active);
+    return { manager, scratch, reload, lent, back };
+  });
+  check('režimy hry a stroj od souseda', modes.manager === '1500000 jeep 0' && modes.scratch === '500000 jeep' && modes.reload && modes.lent && modes.back, JSON.stringify(modes));
 
   // rendering on every preset
   await page.evaluate(() => { const z = window.__zl; z.renderer.render = z.realRender; });

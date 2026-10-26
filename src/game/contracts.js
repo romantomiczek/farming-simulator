@@ -2,7 +2,7 @@ import { stat, earn } from './goals.js';
 import { fmt } from '../core/util.js';
 import { G, dayOf } from './state.js';
 import { CROPS, S_STUB, S_CULT, S_SOWN, S_RIPE } from './crops.js';
-import { has, setContractNeeds } from './machines.js';
+import { has, setContractNeeds, lend, returnLent } from './machines.js';
 import { FIELDS, countFields, drawSigns } from '../world/fields.js';
 import { toast } from '../ui/toast.js';
 import { season } from './weather.js';
@@ -42,6 +42,22 @@ export const needsLabel = c => {
   return h === 'beet' ? 'sklízeč cukrovky' : h === 'corn' ? 'kombajn s řádkovým adaptérem' : 'kombajn se žací lištou';
 };
 export const canDo = c => has(needs(c)) && (c.type !== 'harvest' || CROPS[c.crop].header !== 'corn' || has('combine'));
+/**
+ * Without the machine you can still take a contract: the neighbour lends his and keeps BORROW_CUT of the
+ * reward. What he lends: the harvester (and the row header), or the implement and, when the farm has no
+ * tractor, a tractor to pull it.
+ */
+export const BORROW_CUT = 0.3;
+export const borrowReward = c => Math.round((c.reward * (1 - BORROW_CUT)) / 100) * 100;
+export function borrowList(c) {
+  const k = needs(c);
+  if (k === 'cornHeader') return [...(has('combine') ? [] : ['combine']), 'cornHeader'];
+  if (k === 'combine' || k === 'beet') return [k];
+  return [...(has('tractor') ? [] : ['tractor']), k];
+}
+const LEND_NAME = { tractor: 'traktor', combine: 'kombajn', beet: 'sklízeč cukrovky', cornHeader: 'řádkový adaptér', cultivator: 'kultivátor', plough: 'pluh', seeder: 'secí stroj', spreader: 'rozmetadlo' };
+/** "traktor a pluh": what the neighbour lends for contract c. */
+export const lendText = c => borrowList(c).map(k => LEND_NAME[k] || k).join(' a ');
 
 function dominantCrop(f, state) {
   const n = new Array(CROPS.length).fill(0);
@@ -75,15 +91,17 @@ export function generateOffers() {
   G.contracts.offers = offers;
 }
 
-export function accept(id) {
+/** Takes offer id; borrow = with the neighbour's machine (for less money). */
+export function accept(id, borrow = false) {
   if (G.contracts.active) return false;
   const c = G.contracts.offers.find(o => o.id === id);
-  if (!c || !canDo(c)) return false;
+  if (!c || (!borrow && !canDo(c))) return false;
   G.contracts.active = { ...c, done: 0, deadline: G.gameMin + DAYS_TO_FINISH * 1440 };
+  if (borrow) Object.assign(G.contracts.active, { reward: borrowReward(c), borrowed: lend(borrowList(c), FIELDS.find(f => f.id === c.field)) });
   G.contracts.offers = G.contracts.offers.filter(o => o.field !== c.field);
   drawSigns();
   const nb = whoOf(c.field);
-  toast((nb ? nb.name + ': „' + nb.thanks + '“ ' : '') + 'Zakázka přijata: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + '.', 'good');
+  toast((nb ? nb.name + ': „' + nb.thanks + '“ ' : '') + 'Zakázka přijata: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + '.' + (borrow ? ' Stroj od souseda stojí u cedule pole.' : ''), 'good');
   return true;
 }
 
@@ -91,6 +109,7 @@ export function cancelActive(reason) {
   const c = G.contracts.active;
   if (!c) return;
   G.contracts.active = null;
+  returnLent(c.borrowed);
   drawSigns();
   generateOffers();
   toast(reason || 'Zakázka zrušena.', reason ? 'bad' : '');
@@ -116,6 +135,7 @@ export function checkContract(onDone) {
   if (c.done >= c.target * DONE_SHARE) {
     G.money += c.reward; earn(c.reward); stat('contracts'); G.flashT = 0.4;
     G.contracts.active = null;
+    returnLent(c.borrowed);
     drawSigns();
     generateOffers();
     toast('Zakázka splněna: ' + CTYPES[c.type].name.toLowerCase() + ' pole ' + c.field + (whoOf(c.field) ? ' pro ' + whoOf(c.field).full : '') + '. Odměna ' + fmt(c.reward) + ' Kč.', 'good');

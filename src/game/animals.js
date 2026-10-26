@@ -20,6 +20,9 @@ import { LIVESTOCK, MARKET_HALL, SLURRY_PIT, MANURE_HEAP, COW_PEN, HEN_RUN, SHEE
  *   hall in the town, which pays PALLET.bonus more than the midnight pickup.
  */
 export const SPECIES = Object.keys(HERD);
+/** More room for a herd from cow sheds the player built (game/build.js sets it). */
+export const extraCap = { cows: 0, pigs: 0, sheep: 0, hens: 0 };
+export const herdCap = key => HERD[key].cap + (extraCap[key] || 0);
 export const herdName = (key, n) => plural(n, HERD[key].one, HERD[key].few, HERD[key].many);
 const ring = { cows: COW_PEN.feed, hens: HEN_RUN.feed, sheep: SHEEP_PEN.feed, pigs: PIG_PEN.feed };
 const near = (p, z) => Math.hypot(p.x - z.x, p.z - z.z) < z.r;
@@ -45,9 +48,9 @@ export function herdTick(key, dh, fed) {
   const h = herd(key), s = HERD[key], F = G.farm;
   if (!h.n) return;
   h.health = Math.max(0, Math.min(1, h.health + (fed ? HEALTH.up : -HEALTH.down) * dh));
-  if (fed && h.health >= HEALTH.breedAbove && h.n < s.cap) {
+  if (fed && h.health >= HEALTH.breedAbove && h.n < herdCap(key)) {
     h.breed += h.n * s.breed * dh;
-    while (h.breed >= 1 && h.n < s.cap) { h.breed -= 1; h.n++; toast(BORN[key] + ' Ve stádě je teď ' + herdName(key, h.n) + '.', 'good'); }
+    while (h.breed >= 1 && h.n < herdCap(key)) { h.breed -= 1; h.n++; toast(BORN[key] + ' Ve stádě je teď ' + herdName(key, h.n) + '.', 'good'); }
   }
   if (h.health < HEALTH.sickBelow) {
     h.sick += h.n * HEALTH.deathPerHour * dh;
@@ -72,7 +75,7 @@ export function trailerAtBuilding(t, key) {
   const h = herd(key), s = HERD[key], a = t.animals;
   if (a.n > 0) {
     if (a.kind !== key) return { kind: 'wrongAnimals', t, key };
-    const n = Math.min(a.n, s.cap - h.n);
+    const n = Math.min(a.n, herdCap(key) - h.n);
     return n > 0 ? { kind: 'unloadAnimals', t, key, n } : { kind: 'herdFull', key };
   }
   const n = Math.min(h.n, s.perTrailer);
@@ -131,6 +134,8 @@ export const palletsReady = p => Math.floor(G.farm[p] / PALLET[p]);
 export const palletsHere = pt => Object.keys(PALLETS).find(p => { const z = PALLETS[p].at(); return z && near(pt, z) && palletsReady(p) > 0; }) || null;
 /** What one pallet of p fetches at the market hall. */
 export const palletValue = p => Math.round(PALLET[p] * PALLETS[p].price() * (1 + PALLET.bonus));
+/** The pallets of products on trailer t that the market hall buys (not big bags of seed or fertiliser). */
+export const productPallets = t => t.pallets.filter(p => p in PALLETS);
 /** Loads as many full pallets of p as fit into trailer t. */
 export function loadPallets(t, p) {
   const n = Math.min(palletsReady(p), t.baleCap - t.pallets.length);
@@ -140,12 +145,12 @@ export function loadPallets(t, p) {
   toast('Naloženo ' + plural(n, 'paleta', 'palety', 'palet') + ': ' + PALLETS[p].label + '. V tržnici v městečku za ně dostaneš o ' + Math.round(PALLET.bonus * 100) + ' % víc.', 'good');
   return n;
 }
-/** Sells every pallet in trailer t at the market hall. */
+/** Sells every pallet of products in trailer t at the market hall (big bags stay on). */
 export function sellPallets(t) {
-  const money = t.pallets.reduce((a, p) => a + palletValue(p), 0), n = t.pallets.length;
+  const sold = productPallets(t), money = sold.reduce((a, p) => a + palletValue(p), 0), n = sold.length;
   G.money += money; earn(money); G.flashT = 0.4;
-  t.pallets.length = 0;
+  t.pallets = t.pallets.filter(p => !(p in PALLETS));
   toast('Tržnice koupila ' + plural(n, 'paletu', 'palety', 'palet') + ' za ' + fmt(money) + ' Kč.', 'good');
 }
 /** Money the pallets in trailer t would fetch now. */
-export const palletsMoney = t => t.pallets.reduce((a, p) => a + palletValue(p), 0);
+export const palletsMoney = t => productPallets(t).reduce((a, p) => a + palletValue(p), 0);

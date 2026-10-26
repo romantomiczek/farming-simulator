@@ -1,6 +1,6 @@
 import { fmt } from '../core/util.js';
 import { G, DEV, TIME_SCALES, dayOf } from '../game/state.js';
-import { WX, season, seasonIdx, SEASONS, dayInSeason, DAYS_PER_SEASON } from '../game/weather.js';
+import { WX, season, seasonIdx, SEASONS, dayInSeason, DAYS_PER_SEASON, isRainy } from '../game/weather.js';
 import { PRESETS, settings, saveSettings, quality, gpuName, startAntialias } from '../core/settings.js';
 import { renderer } from '../render/core.js';
 import { cam } from '../render/camera.js';
@@ -70,7 +70,7 @@ function html() {
     ${check('devFreeze', 'Zastavit čas (stroje dál jezdí)')}`)}
   ${sec('Počasí', `
     <p class="devread" id="devWx"></p>
-    <div class="devbtns">${button('wx:auto', 'Podle předpovědi')}${button('wx:clear', 'Jasno')}${button('wx:cloudy', 'Oblačno')}${button('wx:rain', 'Déšť')}</div>`)}
+    <div class="devbtns">${button('wx:auto', 'Podle předpovědi')}${button('wx:clear', 'Jasno')}${button('wx:cloudy', 'Oblačno')}${button('wx:rain', 'Déšť')}${button('wx:storm', 'Bouřka')}${button('wx:hail', 'Kroupy')}</div>`)}
   ${sec('Grafika', `
     ${select('devPreset', 'Předvolba', Object.entries(PRESETS).map(([k, p]) => [k, p.label]))}
     ${range('devScale', 'Rozlišení', 0.4, 1, 0.05)}
@@ -213,7 +213,7 @@ function nextSeason() {
 function seasonDay(si) { let d = dayOf(G.gameMin); while (seasonIdx(d) !== si) d++; return d; }
 function forceWeather(k) {
   WX.force = k === 'auto' ? null : k;
-  if (WX.force) { WX.kind = k; WX.rain = k === 'rain' ? 1 : 0; WX.cloud = k === 'clear' ? 0 : 1; }
+  if (WX.force) { WX.kind = k; WX.rain = isRainy(k) ? 1 : 0; WX.cloud = k === 'clear' ? 0 : 1; }
 }
 function ripen(all) {
   for (const f of FIELDS) {
@@ -242,7 +242,7 @@ function teleport(i) {
 const ACTS = {
   close: () => toggleDev(false),
   dayBack: () => addDays(-1), dayFwd: () => addDays(1), season: nextSeason,
-  'wx:auto': () => forceWeather('auto'), 'wx:clear': () => forceWeather('clear'), 'wx:cloudy': () => forceWeather('cloudy'), 'wx:rain': () => forceWeather('rain'),
+  'wx:auto': () => forceWeather('auto'), 'wx:clear': () => forceWeather('clear'), 'wx:cloudy': () => forceWeather('cloudy'), 'wx:rain': () => forceWeather('rain'), 'wx:storm': () => forceWeather('storm'), 'wx:hail': () => forceWeather('hail'),
   gfxReset: () => { settings.custom = null; saveSettings(); hooks.applyQuality(); syncControls(); },
   money1: () => { G.money += 100000; G.flashT = 0.4; }, money2: () => { G.money += 1000000; G.flashT = 0.4; },
   unlock: () => {

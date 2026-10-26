@@ -3,8 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { M, MT, mk, B, CY, flatPlane, bake, flatten, winMat } from '../render/materials.js';
 import { col } from '../core/util.js';
 import { groundH, WATER_Y, POND_Y, groundMaterial } from './terrain.js';
-import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, SILO_LOAD, circles, addBox, onBridge } from './layout.js';
-import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond, LIVESTOCK, MARKET_HALL } from './layout.js';
+import { ROADS, PAD, POND, HOUSES, CHURCH, RIVER, RIVER_HALF, BRIDGES, FORD, PONDS, TURBINES, baleZone, fuelZone, WASH, SILO_LOAD, SUPPLY_STORE, circles, addBox, onBridge } from './layout.js';
+import { HOME, TOWN, FIELD_DEFS, polyDist, riverDist, inRect, inPond, LIVESTOCK, MARKET_HALL, BUILD_LAND } from './layout.js';
 import { roadTextures } from '../render/textures.js';
 import { addSnow } from '../render/snow.js';
 import { buildYard } from './yard.js';
@@ -331,6 +331,27 @@ export function buildFarm(scene) {
     for (let k = -3; k <= 3; k++) CY(0.06, 0.09, 0.25, 6, '#d6dde0', x + k * (r / 3.5), 4.3, z, st);
     label(st, 'Myčka', x, 5.4, z, 0); }
 
+  // the store of seed and fertiliser (game/supply.js): big bags and IBC tanks under a lean-to roof
+  { const s = SUPPLY_STORE.shed, cx = (s.x0 + s.x1) / 2, cz = (s.z0 + s.z1) / 2, w = s.x1 - s.x0, d = s.z1 - s.z0, sheet = MT('#a7afb0', 'metal'), wood = MT('#8a6c4c', 'wood');
+    B(w, 3.3, 0.22, sheet, cx, 1.65, s.z1 - 0.11, st);
+    for (const x of [s.x0 + 0.11, s.x1 - 0.11]) B(0.22, 3.0, d, sheet, x, 1.5, cz, st);
+    const roof = B(w + 0.6, 0.16, d + 1.2, MT('#6c777d', 'metal'), cx, 3.4, cz - 0.4, st); roof.rotation.x = 0.1;
+    for (const x of [s.x0 + 0.1, cx, s.x1 - 0.1]) B(0.16, 3.1, 0.16, wood, x, 1.55, s.z0 - 0.4, st);
+    const bag = (x, z, hex) => {
+      B(1.05, 0.13, 1.05, wood, x, 0.07, z, st);
+      B(0.98, 1.05, 0.98, M(hex, { roughness: 0.95 }), x, 0.66, z, st);
+      for (const dx of [-0.32, 0.32]) B(0.07, 0.24, 0.07, M('#3f7fa6'), x + dx, 1.3, z, st);
+    };
+    for (let k = 0; k < 7; k++) bag(s.x0 + 1.0 + k * 1.2, s.z1 - 1.05, k < 3 ? '#f1efe4' : k < 5 ? '#c9dcea' : '#dcd8cc');
+    for (let k = 0; k < 2; k++) { const x = s.x1 - 1.0 - k * 1.25; B(1.15, 0.95, 0.95, M('#e9ece6', { roughness: 0.45 }), x, 0.6, s.z0 + 0.9, st); B(1.2, 0.14, 1.0, M('#2c2f31'), x, 0.07, s.z0 + 0.9, st); }
+    addBox(s.x0 - 0.1, s.x1 + 0.1, s.z0 + 0.3, s.z1);
+    for (const x of [s.x0 + 0.1, cx, s.x1 - 0.1]) circles.push({ x, z: s.z0 - 0.4, r: 0.2 });
+    label(st, 'Sklad osiv', cx, 2.9, s.z0 - 0.52, Math.PI); }
+  // the building plot by the village street (game/build.js): a board on two posts facing the street
+  { const r = BUILD_LAND[0], x = r.x1 - 0.6, z = (r.z0 + r.z1) / 2, wood = MT('#8a6a52', 'wood');
+    for (const dz of [-2.6, 2.6]) { B(0.16, 3.0, 0.16, wood, x, 1.5, z + dz, st); circles.push({ x, z: z + dz, r: 0.2 }); }
+    label(st, 'Na stavby', x + 0.1, 2.4, z, Math.PI / 2); }
+
   buildYard(st);
 
   // wind turbine towers
@@ -415,6 +436,12 @@ export function label(scene, text, x, y, z, ry) {
   m.position.set(x, y, z); m.rotation.y = ry; scene.add(m);
   labels.push(m);
   document.fonts?.ready.then(() => { c.fillStyle = '#24312a'; c.fillRect(0, 0, 512, 128); c.fillStyle = '#fbf7ee'; c.fillText(text, 256, 68); tex.needsUpdate = true; });
+  return m;
+}
+/** Takes a label off the map again (a building the player pulled down). */
+export function dropLabel(m) {
+  m.parent?.remove(m); m.geometry.dispose(); m.material.map.dispose(); m.material.dispose();
+  labels.splice(labels.indexOf(m), 1);
 }
 
 /** Mill, oil mill and sugar factory along the main road, plus a label on the farm intake. */
@@ -477,6 +504,9 @@ function addZoneMarkers(scene) {
     const rg = new THREE.Mesh(new THREE.RingGeometry(p.r - 0.5, p.r, 40), new THREE.MeshBasicMaterial({ color: col(hex), transparent: true, opacity: 0.75 }));
     rg.rotation.x = -Math.PI / 2; rg.position.set(p.x, groundH(p.x, p.z) + 0.06, p.z); scene.add(rg);
   }
+  const storeRing = new THREE.Mesh(new THREE.RingGeometry(SUPPLY_STORE.r - 0.5, SUPPLY_STORE.r, 40),
+    new THREE.MeshBasicMaterial({ color: col('#8fb86a'), transparent: true, opacity: 0.8 }));
+  storeRing.rotation.x = -Math.PI / 2; storeRing.position.set(SUPPLY_STORE.x, 0.07, SUPPLY_STORE.z); scene.add(storeRing);
   const siloRing = new THREE.Mesh(new THREE.RingGeometry(SILO_LOAD.r - 0.5, SILO_LOAD.r, 40),
     new THREE.MeshBasicMaterial({ color: col('#dfe1dc'), transparent: true, opacity: 0.8 }));
   siloRing.rotation.x = -Math.PI / 2; siloRing.position.set(SILO_LOAD.x, 0.07, SILO_LOAD.z); scene.add(siloRing);

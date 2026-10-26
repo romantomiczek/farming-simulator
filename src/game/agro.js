@@ -28,6 +28,7 @@ export function cellYield(f, i) {
   m *= 1 - WEED_LOSS[weedLevel(f, i)];
   if (f.lime[i] >= LIME_DUE) m *= 1 - LIME_LOSS;
   if (f.state[i] === S_RIPE && f.stage[i] === 5) m *= 1 - WITHER_LOSS;
+  if (f.dmg[i]) m *= 1 - f.dmg[i] / 100; // hail and drought (game/climate.js)
   return m;
 }
 
@@ -36,13 +37,13 @@ export function sowCell(f, i, crop) {
   const prev = f.prev[i] - 1;
   f.bonus[i] &= ~(B_ROT | B_MONO);
   if (prev >= 0) f.bonus[i] |= prev === crop ? B_MONO : B_ROT;
-  f.weed[i] = 0;
+  f.weed[i] = 0; f.dmg[i] = 0;
 }
 /** At harvest: remember the crop, one more harvest since liming, the weeds go with the crop. */
 export function harvestCell(f, i) {
   f.prev[i] = f.crop[i] + 1;
   if (f.lime[i] < 255) f.lime[i]++;
-  f.weed[i] = 0;
+  f.weed[i] = 0; f.dmg[i] = 0;
 }
 /** A growing cell moved up a stage: weeds spread on unsprayed cells (most of them, not all). */
 export function weedsGrow(f, i, stage) {
@@ -68,7 +69,7 @@ export const sowableNow = () => CROPS.map((_, k) => k).filter(k => sowable(k));
  */
 export function fieldYield(f) {
   let n = 0, sum = 0;
-  const c = { fert: 0, fert2: 0, plow: 0, roll: 0, mulch: 0, rot: 0, mono: 0, weed: 0, lime: 0, wither: 0, stone: 0 };
+  const c = { fert: 0, fert2: 0, plow: 0, roll: 0, mulch: 0, rot: 0, mono: 0, weed: 0, lime: 0, wither: 0, stone: 0, dmg: 0 };
   const grown = f.cnt[S_SOWN] + f.cnt[S_RIPE] > f.area * 0.2;
   for (let i = 0; i < f.n; i++) {
     const s = f.state[i];
@@ -80,11 +81,12 @@ export function fieldYield(f) {
     c.weed += WEED_LOSS[weedLevel(f, i)];
     if (f.lime[i] >= LIME_DUE) c.lime++;
     if (s === S_RIPE && f.stage[i] === 5) c.wither++;
+    c.dmg += f.dmg[i] / 100;
   }
   const k = x => (n ? x / n : 0), rows = [
     ['Hnojení', k(c.fert) * FERT_BONUS], ['Druhé hnojení', k(c.fert2) * FERT2_BONUS], ['Orba', k(c.plow) * PLOW_BONUS],
     ['Válení', k(c.roll) * ROLL_BONUS], ['Mulčování', k(c.mulch) * MULCH_BONUS], ['Osevní postup', k(c.rot) * ROT_BONUS - k(c.mono) * MONO_LOSS],
-    ['Plevel', -k(c.weed)], ['Vápnění', -k(c.lime) * LIME_LOSS], ['Přezrálé', -k(c.wither) * WITHER_LOSS],
+    ['Plevel', -k(c.weed)], ['Vápnění', -k(c.lime) * LIME_LOSS], ['Přezrálé', -k(c.wither) * WITHER_LOSS], ['Počasí', -k(c.dmg)],
   ].map(([label, v]) => ({ label, v }));
   return { total: n ? sum / n : 1, rows, q: f.q, stones: k(c.stone), grown, need: { lime: k(c.lime), weed: k(c.weed) } };
 }

@@ -6,14 +6,19 @@ import {
 } from '../game/crops.js';
 import { FIELDS, fieldAt } from '../world/fields.js';
 import { bales } from '../world/bales.js';
-import { BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo, labelOf, powerShare, towShare, loadOf, toolInReach, toolNearby } from '../vehicles/vehicles.js';
+import { BALE_CELLS, HARVESTERS, tools, trailers, towed, firstOf, toolInfo, labelOf, powerShare, towShare, loadOf, toolInReach, toolNearby, cartInReach, HOPPER } from '../vehicles/vehicles.js';
+import { lPrompt, hasLoader, carryText } from '../game/loader.js';
+import { fillText, wantKind, SUPPLIES, bagStock } from '../game/supply.js';
+import { LOADER, BUILDS } from '../game/balance.js';
+import { buildActive, BM, BUILD_INFO } from '../game/build.js';
+import { productions, prodFull } from '../game/production.js';
 import { baleValue } from '../game/work.js';
 import { fAction, gAction, inShed } from '../game/actions.js';
 import { sowable, sowSeasons, sowableNow, LIME_DUE } from '../game/agro.js';
-import { herd, herdName, animalValue, animalCost, palletsMoney, palletValue, PALLETS, palletsReady } from '../game/animals.js';
+import { herd, herdName, animalValue, animalCost, palletsMoney, palletValue, PALLETS, palletsReady, productPallets } from '../game/animals.js';
 import { HERD, DUNG, PALLET, SILAGE, HAY_DRY } from '../game/balance.js';
 import { bunkerState, forageIn, forageName } from '../game/forage.js';
-import { SILO_CAP, siloTotal, siloValue, deliveryMarket, deliveryPrice, goodSale } from '../game/silo.js';
+import { siloCap, siloTotal, siloValue, deliveryMarket, deliveryPrice, goodSale } from '../game/silo.js';
 import { has } from '../game/machines.js';
 import { marketPrice, bestMarket, buyersOf } from '../game/markets.js';
 import { WX, season, dayInSeason, isWinter, isWet, forecast, weatherName, DAYS_PER_SEASON } from '../game/weather.js';
@@ -116,6 +121,7 @@ function iconsFor(v, tr, working) {
   else if (v.impl === 'baler') { fill = v.baleAcc / BALE_CELLS; icon = 'bale'; }
   else if (v.impl === 'manure' || v.impl === 'slurry') fill = v.tool.load / v.tool.loadCap;
   else if (v.impl === 'livestock') { const a = v.tool.animals; fill = a.n ? a.n / HERD[a.kind].perTrailer : 0; txt = a.n ? String(a.n) : '0'; }
+  else if (v.tool?.fill) fill = v.tool.fill.amount / v.tool.fillCap;
   if (fill >= 0) {
     const p = Math.round(Math.min(1, fill) * 100);
     out.push('<div class="ico fill" title="Naplnění"><svg viewBox="0 0 24 24">' + ICON[icon] + '</svg>' + (txt || p + ' %') + '<i><s style="width:' + p + '%"></s></i></div>');
@@ -202,8 +208,12 @@ function taskText() {
   const tl = trailers(), towing = tl.some(x => x.on), tractorNow = G.active.type === 'tractor' ? G.active : firstOf('tractor');
   const fullT = tl.find(x => full(x.tank)), balesFull = tl.find(x => x.bales >= x.baleCap), loadedT = tl.find(x => x.tank.amount > 0), balesT = tl.find(x => x.bales);
   const milk = tools.find(x => x.key === 'watertank' && x.milk && x.water > 0 && x.on === G.active);
+  const hop = tractorNow?.tool?.fill, hopKind = tractorNow && wantKind(tractorNow);
+  const hopEmpty = hop && hopKind && (hop.kind !== hopKind ? hop.amount >= 1 : hop.amount < tractorNow.tool.fillCap * 0.05);
+  const prodStuck = productions().find(k => prodFull(k));
   let t;
-  if (fullH) {
+  if (!owned.length && !meadows.length && !G.contracts.active) t = 'Zatím nemáš žádné pole. Kup ho v Kanceláři (K → Farma → Pozemky) nebo u cedule u cesty, a vydělej si zakázkou u souseda: když nemáš stroj, půjčí ti svůj (K → Zakázky).';
+  else if (fullH) {
     t = towing
       ? 'Zásobník ' + fullH.gen + ' je plný. Přistav přívěs vlevo od něj pod rouru a stiskni F, nebo jeď do výkupu.'
       : 'Zásobník ' + fullH.gen + ' je plný. Zajeď do kruhu výkupu a stiskni F, nejvíc teď platí ' + bestMarket(fullH.tank.crop, G.gameMin).m.name + '. V Družstvu na statku ho klávesou G uskladníš v silu a prodáš později.';
@@ -240,6 +250,8 @@ function taskText() {
   else if (sum(S_STUB) > 0) t = tractorNow?.impl === 'cultivator' || tractorNow?.impl === 'plough'
     ? (has('plough') ? 'Zkultivuj nebo zoráš strniště. Pluh je pomalejší, ale dá +15 % výnosu.' : 'Zkultivuj strniště. Pluh (+15 % výnosu) koupíš v Kanceláři (K).')
     : 'Na strniště potřebuješ kultivátor nebo pluh. Odpoj nářadí klávesou Q, zacouvej k jednomu z nich a připoj ho (Q).';
+  else if (hopEmpty && (sum(S_CULT) > 0 || sum(S_SOWN) > 0)) t = SUPPLIES[hopKind].name + ' v nářadí ' + labelOf(tractorNow.tool) + ' ' + (hop.kind !== hopKind ? 'nesedí, je v něm ' + SUPPLIES[hop.kind].name.toLowerCase() + '.' : 'dochází.') + ' Doplníš ho ve skladu osiv a hnojiv na severní straně dvora (zelený kruh, F), nebo z big bagu na přívěsu, který přivezeš k poli (F vedle přívěsu).';
+  else if (prodStuck) t = BUILD_INFO[prodStuck].mine + ' má plno palet a stojí. Odvez je přívěsem nebo nakladačem (F nebo L v kruhu před budovou) do tržnice v městečku.';
   else if (sum(S_CULT) > 0 && isWinter()) t = 'Zima: nesije se a nic neroste. Zoráš strniště, opravíš stroje v kůlně (R), nebo počkáš na jaro (T zrychlí čas).';
   else if (stony.length && has('roller')) t = 'Na poli ' + stony.join(' a ') + ' jsou po orbě kameny, ničí lištu kombajnu. Uválcuj ho válcem (+5 % výnosu), před setím nebo hned po něm.';
   else if (sum(S_CULT) > 0) t = (tractorNow?.impl === 'seeder' ? 'Zasej zkultivovanou půdu. Osivo změníš klávesou C.' : 'Odpoj nářadí (Q), zacouvej k secímu stroji, připoj ho (Q) a zasej.') +
@@ -289,10 +301,12 @@ function fPrompt(a) {
     case 'bunkerShut': return 'Žlab je zakrytý a kvasí';
     case 'chaffCows': return 'Krávy žerou siláž, ne čerstvou řezanku';
     case 'sell': if (a.m.feed) return 'Vyložit ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' do krmelce · ' + a.m.short;
+      if (a.m.prod) return 'Vysypat ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' · ' + a.m.name;
       return 'Prodat ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' za ' + fmt(a.h.tank.amount * marketPrice(a.m, a.h.tank.crop, G.gameMin)) + ' Kč';
     case 'wrongMarket': return a.m.name + ' nebere ' + CROPS[a.crop].gen + ' · vezme ji ' + buyersOf(a.crop).join(', ');
     case 'overload': return 'Přeložit ' + fmt(a.h.tank.amount) + ' l ' + CROPS[a.h.tank.crop].gen + ' do přívěsu';
     case 'tip': if (a.m.feed) return 'Vysypat ' + fmt(a.t.tank.amount) + ' l ' + CROPS[a.t.tank.crop].gen + ' do krmelce · ' + a.m.short;
+      if (a.m.prod) return 'Vysypat ' + fmt(a.t.tank.amount) + ' l ' + CROPS[a.t.tank.crop].gen + ' · ' + a.m.name;
       return 'Vysypat a prodat ' + fmt(a.t.tank.amount) + ' l za ' + fmt(a.t.tank.amount * marketPrice(a.m, a.t.tank.crop, G.gameMin)) + ' Kč';
     case 'stopTip': return 'Zastavit vysypávání';
     case 'loadSilo': return 'Naložit ze sila: ' + CROPS[a.crop].name + ' · ' + fmt(G.silo.stock[a.crop]) + ' l · C jiná plodina';
@@ -307,8 +321,17 @@ function fPrompt(a) {
     case 'fillDung': return 'Naplnit ' + fmt(a.l) + ' l ' + (a.slurry ? 'kejdy' : 'hnoje');
     case 'noDung': return a.slurry ? 'Jímka na kejdu je prázdná' : 'Hnojiště je prázdné';
     case 'loadPallets': return 'Naložit palety: ' + PALLETS[a.p].label + ' · ' + Math.min(palletsReady(a.p), a.t.baleCap - a.t.pallets.length) + ' ks';
-    case 'sellPallets': return 'Prodat ' + plural(a.t.pallets.length, 'paletu', 'palety', 'palet') + ' za ' + fmt(palletsMoney(a.t)) + ' Kč';
+    case 'sellPallets': return 'Prodat ' + plural(productPallets(a.t).length, 'paletu', 'palety', 'palet') + ' za ' + fmt(palletsMoney(a.t)) + ' Kč';
     case 'sellBales': return 'Prodat ' + plural(a.t.bales, 'balík', 'balíky', 'balíků') + ' za ' + fmt(baleValue(a.t).money) + ' Kč';
+    case 'logsIn': return 'Složit ' + m3(G.active.logs) + ' kulatiny na tvou pilu';
+    case 'flourIn': return 'Vyložit mouku do pekárny · ' + a.t.pallets.filter(p => p === 'flour').length + ' palet';
+    case 'prodFull': return a.name + ' má plný sklad';
+    case 'tipGround': return 'Vysypat ' + fmt(a.t.tank.amount || forageIn(a.t)) + ' l na hromadu na zem';
+    case 'fillHopper': return 'Naplnit: ' + SUPPLIES[a.what].name.toLowerCase() + ' za ' + fmt(a.cost) + ' Kč';
+    case 'hopperFull': return 'Zásobník je plný';
+    case 'bagFill': return 'Doplnit z big bagů: ' + fmt(a.l) + ' ' + SUPPLIES[a.what].unit + ' ' + SUPPLIES[a.what].gen;
+    case 'buyBag': return 'Naložit ' + SUPPLIES[a.what].bag + ' za ' + fmt(a.cost) + ' Kč · C jiný';
+    case 'trailerFull': return 'Přívěs je plný';
     case 'swap': return 'Vyměnit za ' + toolInfo(a.impl).name.toLowerCase();
     case 'header': return 'Vyměnit za ' + HEADERS[a.header].short;
     case 'buy': return 'Koupit pole ' + a.sign.f.id + ' za ' + fmt(a.sign.f.price) + ' Kč';
@@ -329,12 +352,17 @@ function toolKv(v) {
   if (v.type === 'forest') return '<dt>Dřevo</dt><dd>' + m3(v.logs) + ' / ' + v.logCap + ' m³</dd>' + condTxt(v);
   if (v.type === 'jeep') return '<dt>Vůz</dt><dd>4×4 · až ' + Math.round(v.vmax * 3.6) + ' km/h' + (v.offroad < 1 ? ' (mimo cesty ' + Math.round(v.vmax * v.offroad * 3.6) + ')' : '') + ' · <kbd>Mezerník</kbd> troubí</dd>' + condTxt(v);
   if (v.type === 'chopper') return '<dt>Adaptér</dt><dd>' + String(v.toolW).replace('.', ',') + ' m · kukuřice a řádky trávy</dd><dt>Řezanka</dt><dd>' + fmt(v.tank.amount) + ' / ' + fmt(v.tank.cap) + ' l · metá vlevo do přívěsu</dd>' + condTxt(v);
-  if (v.harvester) return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m</dd>' + condTxt(v);
+  if (v.type === 'loader') return '<dt>Náklad <kbd>L</kbd></dt><dd>' + carryText(v.ld.carry) + '</dd><dt>Unese</dt><dd>lopata ' + fmt(v.bucketCap) + ' l · ' + v.baleCap + ' balíky · palety</dd>' + condTxt(v);
+  if (v.harvester) return '<dt>Nářadí</dt><dd>' + HEADERS[v.header].name + ' ' + String(v.toolW).replace('.', ',') + ' m' + (v.transport ? ' · na vozíku' : '') + '</dd>' + (v.tool ? '<dt>Za ním</dt><dd>' + labelOf(v.tool) + '</dd>' : '') + condTxt(v);
   const c = CROPS[v.seedCrop];
   let kv = '<dt>Nářadí</dt><dd>' + (v.tool ? implLabel(v.impl, v.tool) : 'bez nářadí') + '</dd>';
   kv += '<dt>Výkon</dt><dd' + (powerShare(v, v.tool) < 1 || towShare(v) < 1 ? ' class="down"' : '') + '>' + powerText(v) + '</dd>';
   if (v.impl === 'seeder') kv += '<dt>Osivo <kbd>C</kbd></dt><dd>' + c.name + ' · ' + c.seed + ' Kč/m²</dd>';
   if (v.impl === 'seeder') kv += '<dt>Kalendář</dt><dd' + (sowable(v.seedCrop) ? '' : ' class="down"') + '>' + (sowable(v.seedCrop) ? 'seje se: ' : 'teď ne, jen: ') + sowSeasons(v.seedCrop) + '</dd>';
+  if (v.tool?.fill) {
+    const f = v.tool.fill, want = wantKind(v), low = f.amount < v.tool.fillCap * 0.1 || (f.kind !== want && f.amount >= 1);
+    kv += '<dt>Zásobník</dt><dd' + (low ? ' class="down"' : '') + '>' + (f.amount >= 1 ? fillText(v.tool) : 'prázdný · doplníš ve skladu osiv (F)') + '</dd>';
+  }
   if (v.impl === 'plough') kv += '<dt>Účinek</dt><dd>+' + pct(PLOW_BONUS) + ' výnosu · vyorá kameny</dd>';
   if (v.impl === 'spreader') kv += v.spreadLime ? '<dt>Sype <kbd>C</kbd></dt><dd>vápno · ' + LIME_COST + ' Kč/m² · po ' + LIME_DUE + ' sklizních −15 %</dd>'
     : '<dt>Sype <kbd>C</kbd></dt><dd>hnojivo · ' + FERT_COST + ' Kč/m² · +' + pct(FERT_BONUS) + ', 2. dávka +' + pct(FERT2_BONUS) + '</dd>';
@@ -352,6 +380,11 @@ function toolKv(v) {
   if (v.impl === 'trailer' && v.tool.pallets.length) kv += '<dt>Palety</dt><dd>' + v.tool.pallets.length + ' / ' + v.tool.baleCap + ' · ' + fmt(palletsMoney(v.tool)) + ' Kč v tržnici</dd>';
   if (v.impl === 'livestock') { const a = v.tool.animals; kv += '<dt>Zvířata</dt><dd>' + (a.n ? herdName(a.kind, a.n) + ' · zdraví ' + pct(a.health) : 'prázdný') + '</dd>'; }
   if (v.impl === 'manure' || v.impl === 'slurry') kv += '<dt>' + (v.impl === 'slurry' ? 'Kejda' : 'Hnůj') + '</dt><dd>' + fmt(v.tool.load) + ' / ' + fmt(v.tool.loadCap) + ' l · hnojí zdarma</dd>';
+  if (v.impl === 'trailer') {
+    const bags = Object.keys(SUPPLIES).filter(k => v.tool.pallets.includes(k)).map(k => fmt(bagStock(v.tool, k)) + ' ' + SUPPLIES[k].unit + ' ' + SUPPLIES[k].gen);
+    if (bags.length) kv += '<dt>Big bagy</dt><dd>' + bags.join(' · ') + '</dd>';
+  }
+  if (v.fl) kv += '<dt>Nakladač <kbd>L</kbd></dt><dd>' + carryText(v.ld.carry) + ' · lopata ' + fmt(LOADER.frontBucket) + ' l</dd>';
   return kv + condTxt(v);
 }
 
@@ -359,8 +392,8 @@ function shedPanel(v) {
   const show = inShed(v) && (v.type === 'tractor' || v.type === 'combine');
   ui.shed.hidden = !show;
   if (!show) return;
-  // a tractor changes implements by hand (Q), the combine picks its header here
-  const items = v.type === 'tractor' ? []
+  // a tractor changes implements by hand (Q) and takes the front loader here, the combine picks its header
+  const items = v.type === 'tractor' ? [[1, 'Čelní nakladač' + (v.fl ? ' · sundat' : ''), !!v.fl, has('frontLoader'), true]]
     : [[1, HEADERS.grain.name + ' (obilí, řepka)', v.header === 'grain', true, true], [2, HEADERS.corn.name + ' (kukuřice, slunečnice)', v.header === 'corn', has('cornHeader'), true]];
   setHTML(ui.shedList, 'shed', items.map(([n, label, on, owned, free]) => '<li class="' + (on ? 'on' : '') + (owned && free ? '' : ' off') + '"><kbd>' + n + '</kbd><span>' + label +
     (!owned ? ' · nevlastníš' : free ? '' : ' · u jiného traktoru') + '</span></li>').join(''));
@@ -390,7 +423,7 @@ function footPanel() {
   if (fa) pr.push(['F', fa]);
   if (person.speed > 0.3 && sp < 3) pr.push(['Shift', 'Běžet']);
   if (!m) pr.push(['Tab', 'Přenést se do nejbližšího stroje']);
-  setHTML(ui.prompt, 'pr', pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
+  setHTML(ui.prompt, 'pr', buildActive() ? buildPrompt() : pr.slice(0, 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
 }
 
 /** Every frame: money, clock, vehicle panel, shed panel and key prompts. */
@@ -458,14 +491,19 @@ export function updUI() {
   }
   const fa = fPrompt(fAction());
   if (fa) pr.push(['F', fa]);
+  if (hasLoader(v) && !v.helper) { const la = lPrompt(v); if (la) pr.unshift(['L', la]); }
+  if (v.type === 'combine' && !v.helper && Math.abs(v.speed) < 0.5 && !v.lowered) {
+    if (v.transport) pr.push(['L', 'Nasadit lištu z vozíku']);
+    else if (v.tool || cartInReach(v)) pr.push(['L', 'Položit lištu na vozík']);
+  }
   const ga = gAction();
-  if (ga) pr.push(['G', 'Uskladnit do sila · volno ' + fmt(SILO_CAP - siloTotal()) + ' l']);
+  if (ga) pr.push(['G', 'Uskladnit do sila · volno ' + fmt(siloCap() - siloTotal()) + ' l']);
   if (!v.helper && f && !v.lowered && canHire(v).f) pr.push(['H', 'Najmout pomocníka · ' + fmt(WAGE) + ' Kč/h']);
   if (!v.helper && v.type === 'forest' && canHire(v).wood) pr.push(['H', 'Najmout pomocníka na těžbu · ' + fmt(WAGE) + ' Kč/h']);
   const waiting = HARVESTERS.find(h => h.unloading && h.waiting === 'reach');
   if (waiting) pr.push(['', 'Najeď přívěsem pod rouru ' + waiting.gen]);
   const tool = v.type === 'tractor' ? (['livestock', 'watertank'].includes(v.impl) ? null : v.tool?.name.toLowerCase()) : HEADERS[v.header]?.short; // the forestry harvester has none
-  if (tool && f && (f.owned || G.contracts.active?.field === f.id) && !v.lowered && (!withTrailer || tr.pickup) && !v.helper) pr.push(['Mezerník', tr?.pickup ? 'Spustit sběrač' : 'Spustit ' + tool]);
+  if (tool && f && (f.owned || G.contracts.active?.field === f.id) && !v.lowered && (!withTrailer || tr.pickup) && !v.helper && !v.transport) pr.push(['Mezerník', tr?.pickup ? 'Spustit sběrač' : 'Spustit ' + tool]);
   if (v.type === 'chopper' && v.waiting === 'reach') pr.push(['', 'Řezačka nemá kam metat: přívěs vlevo vedle ní']);
   if (f && f.owned && v.lowered && Math.abs(v.speed) < 0.3 && v.fuel > 0) pr.push(['W', 'Jeď, nářadí pracuje jen v pohybu']);
   if (v.fuel <= 0) pr.unshift(['K', 'Došla nafta: objednej dovoz v Kanceláři']);
@@ -476,7 +514,13 @@ export function updUI() {
     else if (near) pr.push(['', 'Zacouvej závěsem k: ' + labelOf(near)]);
     else if (v.tool && Math.abs(v.speed) < 0.3 && !v.lowered) pr.push(['Q', 'Odpojit: ' + labelOf(v.tool)]);
   }
-  setHTML(ui.prompt, 'pr', pr.slice(0, ga ? 3 : 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
+  setHTML(ui.prompt, 'pr', buildActive() ? buildPrompt() : pr.slice(0, ga ? 3 : 2).map(p => '<div>' + (p[0] ? '<kbd>' + p[0] + '</kbd>' : '') + '<span>' + p[1] + '</span></div>').join(''));
+}
+/** Build mode: what is being put up, whether it can stand here, and the keys. */
+function buildPrompt() {
+  const c = BM.c, s = BUILDS[BM.type];
+  return '<div><kbd>F</kbd><span>Postavit: ' + BUILD_INFO[BM.type].name + ' · ' + fmt(s.price) + ' Kč</span></div>' +
+    '<div' + (c && !c.ok ? ' class="bad"' : '') + '><kbd>R</kbd><span>' + (c && !c.ok ? c.why : 'Otočit' + (c?.why ? ' · ' + c.why : '')) + ' · Esc zrušit</span></div>';
 }
 
 /** Twice a second: next-step hint and the price list. */
@@ -485,7 +529,7 @@ const hhmm = min => { const m = Math.floor(min % 1440); return String((m / 60) |
 export function updSlowUI() {
   setText(ui.task, 'task', taskText());
   const fc = forecast(), winter = isWinter();
-  setText(ui.wx, 'wx', season().name + ' · den ' + dayInSeason() + ' ze ' + DAYS_PER_SEASON + ' · ' + weatherName(WX.kind, winter) +
+  setText(ui.wx, 'wx', season().name + ' · den ' + dayInSeason() + ' ze ' + DAYS_PER_SEASON + ' · ' + weatherName(WX.kind, winter) + (WX.drought ? ' · sucho' : '') +
     (fc ? ', ' + weatherName(fc.kind, winter).toLowerCase() + ' od ' + hhmm(fc.at) : ''));
   const hs = helpers();
   ui.helpers.hidden = !hs.length;
