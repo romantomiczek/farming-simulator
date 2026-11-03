@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { scene, sun, hemi, fogBase } from './core.js';
+import { scene, sun, hemi, fogBase, placeSun } from './core.js';
 import { col, lerp, smooth } from '../core/util.js';
 import { lampMat } from './materials.js';
 import { updSky } from './sky.js';
@@ -33,8 +33,7 @@ export function updEnv(target, gameMin, vehicles, active, wx) {
   const dawn = (1 - smooth(0.05, 0.55, e)) * day;
   if (e > 0.05) dir.set(Math.cos(az) * Math.cos(Math.max(e, 0.3)), Math.sin(Math.max(e, 0.3)), -0.5).normalize();
   else dir.set(0.35, 0.85, 0.4).normalize();
-  sun.position.copy(target).addScaledVector(dir, 180);
-  sun.target.position.copy(target);
+  placeSun(target, dir, 180);
   // the light keeps a minimum elevation for nice shadows; the visible sun really sets
   sunVisual.set(Math.cos(az) * Math.cos(e), Math.sin(e), -0.5 * Math.cos(e)).normalize();
   c1.copy(C_NOON).lerp(C_DAWN, Math.min(1, dawn * 1.15));

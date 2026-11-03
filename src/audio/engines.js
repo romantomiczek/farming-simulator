@@ -184,10 +184,17 @@ export const engineLoud = () => loud;
  * (listening point and the camera's right direction), playing }. Engines only change state while
  * the game runs (or the engine test is on).
  */
+// lists refilled every frame instead of made anew (less garbage, fewer collector stalls)
+const vehicles = [], present = new Set(), heard = [], keep = new Set();
+const heardPool = [];
+/** Distance for choosing the voices: a car of the traffic counts as twice as far. */
+const far = h => h.d * (h.st.traffic ? 2 : 1);
 export function updEngines(dt, env) {
   if (!ac) return;
-  const { active, ear } = env, test = engineTest.on, cars = env.traffic || [], vehicles = env.vehicles.concat(cars);
-  for (const [v, st] of states) if (!vehicles.includes(v)) { st.voice?.release(); states.delete(v); }
+  const { active, ear } = env, test = engineTest.on, cars = env.traffic || [];
+  vehicles.length = 0; vehicles.push(...env.vehicles, ...cars);
+  present.clear(); for (const v of vehicles) present.add(v);
+  for (const [v, st] of states) if (!present.has(v)) { st.voice?.release(); states.delete(v); }
   for (const v of vehicles) {
     let st = states.get(v);
     if (!st) states.set(v, (st = { on: false, off: 0, rpm: 0, sp: 0, gear: 0, voice: null, s: 0, load: 0, traffic: cars.includes(v) }));
@@ -201,23 +208,26 @@ export function updEngines(dt, env) {
   }
 
   // voices: the machine you sit in, then the nearest running ones
-  const heard = [];
+  heard.length = 0;
   for (const v of vehicles) {
     const st = states.get(v);
     if (!st.on) continue;
     const d = Math.hypot(v.x - ear.x, v.z - ear.z);
-    if (v === active || d < HEAR) heard.push({ v, st, d });
+    if (v === active || d < HEAR) {
+      const h = heardPool[heard.length] || (heardPool[heard.length] = {});
+      h.v = v; h.st = st; h.d = d; heard.push(h);
+    }
   }
-  // the farm's machines come before the traffic: a car counts as twice as far, at most two are heard
-  const far = h => h.d * (h.st.traffic ? 2 : 1);
+  // the farm's machines come before the traffic (see far), at most two cars are heard
   heard.sort((a, b) => (b.v === active) - (a.v === active) || far(a) - far(b));
-  let nCars = 0;
-  const chosen = heard.filter(h => !(h.st.traffic && ++nCars > 2)).slice(0, VOICES);
-  const keep = new Set(chosen.map(h => h.v));
+  let nCars = 0, n = 0;
+  for (const h of heard) if (n < VOICES && !(h.st.traffic && ++nCars > 2)) heard[n++] = h;
+  heard.length = n; // the chosen ones
+  keep.clear(); for (const h of heard) keep.add(h.v);
   for (const [v, st] of states) if (st.voice && (!keep.has(v) || !st.on)) { st.voice.release(); st.voice = null; }
 
   loud = 0;
-  for (const { v, st, d } of chosen) {
+  for (const { v, st, d } of heard) {
     const p = profileOf(test && v === active ? engineTest.model : modelOf(v));
     if (st.voice && st.voice.p !== p) { st.voice.release(); st.voice = null; }
     const att = 1 / Math.sqrt(1 + (d / 14) ** 2);

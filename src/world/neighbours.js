@@ -219,13 +219,14 @@ export function updNeighbours(ctx) {
     }
   }
   roadTick(dt, others);
+  sounds.length = 0;
+  sounds.push(road.o);
+  for (const j of jobs) sounds.push(j.o);
   // only within sight: far machines are not drawn
-  for (const o of [road.o, ...jobs.map(j => j.o)]) {
+  for (const o of sounds) {
     const far = Math.abs(o.x - target.x) > 260 || Math.abs(o.z - target.z) > 260;
     o.group.visible = !far; if (o.trailer) o.trailer.group.visible = !far;
   }
-  sounds.length = 0;
-  sounds.push(road.o, ...jobs.map(j => j.o));
   return sounds;
 }
 const sounds = [];

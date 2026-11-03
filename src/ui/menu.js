@@ -1,4 +1,4 @@
-import { settings, PRESETS, saveSettings, gpuName, isIntegrated, startAntialias, MUSIC_STYLES } from '../core/settings.js';
+import { settings, PRESETS, saveSettings, gpuName, isIntegrated, startAntialias, MUSIC_STYLES, FPS_CAPS } from '../core/settings.js';
 import { nowPlaying } from '../audio/music.js';
 import { sound } from '../audio.js';
 
@@ -55,6 +55,13 @@ export function initMenu(h) {
     settings.preset = k; settings.custom = null; saveSettings(); renderGfx(); handlers.onQuality();
   };
   $('fpsCheck').onchange = e => { settings.showFps = e.target.checked; saveSettings(); };
+  // the main loop reads settings.fpsCap every frame
+  $('fpsSeg').innerHTML = Object.entries(FPS_CAPS).map(([k, label]) => `<button role="radio" data-cap="${k}">${label}</button>`).join('');
+  $('fpsSeg').onclick = e => {
+    const k = e.target.closest('button')?.dataset.cap;
+    if (k == null) return;
+    settings.fpsCap = +k; saveSettings(); renderGfx();
+  };
   $('gpuName').textContent = gpuName;
   $('gpuWarn').hidden = !isIntegrated;
   renderGfx();
@@ -99,6 +106,7 @@ function renderGfx() {
   for (const b of $('presetSeg').children) b.setAttribute('aria-checked', String(b.dataset.p === settings.preset));
   $('presetDesc').textContent = PRESETS[settings.preset].desc;
   $('fpsCheck').checked = settings.showFps;
+  for (const b of $('fpsSeg').children) b.setAttribute('aria-checked', String(+b.dataset.cap === settings.fpsCap));
   $('aaNote').hidden = PRESETS[settings.preset].antialias === startAntialias;
 }
 

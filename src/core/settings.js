@@ -59,9 +59,13 @@ export const VOL_DEFAULT = { music: 0.45, engines: 0.8, ambient: 0.7, effects: 0
 /** Which music plays: guitar pieces, piano pieces or both. */
 export const MUSIC_STYLES = { both: 'Obojí', guitar: 'Kytara', piano: 'Klavír' };
 
-export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, showPrices: false, sound: true, custom: null, vol: { ...VOL_DEFAULT }, musicStyle: 'both' };
+/** Frame cap choices (frames per second, 0 = no cap). */
+export const FPS_CAPS = { 0: 'Bez limitu', 30: '30', 60: '60', 120: '120' };
+
+export const settings = { preset: isIntegrated ? 'low' : 'high', showFps: true, showPrices: false, sound: true, custom: null, vol: { ...VOL_DEFAULT }, musicStyle: 'both', fpsCap: 0 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage unavailable */ }
 if (!PRESETS[settings.preset]) settings.preset = 'medium';
+if (!FPS_CAPS[settings.fpsCap]) settings.fpsCap = 0;
 settings.vol = { ...VOL_DEFAULT, ...settings.vol };
 if (!MUSIC_STYLES[settings.musicStyle]) settings.musicStyle = 'both';
 

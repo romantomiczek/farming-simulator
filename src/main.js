@@ -154,6 +154,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveL
 /* ---------- main loop ---------- */
 let slowT = 0, mapT = 0, forestHours = 0, growHours = 0, heardThunder = 0;
 const ear = { x: 0, z: 0, rx: 1, rz: 0 }, selling = new Set();
+// lists refilled every frame instead of made anew (less garbage, fewer collector stalls)
+const withPerson = [], heardTraffic = [];
 function tick(dt) {
   if (G.playing) {
     const gm = DEV.freezeTime ? 0 : dt * TIME_SCALES[G.tsIdx] * DEV.timeMult;
@@ -205,7 +207,8 @@ function tick(dt) {
     updVillagers({ dt, target: cam.t, hour: (G.gameMin / 60) % 24, vehicles, selling, fest: festivalNow() });
   }
   if (G.playing) festivalTick(dt, G.onFoot ? null : G.active);
-  const nbMachines = updNeighbours({ dt, playing: G.playing, target: cam.t, others: G.onFoot ? [...vehicles, person] : vehicles });
+  if (G.onFoot) { withPerson.length = 0; withPerson.push(...vehicles, person); }
+  const nbMachines = updNeighbours({ dt, playing: G.playing, target: cam.t, others: G.onFoot ? withPerson : vehicles });
   if (G.playing && DEV.wildlife) wildlife.update(dt, { vehicles, active: player(), hour: (G.gameMin / 60) % 24, cows: has('cows'), hens: has('hens') });
   updParticles(dt);
   updStreams(dt);
@@ -234,7 +237,8 @@ function tick(dt) {
     const e = camera.matrixWorld.elements, n = Math.hypot(e[0], e[2]) || 1;
     Object.assign(ear, { x: cam.t.x, z: cam.t.z, rx: e[0] / n, rz: e[2] / n });
   }
-  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: [...traffic.activeCars(), ...nbMachines], ear });
+  heardTraffic.length = 0; traffic.activeCars(heardTraffic); heardTraffic.push(...nbMachines);
+  updAudio(dt, { playing: G.playing, rain: WX.rain, hour: (G.gameMin / 60) % 24, flash: G.flashT, money: G.money, winter: isWinter(), active: G.onFoot ? null : G.active, vehicles, traffic: heardTraffic, ear });
   slowT -= dt; if (slowT <= 0) { slowT = 0.5; growFields(growHours); growHours = 0; countSomeFields(player().x, player().z); checkContract(saveLocal); if (checkDeliveries()) saveLocal(); if (checkGoals()) saveLocal(); growForest(forestHours, isWinter() ? 0.25 : 1); forestHours = 0; updSlowUI(); }
   mapT -= dt; if (mapT <= 0) { mapT = 0.12; drawMinimap(); updFieldLOD(cam.t.x, cam.t.z, quality().cropLod, quality().cardDist); { const q = quality(); vegetation.updLOD(cam.t.x, cam.t.z, Math.min(150, Math.max(55, cam.dist * 1.5)), q); updTerrainLOD(cam.t.x, cam.t.z, q.terrainFine, q.terrainMid); } updLabels(cam.t.x, cam.t.z); }
   if (shadersReady) {
@@ -263,13 +267,21 @@ let shadersReady = false;
 updateCamera(0, player());
 renderer.compileAsync(scene, camera).catch(() => {}).finally(() => { shadersReady = true; });
 
-let last = performance.now();
+// The frame cap (settings.fpsCap, 0 = none) skips screen refreshes that come too early: on a 144 Hz
+// screen a laptop then draws 60 frames, not 144, and stays cool instead of slowing its clock down.
+let last = performance.now(), due = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  const cap = settings.fpsCap;
+  if (cap) {
+    if (now < due - 2) return; // 2 ms slack for the jitter of the refresh times
+    due = Math.max(due + 1000 / cap, now);
+  }
   const raw = (now - last) / 1000;
   last = now;
-  perfSample(raw);
+  const t0 = performance.now();
   tick(Math.min(0.05, raw));
+  perfSample(raw, performance.now() - t0);
 }
 requestAnimationFrame(frame);
 

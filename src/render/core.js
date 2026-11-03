@@ -53,6 +53,24 @@ export function setShadowSize(s) {
 }
 setShadowSize(70);
 
+const _sx = new THREE.Vector3(), _sy = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+/**
+ * Puts the sun dist metres from target in direction dir (unit vector towards the sun). The shadow
+ * camera is moved sideways to a whole number of shadow map texels, so the shadow edges no longer
+ * crawl and flicker while the camera follows a moving machine.
+ */
+export function placeSun(target, dir, dist) {
+  // the shadow camera's own right and up axes (it looks from the sun at the target, up = +Y)
+  _sx.crossVectors(_up, dir).normalize();
+  _sy.crossVectors(dir, _sx);
+  const texel = (2 * shadowSize) / sun.shadow.mapSize.x;
+  const x = target.dot(_sx), y = target.dot(_sy);
+  sun.target.position.copy(target)
+    .addScaledVector(_sx, Math.round(x / texel) * texel - x)
+    .addScaledVector(_sy, Math.round(y / texel) * texel - y);
+  sun.position.copy(sun.target.position).addScaledVector(dir, dist);
+}
+
 /** Fog distances of the current preset; weather shortens them from here. */
 export const fogBase = { near: 200, far: 560 };
 

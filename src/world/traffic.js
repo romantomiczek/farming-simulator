@@ -142,8 +142,8 @@ export function buildTraffic() {
       cars.count = nCars; bikes.count = nBikes; legs.count = nBikes * 2;
     },
     count: () => ({ cars: nCars, bikes: nBikes, maxCars: NC, maxBikes: N_BIKES }),
-    /** The cars on the road now (for the engine sounds). */
-    activeCars: () => list.slice(0, nCars),
+    /** Adds the cars on the road now to out (for the engine sounds). */
+    activeCars(out) { for (let i = 0; i < nCars; i++) out.push(list[i]); return out; },
     /** ctx = { vehicles, listener } */
     update(dt, ctx) {
       list.forEach((c, i) => { if (i >= nCars) return; travel(c, dt, ctx.vehicles); place(cars, i, c.x, c.z, c.h); });
